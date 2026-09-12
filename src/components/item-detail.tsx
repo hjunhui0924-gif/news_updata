@@ -1,0 +1,273 @@
+'use client';
+import { useState } from 'react';
+import {
+  ArrowLeft,
+  ArrowUpRight,
+  Bookmark,
+  Check,
+  ChevronDown,
+  Clock3,
+  Code2,
+  FileText,
+  Languages,
+  Link2,
+  Loader2,
+  ShieldCheck,
+  Sparkles,
+} from 'lucide-react';
+import type { FeedItem } from '@/shared/types';
+import { Button } from './ui/button';
+import { Markdown } from './markdown';
+export function ItemDetail({
+  item,
+  toggleSaved,
+  translate,
+  summarize,
+  busy,
+  back,
+  timezone,
+  error,
+}: {
+  item: FeedItem | null;
+  toggleSaved: () => void;
+  translate: () => void;
+  summarize: () => void;
+  busy: boolean;
+  back: () => void;
+  timezone: string;
+  error?: string | null;
+}) {
+  const [tab, setTab] = useState<'summary' | 'translation' | 'original'>('summary');
+  const [evidence, setEvidence] = useState(false);
+  if (!item)
+    return (
+      <section className="detail-panel blank-detail">
+        <div className="blank-mark">
+          <RadioGlyph />
+        </div>
+        <span className="eyebrow">A LITTLE LESS NOISE</span>
+        <h2>
+          下一条值得关注的变化，
+          <br />
+          就在这里。
+        </h2>
+        <p>选择一条更新，阅读中文摘要与原文。</p>
+      </section>
+    );
+  return (
+    <section className="detail-panel" aria-label="更新详情">
+      <div className="detail-toolbar">
+        <button className="back-button" onClick={back}>
+          <ArrowLeft size={17} />
+          返回列表
+        </button>
+        <span className="detail-breadcrumb">
+          <FileText size={14} />
+          更新详情
+        </span>
+        <div className="toolbar-actions">
+          <button
+            className={`icon-button ${item.saved ? 'is-saved' : ''}`}
+            onClick={toggleSaved}
+            title={item.saved ? '取消收藏' : '收藏更新'}
+            aria-label={item.saved ? '取消收藏' : '收藏更新'}
+          >
+            <Bookmark size={18} fill={item.saved ? 'currentColor' : 'none'} />
+          </button>
+          <a
+            className="icon-button"
+            href={item.url}
+            target="_blank"
+            rel="noreferrer"
+            aria-label="打开 GitHub 来源"
+          >
+            <ArrowUpRight size={20} />
+          </a>
+        </div>
+      </div>
+      <article className="detail-content">
+        <div className="detail-source">
+          <span className={`repo-avatar large ${item.color}`}>
+            {item.repo.split('/').pop()?.slice(0, 2).toUpperCase()}
+          </span>
+          <div>
+            <strong>{item.repo}</strong>
+            <span>{item.type === 'new_repo' ? '新项目' : '正式版本发布'} · GitHub</span>
+          </div>
+          <span className="status-chip">
+            <Check size={12} />
+            {item.read ? '已读' : '未读'}
+          </span>
+        </div>
+        <h2 className="detail-title">{item.title}</h2>
+        <div className="detail-meta">
+          <span>
+            <Clock3 size={13} />
+            {new Date(item.publishedAt).toLocaleString('zh-CN', {
+              month: 'long',
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+              timeZone: timezone,
+            })}
+          </span>
+          <span>{timezone}</span>
+          {item.demo && <span className="demo-label">演示内容 · 非官方发布记录</span>}
+        </div>
+        <div className="detail-tabs" role="tablist" aria-label="内容视图">
+          {[
+            { key: 'summary', label: '中文摘要', icon: Sparkles },
+            { key: 'translation', label: '中文译文', icon: Languages },
+            { key: 'original', label: '原文', icon: Code2 },
+          ].map(({ key, label, icon: Icon }) => (
+            <button
+              key={key}
+              role="tab"
+              aria-selected={tab === key}
+              onClick={() => setTab(key as typeof tab)}
+              className={tab === key ? 'active' : ''}
+            >
+              <Icon size={15} />
+              {label}
+            </button>
+          ))}
+        </div>
+        <div role="tabpanel" className="tab-content">
+          {error && (
+            <p className="form-error" role="alert">
+              {error}
+            </p>
+          )}
+          {tab === 'summary' &&
+            (item.summary ? (
+              <>
+                <div className="summary-intro">
+                  <div className="summary-label">
+                    <Sparkles size={15} />
+                    {item.demo ? '摘要示例' : 'AI 内容摘要'}
+                    <span>简明版</span>
+                  </div>
+                  <p>{item.summary.overview}</p>
+                </div>
+                <section className="reading-section">
+                  <h3>这次更新了什么</h3>
+                  <div className="change-list">
+                    {item.summary.changes.map((change, index) => (
+                      <div key={index} className="change-row">
+                        <span className="change-number">0{index + 1}</span>
+                        <p>{change.text}</p>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+                <section className="impact-box">
+                  <span className="impact-icon">
+                    <ShieldCheck size={19} />
+                  </span>
+                  <div>
+                    <h3>
+                      对你可能有什么用
+                      <span>
+                        {item.summary.impact.kind === 'inferred'
+                          ? '推测影响'
+                          : item.summary.impact.kind === 'unknown'
+                            ? '信息不足'
+                            : '原文说明'}
+                      </span>
+                    </h3>
+                    <p>{item.summary.impact.text}</p>
+                  </div>
+                </section>
+                <section className="reading-section compatibility">
+                  <h3>升级前留意</h3>
+                  <p>
+                    {item.summary.migrationNote ||
+                      '原文没有明确说明迁移要求，建议升级前查看项目文档。'}
+                  </p>
+                  <span className="neutral-tag">
+                    兼容性：
+                    {item.summary.breakingChange === 'unknown'
+                      ? '原文未明确说明'
+                      : item.summary.breakingChange === 'yes'
+                        ? '存在不兼容变化'
+                        : '原文明确兼容'}
+                  </span>
+                </section>
+                <button
+                  className="evidence-toggle"
+                  onClick={() => setEvidence(!evidence)}
+                  aria-expanded={evidence}
+                >
+                  <Link2 size={14} />
+                  查看摘要依据 <ChevronDown size={14} />
+                </button>
+                {evidence && (
+                  <div className="evidence-list">
+                    {item.summary.evidence.map((source) => (
+                      <p key={source.id}>
+                        <strong>[{source.id}]</strong> {source.text}
+                      </p>
+                    ))}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="ai-empty">
+                <Sparkles size={28} />
+                <h3>
+                  {item.aiStatus === 'insufficient' ? '项目介绍尚未完善' : '这条更新还没有中文摘要'}
+                </h3>
+                <p>{item.aiError || '原文始终可读。配置 AI 服务后，可以生成有来源依据的摘要。'}</p>
+                <Button onClick={summarize} disabled={busy || !item.body}>
+                  {busy ? <Loader2 className="spin" size={16} /> : <Sparkles size={16} />}生成摘要
+                </Button>
+              </div>
+            ))}
+          {tab === 'original' &&
+            (item.body ? (
+              <Markdown text={item.body} />
+            ) : (
+              <div className="empty-state">
+                <FileText size={28} />
+                <h3>暂无可读取的正文</h3>
+                <p>你仍可以前往 GitHub 查看项目信息。</p>
+              </div>
+            ))}
+          {tab === 'translation' &&
+            (item.language === 'zh' ? (
+              <Markdown text={item.body} />
+            ) : item.translation ? (
+              <Markdown text={item.translation} />
+            ) : (
+              <div className="ai-empty">
+                <Languages size={30} />
+                <h3>用熟悉的语言，读懂细节</h3>
+                <p>
+                  {item.demo
+                    ? '体验按需翻译流程，演示译文已预先编写，不消耗模型额度。'
+                    : '完整翻译仅在你需要时生成，并会复用已有结果。'}
+                </p>
+                <Button variant="primary" onClick={translate} disabled={busy || !item.body}>
+                  {busy ? <Loader2 size={16} className="spin" /> : <Languages size={16} />}
+                  生成中文翻译
+                </Button>
+              </div>
+            ))}
+        </div>
+        <footer className="reading-footer">
+          <span>
+            <ShieldCheck size={14} />
+            {item.demo ? '以上内容是用于体验的固定示例' : '摘要用于辅助阅读，请以来源为准'}
+          </span>
+          <a href={item.url} target="_blank" rel="noreferrer">
+            {item.demo ? '查看参考项目' : '查看完整原文'}
+            <ArrowUpRight size={14} />
+          </a>
+        </footer>
+      </article>
+    </section>
+  );
+}
+function RadioGlyph() {
+  return <FileText size={32} strokeWidth={1.3} />;
+}

@@ -1,0 +1,46 @@
+import { getConfig } from '../config';
+import { getPool } from '../db/client';
+import { getItems, getJobs, getNotifications, getPreferences, getSubscriptions } from '../db/store';
+import type { Bootstrap } from '@/shared/types';
+
+export async function bootstrap(user: {
+  id: string;
+  name: string;
+  image?: string | null;
+}): Promise<Bootstrap> {
+  const config = getConfig();
+  const [items, subscriptions, preferences, jobs, notifications, heartbeat, usage] =
+    await Promise.all([
+      getItems(user.id),
+      getSubscriptions(user.id),
+      getPreferences(user.id),
+      getJobs(user.id),
+      getNotifications(user.id),
+      getPool().query("SELECT value FROM system_state WHERE key='worker-heartbeat'"),
+      getPool().query(
+        "SELECT coalesce(sum(cost),0) cost FROM ai_usage WHERE user_id=$1 AND created_at >= date_trunc('day',now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'",
+        [user.id],
+      ),
+    ]);
+  const currentSubscriptions = new Map(subscriptions.map((sub) => [sub.id, sub]));
+  return {
+    mode: config.APP_MODE,
+    user: { name: user.name, image: user.image },
+    items: items.map((item) => ({
+      ...item,
+      priority: currentSubscriptions.get(item.sourceId)?.priority ?? false,
+    })),
+    subscriptions,
+    preferences,
+    jobs,
+    notifications,
+    services: {
+      github: !!config.GITHUB_READ_TOKEN,
+      ai: config.LLM_ENABLED === 'true',
+      workerLastSeen: heartbeat.rows[0]?.value ?? null,
+      workerOnline:
+        !!heartbeat.rows[0]?.value && Date.now() - Date.parse(heartbeat.rows[0].value) < 60000,
+      costToday: Number(usage.rows[0].cost),
+    },
+  };
+}
