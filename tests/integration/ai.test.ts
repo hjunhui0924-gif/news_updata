@@ -67,6 +67,50 @@ it('caches successful results and never overwrites changed source content', asyn
   ).rejects.toThrow('原文已更新');
   expect((await getItem(userId, item.id))?.summary).toBeNull();
 });
+it('does not save or cache a partial translation, and caches a complete retry', async () => {
+  const source =
+    '### Changes\n\n- Fix expired login sessions and improve the error message.\n- Cache static assets to improve initial loading speed.\n- Add Korean documentation with navigation and search support for new users.\n';
+  const translated =
+    '### 变化\n\n- 修复过期登录会话并改进错误提示。\n- 缓存静态资源以提升初始加载速度。\n- 为新用户添加支持导航和搜索的韩文文档。\n';
+  const current = {
+    ...item,
+    id: randomUUID(),
+    externalId: randomUUID(),
+    contentHash: randomUUID(),
+    language: 'en' as const,
+    body: source,
+    translation: null,
+  };
+  await saveItem(userId, current);
+  await expect(
+    runAi(userId, current.id, 'translation', async () => ({
+      value: { segments: [{ id: 'l0', text: '变化' }] },
+      inputTokens: 20,
+      outputTokens: 10,
+    })),
+  ).rejects.toThrow('不完整');
+  expect((await getItem(userId, current.id))?.translation).toBeNull();
+  let calls = 0;
+  const complete = async () => {
+    calls++;
+    return {
+      value: {
+        segments: [
+          { id: 'l0', text: '变化' },
+          { id: 'l2', text: '修复过期登录会话并改进错误提示。' },
+          { id: 'l3', text: '缓存静态资源以提升初始加载速度。' },
+          { id: 'l4', text: '为新用户添加支持导航和搜索的韩文文档。' },
+        ],
+      },
+      inputTokens: 20,
+      outputTokens: 80,
+    };
+  };
+  await runAi(userId, current.id, 'translation', complete);
+  await runAi(userId, current.id, 'translation', complete);
+  expect(calls).toBe(1);
+  expect((await getItem(userId, current.id))?.translation).toBe(translated);
+});
 it('concurrent reservations cannot exceed the configured daily budget', async () => {
   const results = await Promise.allSettled(
     Array.from({ length: 5 }, () => reserveBudget(userId, 0.2)),

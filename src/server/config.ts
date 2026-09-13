@@ -14,6 +14,7 @@ const schema = z.object({
   LLM_API_BASE_URL: z.string().default(''),
   LLM_API_KEY: z.string().default(''),
   LLM_MODEL: z.string().default(''),
+  LLM_ENABLE_THINKING: z.enum(['auto', 'true', 'false']).default('auto'),
   LLM_DAILY_BUDGET_USD: z.coerce.number().positive().default(0.5),
   LLM_MONTHLY_BUDGET_USD: z.coerce.number().positive().default(5),
   LLM_INPUT_USD_PER_MILLION: z.coerce.number().nonnegative().default(0),

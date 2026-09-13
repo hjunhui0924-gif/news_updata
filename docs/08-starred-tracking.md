@@ -53,4 +53,4 @@
 
 运行此次隔离浏览器测试：`pnpm test:e2e:starred`。依赖已启动的本地 PostgreSQL 和此前写入的 demo 样本；首次使用先按 README 初始化 demo，再切回 live。
 
-模型配置已填入但自动 AI 调用仍关闭，待确认实际单价与模型请求兼容性后再做真实总结/翻译验收。
+后续已切换并启用 `qwen3.8-flash`，补齐 43 条历史中文摘要并验证真实译文。当前模型、计价和验证范围见 [AI 联调记录](09-ai-connection-status.md)。

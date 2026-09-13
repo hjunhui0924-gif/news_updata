@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { prepareEvidence, validateSummary, cacheKey } from '../src/server/ai/service';
+import {
+  prepareEvidence,
+  validateSummary,
+  validateTranslation,
+  cacheKey,
+} from '../src/server/ai/service';
 import { createDemoData } from '../src/server/demo/fixtures';
 const evidence = [{ id: 's1', text: 'Adds PDF import. Compatibility is not specified.' }];
 const valid = {
@@ -13,6 +18,31 @@ const valid = {
   migrationEvidenceIds: [],
 };
 describe('AI source contract', () => {
+  it('rejects an English overview even when the summary structure and citations are valid', () => {
+    expect(() =>
+      validateSummary(
+        { ...valid, overview: 'Updated image defaults and added Korean documentation.' },
+        evidence,
+      ),
+    ).toThrow('中文');
+  });
+  it('rejects a heading-only translation of a full release, but accepts its full translated list', () => {
+    const source =
+      '### Improvements\n\n- Fixed expired login sessions and improved the error message.\n- Cached static assets to improve initial loading speed.\n\n### Documentation\n\n- Added Korean documentation with navigation and search support.\n';
+    expect(() => validateTranslation({ translation: '### 改进项' }, source)).toThrow('不完整');
+    const translated =
+      '### 改进\n\n- 修复过期登录会话并改进错误提示。\n- 缓存静态资源以提高初始加载速度。\n\n### 文档\n\n- 添加了支持导航与搜索的韩文文档。\n';
+    expect(validateTranslation({ translation: translated }, source)).toBe(translated);
+    expect(validateTranslation({ translation: translated.replaceAll('\n', '<br>') }, source)).toBe(
+      translated,
+    );
+    expect(() => validateTranslation({ translation: source }, source)).toThrow('中文');
+    expect(validateTranslation({ translation: '修复错误。' }, 'Bug fixes.')).toBe('修复错误。');
+  });
+  it('preserves code literals and accepts code-only content without forcing a translation', () => {
+    const source = '```html\n<br>\n```\n`<br>`\nhttps://example.com/docs';
+    expect(validateTranslation({ translation: source }, source)).toBe(source);
+  });
   it('rejects invented references and unsupported compatibility conclusions', () => {
     expect(validateSummary(valid, evidence).breakingChange).toBe('unknown');
     expect(() =>

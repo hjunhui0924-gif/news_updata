@@ -60,6 +60,7 @@ LLM_ENABLED=true
 LLM_API_BASE_URL=https://your-provider.example/v1
 LLM_API_KEY=your-secret
 LLM_MODEL=your-model
+LLM_ENABLE_THINKING=auto
 LLM_INPUT_USD_PER_MILLION=实际输入单价
 LLM_OUTPUT_USD_PER_MILLION=实际输出单价
 LLM_DAILY_BUDGET_USD=0.5
@@ -67,6 +68,8 @@ LLM_MONTHLY_BUDGET_USD=5
 ```
 
 上面地址和单价是填写示意，不能直接调用。base URL 不包含 `/chat/completions`，请求路径由应用追加。模型须支持严格 JSON Schema 和 max_completion_tokens；部分兼容服务可能不支持，需实际验证。非本地模型地址要求 HTTPS。
+
+`LLM_ENABLE_THINKING=auto` 默认不发送供应商特定参数；对支持该参数的 Qwen，可设为 `false` 关闭思考。当前本地已启用 Qwen3.8 Flash，具体价格快照及真实结果见 [AI 联调记录](09-ai-connection-status.md)。
 
 费用按 UTC 日/月累计，独立于阅读显示时区。用量缺失或超时时保留保守估计。应用预算不能替代供应商账户硬额度，定价变化时需更新配置。默认参数不是报价或质量推荐。
 

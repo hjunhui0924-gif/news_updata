@@ -4,6 +4,35 @@ afterEach(() => {
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
 });
+it.each(['auto', 'false', 'true'])(
+  'sends thinking mode only when explicitly configured: %s',
+  async (mode) => {
+    vi.stubEnv('LLM_ENABLED', 'false');
+    vi.stubEnv('LLM_API_BASE_URL', 'https://fixture.invalid/v1');
+    vi.stubEnv('LLM_ENABLE_THINKING', mode);
+    let payload: Record<string, unknown> = {};
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, options: RequestInit) => {
+        payload = JSON.parse(String(options.body));
+        return new Response(
+          JSON.stringify({
+            choices: [{ message: { content: '{"segments":[]}' }, finish_reason: 'stop' }],
+          }),
+        );
+      }),
+    );
+    await callModel({
+      system: 'Translate to JSON.',
+      user: 'Bug fixes',
+      kind: 'translation',
+      outputLimit: 100,
+    });
+    if (mode === 'auto') expect(payload).not.toHaveProperty('enable_thinking');
+    else expect(payload.enable_thinking).toBe(mode === 'true');
+    expect(payload).toHaveProperty('response_format');
+  },
+);
 it.each([
   [403, 'AllocationQuota.FreeTierOnly', '模型免费额度已耗尽'],
   [401, 'invalid_api_key', '模型服务授权失败'],
