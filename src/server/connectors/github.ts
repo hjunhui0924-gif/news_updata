@@ -43,6 +43,8 @@ const releaseSchema = z.object({
   created_at: z.string(),
   draft: z.boolean(),
   prerelease: z.boolean(),
+  updated_at: z.string().optional(),
+  author: userSchema.optional(),
 });
 export type GitHubUpdate = {
   externalId: string;
@@ -54,6 +56,7 @@ export type GitHubUpdate = {
   description: string;
   url: string;
   publishedAt: string;
+  sourceUpdatedAt?: string;
 };
 
 export function parseSourceInput(input: string, kind: 'repo' | 'author') {
@@ -155,7 +158,7 @@ export class GitHubConnector {
     return {
       externalId: user.id,
       name: user.login,
-      description: user.bio ?? '发现新建公开仓库',
+      description: user.bio ?? '新建公开项目与本人发布的正式版本',
       url: `https://github.com/${user.login}`,
     };
   }
@@ -183,12 +186,13 @@ export class GitHubConnector {
               externalId: release.id,
               type: 'release',
               repo: name,
-              author: name.split('/')[0],
+              author: release.author?.login ?? name.split('/')[0],
               title: release.name || release.tag_name,
               body: release.body ?? '',
               description: '',
               url: release.html_url,
               publishedAt: release.published_at ?? release.created_at,
+              sourceUpdatedAt: release.updated_at,
             }))
         : z
             .array(repoSchema)
@@ -211,6 +215,76 @@ export class GitHubConnector {
               publishedAt: repo.created_at,
             }));
     return { items, hasNext: response.hasNext, notModified: false, etag: response.etag };
+  }
+
+  async authorReleases(input: string, page: number, actorId: string) {
+    const name = parseSourceInput(input, 'author');
+    if (!Number.isSafeInteger(page) || page < 1 || page > 3)
+      throw new GitHubError('公开动态仅支持最近 300 条事件。', 400);
+    const response = await this.request(`/users/${name}/events/public?per_page=100&page=${page}`);
+    const events = z.array(z.object({ type: z.string() }).passthrough()).parse(response.data);
+    const items: GitHubUpdate[] = [];
+    const seen = new Set<string>();
+    const repositories = new Map<string, z.infer<typeof repoSchema> | null>();
+    for (const value of events) {
+      if (value.type !== 'ReleaseEvent') continue;
+      const event = z
+        .object({
+          public: z.boolean(),
+          actor: userSchema,
+          repo: z.object({ name: z.string() }),
+          payload: z.object({ action: z.string(), release: z.object({ id }) }),
+        })
+        .parse(value);
+      if (!event.public || event.actor.id !== actorId || event.payload.action !== 'published')
+        continue;
+      const releaseId = event.payload.release.id;
+      if (!/^\d+$/.test(releaseId)) throw new GitHubError('版本标识格式异常。');
+      const repoName = parseSourceInput(event.repo.name, 'repo');
+      if (seen.has(releaseId)) continue;
+      seen.add(releaseId);
+      try {
+        if (!repositories.has(repoName)) {
+          const repo = repoSchema.parse((await this.request(`/repos/${repoName}`)).data);
+          repositories.set(repoName, repo.private ? null : repo);
+        }
+        const repo = repositories.get(repoName);
+        if (!repo) continue;
+        // Event payloads are snapshots. Read canonical notes and check current publication state.
+        const canonical = parseSourceInput(repo.full_name, 'repo');
+        const release = releaseSchema.parse(
+          (await this.request(`/repos/${canonical}/releases/${releaseId}`)).data,
+        );
+        if (
+          release.id !== releaseId ||
+          release.draft ||
+          release.prerelease ||
+          !release.published_at
+        )
+          continue;
+        items.push({
+          externalId: release.id,
+          type: 'release',
+          repo: canonical,
+          author: release.author?.login ?? event.actor.login,
+          title: release.name || release.tag_name,
+          body: release.body ?? '',
+          description: '',
+          url: release.html_url,
+          publishedAt: release.published_at,
+          sourceUpdatedAt: release.updated_at,
+        });
+      } catch (error) {
+        // Deleted/inaccessible event targets do not mean the followed person is inaccessible.
+        if (error instanceof GitHubError && error.status === 404) continue;
+        throw error;
+      }
+    }
+    return {
+      items,
+      hasNext: response.hasNext && page < 3,
+      windowCapped: page === 3 && events.length === 100,
+    };
   }
   async readme(repo: string) {
     try {

@@ -13,6 +13,8 @@ export type Summary = {
 export type FeedItem = {
   id: string;
   sourceId: string;
+  sourceIds?: string[];
+  matchedSources?: { id: string; kind: 'repo' | 'author'; name: string }[];
   externalId: string;
   type: ItemType;
   repo: string;
@@ -24,6 +26,7 @@ export type FeedItem = {
   firstSeenAt: string;
   body: string;
   contentHash: string;
+  sourceUpdatedAt?: string;
   language: 'en' | 'zh';
   tags: string[];
   color: string;
@@ -55,6 +58,7 @@ export type Subscription = {
   coverage: 'complete' | 'partial' | 'pending';
   retryAt?: string | null;
   autoFromStar?: boolean;
+  authorEventWindowCapped?: boolean;
 };
 export type Preferences = {
   timezone: string;

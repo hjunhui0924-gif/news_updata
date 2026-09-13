@@ -11,6 +11,7 @@ import {
 import type { FeedItem } from '@/shared/types';
 import { relativeTime } from '@/shared/feed';
 import { Button } from './ui/button';
+import { ItemSources } from './item-sources';
 export function FeedList({
   items,
   selectedId,
@@ -118,6 +119,7 @@ export function FeedList({
               <span className="card-time">{relativeTime(item.publishedAt)}</span>
             </div>
             <h2>{item.title}</h2>
+            <ItemSources item={item} />
             <p>
               {item.summary?.overview || item.description || '项目介绍尚未完善，点击查看已有信息。'}
             </p>

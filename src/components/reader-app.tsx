@@ -323,6 +323,10 @@ export function ReaderApp({
           </div>
         ) : view === 'subscriptions' ? (
           <SubscriptionsPanel
+            onViewSource={(id) => {
+              navigate('feed');
+              setSource(id);
+            }}
             subscriptions={data.subscriptions}
             starSync={data.starSync}
             showStarSync={data.mode === 'live' || !!data.starSync}

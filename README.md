@@ -28,7 +28,8 @@ Docker Compose **只运行数据库**。Web 与 Worker 直接运行在本机；�
 - 今日精选：GitHub Trending 每日热门项目、常用语言榜单、中文简介按需翻译与一键订阅。
 - 全部更新：订阅动态、搜索、类型/来源/未读筛选、收藏、批量已读。
 - 桌面分栏阅读，手机和平板查看详情、返回列表；详情链接可刷新。
-- 添加公开仓库以跟踪正式 Release；关注个人开发者以发现其新建的非 fork 公开仓库。
+- 添加公开仓库以跟踪正式 Release 和已收录版本说明的修改；关注个人开发者以发现其新建的非 fork 公开仓库、本人发布的正式 Release（含组织项目）。
+- 同一版本命中项目和博主时只显示一次，保留两种来源；订阅卡片可直接「查看更新」。博主发布动态受 GitHub 最近 30 天 / 300 条公开事件窗口限制，可能延迟 30 秒至 6 小时。
 - 导入当前账号的 Star 仓库，支持分页、勾选、重复导入和部分失败重试；也支持导入公开关注列表（前 50 人）。
 - 真实登录后每 5 分钟自动检查当前账号的公开 Star，新项目自动加入 Release 订阅；订阅管理可关闭或立即检查。
 - 订阅暂停/恢复、重点标记、手动同步，以及 Worker 定时轮询。
@@ -52,6 +53,7 @@ pnpm typecheck
 pnpm lint
 pnpm test                # 独立 news_test 数据库，需要 PostgreSQL
 pnpm test:e2e:discovery  # 隔离浏览器验证 Trending、对照翻译和 Star 管理
+pnpm test:e2e:following  # 包含博主/项目双来源、按订阅查看和手机布局
 pnpm test:e2e            # 演示 Web + Worker 启动后运行
 pnpm build              # 构建 Web 和 Worker
 ```
@@ -73,3 +75,5 @@ pnpm build              # 构建 Web 和 Worker
 当前不包含 X/Twitter、RSS、PR/Issue/提交动态、私有仓库、邮件、浏览器推送和公开注册。GitHub OAuth 真实登录与 Star 导入已经实测；真实模型质量及生产部署仍待专项验证。详见 [Star 跟踪交付记录](docs/08-starred-tracking.md)。
 
 新增发现与对照阅读的设计、接口、缓存规则及验证见 [增量开发文档](docs/10-discovery-and-bilingual.md)。
+
+项目与博主分别跟踪什么、发布者归属和数据覆盖限制见 [GitHub 关注规则](docs/11-github-following-scope.md)。

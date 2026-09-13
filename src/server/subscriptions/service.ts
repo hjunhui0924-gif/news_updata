@@ -5,6 +5,7 @@ import { getPool, transaction } from '../db/client';
 import { getSubscription } from '../db/store';
 import { enqueue } from '../jobs/queue';
 import { getConfig } from '../config';
+import { persistUpdates } from './ingest';
 import type { FeedItem, Subscription } from '@/shared/types';
 
 export async function addSubscription(
@@ -138,122 +139,145 @@ export async function syncSubscription(
     );
     return;
   }
-  const cursorKey = `sync:${userId}:${id}`;
-  const stored = await getPool().query('SELECT value FROM system_state WHERE key=$1', [cursorKey]);
-  const cursor = stored.rows[0]?.value as
-    | { page: number; historyCount: number; startedAt: string; etag?: string; completed?: boolean }
-    | undefined;
-  let page = cursor && !cursor.completed ? cursor.page : 1;
-  let historyCount = cursor && !cursor.completed ? cursor.historyCount : 0;
-  const startedAt = cursor && !cursor.completed ? cursor.startedAt : new Date().toISOString();
+  const startedAt = new Date().toISOString();
   try {
     connector ??= await createUserGitHubConnector(userId, signal);
-    // Five pages per job keeps work bounded; unfinished scans retain a durable next page.
-    for (let iteration = 0; iteration < 5; iteration++, page++) {
-      signal?.throwIfAborted();
-      const response = await connector.updates(sub.kind, sub.name, page, undefined);
-      const rows: FeedItem[] = [];
-      for (const update of response.items) {
+    let allComplete = true;
+    let eventWindowCapped = false;
+    const streams =
+      sub.kind === 'author'
+        ? (['repositories', 'author-releases'] as const)
+        : (['repositories'] as const);
+    for (const stream of streams) {
+      const cursorKey = `sync:${userId}:${id}${stream === 'author-releases' ? ':author-releases' : ''}`;
+      const stored = await getPool().query('SELECT value FROM system_state WHERE key=$1', [
+        cursorKey,
+      ]);
+      const cursor = stored.rows[0]?.value as
+        { page: number; historyCount: number; completed?: boolean } | undefined;
+      let page = cursor && !cursor.completed ? cursor.page : 1;
+      let historyCount = cursor && !cursor.completed ? cursor.historyCount : 0;
+      let streamComplete = false;
+      // Repository history retains resumable pages; the public events API has at most three pages.
+      for (let iteration = 0; iteration < 5; iteration++, page++) {
         signal?.throwIfAborted();
-        const backfill = Date.parse(update.publishedAt) < Date.parse(sub.createdAt);
-        if (
-          backfill &&
-          (historyCount >= 20 ||
-            Date.parse(update.publishedAt) < Date.parse(sub.createdAt) - 30 * 86400000)
-        )
-          continue;
-        if (backfill) historyCount++;
-        if (update.type === 'new_repo') update.body = await connector.readme(update.repo);
-        const contentHash = createHash('sha256')
-          .update(`${update.title}\n${update.description}\n${update.body}`)
-          .digest('hex');
-        const itemId = createHash('sha256')
-          .update(`${userId}:${update.type}:${update.externalId}`)
-          .digest('hex')
-          .slice(0, 32);
-        rows.push({
-          id: itemId,
-          sourceId: id,
-          ...update,
-          firstSeenAt: new Date().toISOString(),
-          contentHash,
-          language: /[\u4e00-\u9fff]/.test(update.body.slice(0, 300)) ? 'zh' : 'en',
-          tags: ['GitHub'],
-          color: 'slate',
-          demo: false,
-          backfill,
-          summary: null,
-          aiStatus: update.body
-            ? getConfig().LLM_ENABLED === 'true'
-              ? 'pending'
-              : 'disabled'
-            : 'insufficient',
-          translation: null,
-          read: false,
-          saved: false,
-          muted: false,
-          priority: sub.priority,
-        } satisfies FeedItem);
-      }
-      const authorBoundary =
-        sub.kind === 'author' &&
-        response.items.some(
-          (x) =>
-            Date.parse(x.publishedAt) < Date.parse(sub.lastSyncAt ?? sub.createdAt) - 30 * 86400000,
+        const response =
+          stream === 'author-releases'
+            ? await connector.authorReleases(sub.name, page, sub.externalId)
+            : await connector.updates(sub.kind, sub.name, page, undefined);
+        if ('windowCapped' in response) eventWindowCapped ||= response.windowCapped;
+        const known = await getPool().query(
+          'SELECT external_key FROM items WHERE user_id=$1 AND external_key=ANY($2::text[])',
+          [userId, response.items.map((update) => `${update.type}:${update.externalId}`)],
         );
-      const complete = !response.hasNext || authorBoundary || !!response.notModified;
-      await transaction(async (client) => {
-        signal?.throwIfAborted();
-        for (const item of rows) {
-          const existing = await client.query(
-            'SELECT data FROM items WHERE user_id=$1 AND external_key=$2 FOR UPDATE',
-            [userId, `${item.type}:${item.externalId}`],
-          );
-          if (existing.rows[0]?.data.contentHash === item.contentHash) continue;
-          if (existing.rows[0]) {
-            item.firstSeenAt = existing.rows[0].data.firstSeenAt;
-            item.backfill = existing.rows[0].data.backfill;
-          }
-          await client.query(
-            'INSERT INTO items(id,user_id,source_id,external_key,data,published_at) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(user_id,external_key) DO UPDATE SET data=excluded.data,published_at=excluded.published_at',
-            [item.id, userId, id, `${item.type}:${item.externalId}`, item, item.publishedAt],
-          );
-          if (item.aiStatus === 'pending')
-            await client.query(
-              "INSERT INTO jobs(id,user_id,kind,target_id) VALUES($1,$2,'summary',$3) ON CONFLICT DO NOTHING",
-              [randomUUID(), userId, item.id],
-            );
+        const existingKeys = new Set(known.rows.map((row) => row.external_key));
+        const rows: FeedItem[] = [];
+        for (const update of response.items) {
+          signal?.throwIfAborted();
+          const backfill = Date.parse(update.publishedAt) < Date.parse(sub.createdAt);
+          const existing = existingKeys.has(`${update.type}:${update.externalId}`);
+          // Previously captured notes remain eligible for edits even after the initial-history window.
+          if (
+            !existing &&
+            backfill &&
+            (historyCount >= 20 ||
+              Date.parse(update.publishedAt) < Date.parse(sub.createdAt) - 30 * 86400000)
+          )
+            continue;
+          // Count known candidates too, so later scans cannot expand the historical import cap.
+          if (backfill) historyCount++;
+          if (update.type === 'new_repo') update.body = await connector.readme(update.repo);
+          const contentHash = createHash('sha256')
+            .update(`${update.title}\n${update.description}\n${update.body}`)
+            .digest('hex');
+          const itemId = createHash('sha256')
+            .update(`${userId}:${update.type}:${update.externalId}`)
+            .digest('hex')
+            .slice(0, 32);
+          rows.push({
+            id: itemId,
+            sourceId: id,
+            sourceIds: [id],
+            ...update,
+            firstSeenAt: new Date().toISOString(),
+            contentHash,
+            language: /[\u4e00-\u9fff]/.test(update.body.slice(0, 300)) ? 'zh' : 'en',
+            tags: ['GitHub'],
+            color: 'slate',
+            demo: false,
+            backfill,
+            summary: null,
+            aiStatus: update.body
+              ? getConfig().LLM_ENABLED === 'true'
+                ? 'pending'
+                : 'disabled'
+              : 'insufficient',
+            translation: null,
+            read: false,
+            saved: false,
+            muted: false,
+            priority: sub.priority,
+          });
         }
-        signal?.throwIfAborted();
-        await client.query(
-          'INSERT INTO system_state(key,value) VALUES($1,$2) ON CONFLICT(key) DO UPDATE SET value=excluded.value',
-          [
-            cursorKey,
-            {
-              page: complete ? 1 : page + 1,
-              historyCount: complete ? 0 : historyCount,
-              startedAt,
-              completed: complete,
-            },
-          ],
-        );
-        await client.query(
-          'UPDATE subscriptions SET data=data || $3::jsonb WHERE user_id=$1 AND id=$2',
-          [
-            userId,
-            id,
-            JSON.stringify({
-              coverage: complete ? 'complete' : 'partial',
-              ...(complete ? { lastSyncAt: startedAt } : {}),
-              error: null,
-              retryAt: null,
-            }),
-          ],
-        );
-        signal?.throwIfAborted();
-      });
-      if (complete) return;
+        const authorBoundary =
+          stream === 'repositories' &&
+          sub.kind === 'author' &&
+          response.items.some(
+            (update) =>
+              Date.parse(update.publishedAt) <
+              Date.parse(sub.lastSyncAt ?? sub.createdAt) - 30 * 86400000,
+          );
+        const complete =
+          !response.hasNext ||
+          authorBoundary ||
+          ('notModified' in response && !!response.notModified);
+        const active = await transaction(async (client) => {
+          signal?.throwIfAborted();
+          const current = await client.query(
+            "SELECT id FROM subscriptions WHERE user_id=$1 AND id=$2 AND (data->>'enabled')::boolean FOR SHARE",
+            [userId, id],
+          );
+          if (!current.rowCount) return false;
+          await persistUpdates(client, userId, rows);
+          signal?.throwIfAborted();
+          await client.query(
+            'INSERT INTO system_state(key,value) VALUES($1,$2) ON CONFLICT(key) DO UPDATE SET value=excluded.value',
+            [
+              cursorKey,
+              {
+                page: complete ? 1 : page + 1,
+                historyCount: complete ? 0 : historyCount,
+                startedAt,
+                completed: complete,
+              },
+            ],
+          );
+          signal?.throwIfAborted();
+          return true;
+        });
+        if (!active) return;
+        if (complete) {
+          streamComplete = true;
+          break;
+        }
+      }
+      allComplete &&= streamComplete;
     }
+    signal?.throwIfAborted();
+    await getPool().query(
+      'UPDATE subscriptions SET data=data || $3::jsonb WHERE user_id=$1 AND id=$2',
+      [
+        userId,
+        id,
+        JSON.stringify({
+          coverage: allComplete ? 'complete' : 'partial',
+          ...(allComplete ? { lastSyncAt: startedAt } : {}),
+          error: null,
+          retryAt: null,
+          ...(sub.kind === 'author' ? { authorEventWindowCapped: eventWindowCapped } : {}),
+        }),
+      ],
+    );
   } catch (error) {
     signal?.throwIfAborted();
     const message = error instanceof GitHubError ? error.message : '本轮同步未完成，稍后可重试。';

@@ -28,6 +28,7 @@ export function SubscriptionsPanel({
   showStarSync,
   workerOnline,
   onStarAction,
+  onViewSource,
 }: {
   subscriptions: Subscription[];
   jobs: Job[];
@@ -38,6 +39,7 @@ export function SubscriptionsPanel({
   showStarSync: boolean;
   workerOnline: boolean;
   onStarAction: (action: 'check' | 'enable' | 'disable') => Promise<void>;
+  onViewSource: (id: string) => void;
 }) {
   const [kind, setKind] = useState('all');
   return (
@@ -46,7 +48,7 @@ export function SubscriptionsPanel({
         <div>
           <span className="eyebrow">CURATE YOUR SOURCES</span>
           <h1>关注你真正关心的</h1>
-          <p>开发者带来新发现，仓库带来持续的版本更新。</p>
+          <p>订阅项目看项目版本，关注博主看他新建的项目和本人发布的版本。</p>
         </div>
         <Button variant="primary" onClick={onAdd}>
           <Plus size={16} />
@@ -112,6 +114,11 @@ export function SubscriptionsPanel({
                     {sub.demo && <span className="demo-mini">示例</span>}
                   </h2>
                   <p>{sub.description || '公开 GitHub 来源'}</p>
+                  <p className="subscription-scope">
+                    {sub.kind === 'author'
+                      ? '跟踪：新建公开项目 · 本人发布的正式版本'
+                      : '跟踪：正式版本 · 已收录版本的说明变化'}
+                  </p>
                   <div className="subscription-status">
                     <span>{sub.enabled ? '正在关注' : '已暂停'}</span>
                     <span>
@@ -126,8 +133,16 @@ export function SubscriptionsPanel({
                     )}
                   </div>
                   {sub.error && <p className="error-text">{sub.error}</p>}
+                  {sub.kind === 'author' && sub.authorEventWindowCapped && (
+                    <p className="warning-text">
+                      公开活动已达到 300 条窗口上限，更早的发布动态可能无法补查。
+                    </p>
+                  )}
                 </div>
                 <div className="subscription-actions">
+                  <Button size="small" onClick={() => onViewSource(sub.id)}>
+                    查看更新
+                  </Button>
                   <button
                     className={`icon-button ${sub.priority ? 'is-saved' : ''}`}
                     disabled={busy === sub.id}
@@ -177,8 +192,14 @@ export function SubscriptionsPanel({
       <div className="sub-explainer">
         <Users size={20} />
         <div>
-          <strong>关注开发者 ≠ 订阅所有仓库</strong>
-          <p>关注开发者会发现其新建公开仓库。想持续跟踪某个项目的版本，请单独添加该仓库。</p>
+          <strong>项目看版本，博主看本人发布</strong>
+          <p>
+            博主关注包含他新建的公开项目，以及他在个人、组织或其他仓库发布的正式版本。同一版本命中多个关注来源时合并展示。
+          </p>
+          <p>
+            博主版本动态最多覆盖最近 30 天、300 条公开活动，GitHub 可能延迟 30 秒至 6
+            小时；重要项目可单独订阅以持续检查版本。
+          </p>
         </div>
       </div>
     </section>
@@ -312,7 +333,7 @@ export function AddSubscription({
                 {kind === 'repo'
                   ? '跟踪正式版本发布，首次导入的历史版本不会作为新提醒。'
                   : kind === 'author'
-                    ? '发现该开发者新建的公开仓库，不自动追踪全部项目。'
+                    ? '跟踪新建公开项目和本人发布的正式版本；版本动态受 GitHub 近期公开活动窗口限制。'
                     : '读取该账号公开的关注列表，勾选后导入。'}
               </p>
               {candidates.length > 0 && (

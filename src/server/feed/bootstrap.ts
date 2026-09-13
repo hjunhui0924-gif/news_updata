@@ -3,6 +3,7 @@ import { getPool } from '../db/client';
 import { getItems, getJobs, getNotifications, getPreferences, getSubscriptions } from '../db/store';
 import type { Bootstrap } from '@/shared/types';
 import { getStarSync } from '../subscriptions/star-sync';
+import { itemSourceIds } from '@/shared/feed';
 
 export async function bootstrap(user: {
   id: string;
@@ -33,7 +34,11 @@ export async function bootstrap(user: {
     user: { name: user.name, image: user.image },
     items: items.map((item) => ({
       ...item,
-      priority: currentSubscriptions.get(item.sourceId)?.priority ?? false,
+      priority: itemSourceIds(item).some((id) => currentSubscriptions.get(id)?.priority),
+      matchedSources: itemSourceIds(item).flatMap((id) => {
+        const sub = currentSubscriptions.get(id);
+        return sub ? [{ id, kind: sub.kind, name: sub.name }] : [];
+      }),
     })),
     subscriptions,
     preferences,

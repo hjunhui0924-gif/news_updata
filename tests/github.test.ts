@@ -91,3 +91,104 @@ describe('GitHub connector', () => {
     ).rejects.toThrow('limited');
   });
 });
+
+describe('followed author releases', () => {
+  const repo = {
+    id: 77,
+    name: 'tool',
+    full_name: 'organization/tool',
+    description: null,
+    html_url: 'https://github.com/organization/tool',
+    created_at: '2026-09-13T00:00:00Z',
+    fork: false,
+    private: false,
+    owner: { id: 99, login: 'organization' },
+  };
+  const event = (releaseId: number, extra = {}) => ({
+    type: 'ReleaseEvent',
+    public: true,
+    actor: { id: 42, login: 'alice' },
+    repo: { name: 'organization/tool' },
+    payload: { action: 'published', release: { id: releaseId } },
+    ...extra,
+  });
+  it('uses actual actor identity across organization repos, fetches current notes, and excludes unrelated activity', async () => {
+    const paths: string[] = [];
+    const connector = new GitHubConnector(async (path) => {
+      paths.push(path);
+      if (path.includes('/events/public'))
+        return {
+          hasNext: true,
+          data: [
+            event(1),
+            event(1),
+            event(2),
+            event(3),
+            event(4, { actor: { id: 55, login: 'someone-else' } }),
+            event(5, { public: false }),
+            { type: 'PushEvent' },
+          ],
+        };
+      if (path === '/repos/organization/tool') return { hasNext: false, data: repo };
+      const n = Number(path.split('/').pop());
+      return {
+        hasNext: false,
+        data: {
+          ...release(n, n === 2),
+          draft: n === 3,
+          body: 'Current notes',
+          updated_at: '2026-09-13T01:00:00Z',
+          author: { id: 88, login: 'draft-creator' },
+        },
+      };
+    });
+    const result = await connector.authorReleases('alice', 1, '42');
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]).toMatchObject({
+      externalId: '1',
+      repo: 'organization/tool',
+      body: 'Current notes',
+      author: 'draft-creator',
+    });
+    expect(paths).toEqual([
+      '/users/alice/events/public?per_page=100&page=1',
+      '/repos/organization/tool',
+      '/repos/organization/tool/releases/1',
+      '/repos/organization/tool/releases/2',
+      '/repos/organization/tool/releases/3',
+    ]);
+    expect(result.hasNext).toBe(true);
+  });
+  it('does not reveal newly private repos and skips deleted releases, while surfacing rate limits', async () => {
+    const { GitHubError } = await import('../src/server/connectors/github');
+    let state: 'private' | 'deleted' | 'limited' = 'private';
+    const connector = new GitHubConnector(async (path) => {
+      if (path.includes('/events/public')) return { hasNext: false, data: [event(1)] };
+      if (path === '/repos/organization/tool')
+        return { hasNext: false, data: { ...repo, private: state === 'private' } };
+      throw new GitHubError(state, state === 'deleted' ? 404 : 429);
+    });
+    expect((await connector.authorReleases('alice', 1, '42')).items).toEqual([]);
+    state = 'deleted';
+    expect((await connector.authorReleases('alice', 1, '42')).items).toEqual([]);
+    state = 'limited';
+    await expect(connector.authorReleases('alice', 1, '42')).rejects.toThrow('limited');
+  });
+  it('bounds the event window and rejects unsafe page or repository input', async () => {
+    const connector = new GitHubConnector(async () => ({
+      hasNext: true,
+      data: Array.from({ length: 100 }, () => ({ type: 'PushEvent' })),
+    }));
+    expect(await connector.authorReleases('alice', 3, '42')).toMatchObject({
+      hasNext: false,
+      windowCapped: true,
+    });
+    await expect(connector.authorReleases('alice', 4, '42')).rejects.toThrow('300');
+    await expect(
+      new GitHubConnector(async () => ({
+        hasNext: false,
+        data: [event(1, { repo: { name: 'https://evil.test' } })],
+      })).authorReleases('alice', 1, '42'),
+    ).rejects.toThrow();
+  });
+});

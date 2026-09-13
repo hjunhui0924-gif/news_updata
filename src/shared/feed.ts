@@ -1,4 +1,7 @@
 import type { FeedItem } from './types';
+export function itemSourceIds(item: Pick<FeedItem, 'sourceId' | 'sourceIds'>): string[] {
+  return [...new Set([item.sourceId, ...(item.sourceIds ?? [])])];
+}
 export function filterItems(
   items: FeedItem[],
   filters: {
@@ -17,7 +20,7 @@ export function filterItems(
     if (filters.view === 'today') return false; // Discovery has its own Trending data source.
     if (filters.unread && item.read) return false;
     if (filters.type !== 'all' && item.type !== filters.type) return false;
-    if (filters.source && item.sourceId !== filters.source) return false;
+    if (filters.source && !itemSourceIds(item).includes(filters.source)) return false;
     return (
       !query ||
       `${item.title} ${item.repo} ${item.description} ${item.tags.join(' ')}`

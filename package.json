@@ -23,6 +23,7 @@
     "test:e2e:starred": "playwright test --config playwright.starred.config.ts",
     "test:e2e:ai": "playwright test --config playwright.ai.config.ts",
     "test:e2e:discovery": "playwright test --config playwright.discovery.config.ts",
+    "test:e2e:following": "playwright test --config playwright.following.config.ts",
     "format": "prettier --write src tests scripts",
     "demo": "tsx scripts/demo.ts"
   },

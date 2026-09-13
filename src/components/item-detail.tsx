@@ -19,6 +19,7 @@ import type { FeedItem } from '@/shared/types';
 import { Button } from './ui/button';
 import { Markdown } from './markdown';
 import { BilingualTranslation } from './bilingual-translation';
+import { ItemSources } from './item-sources';
 export function ItemDetail({
   item,
   toggleSaved,
@@ -103,6 +104,7 @@ export function ItemDetail({
           </span>
         </div>
         <h2 className="detail-title">{item.title}</h2>
+        <ItemSources item={item} />
         <div className="detail-meta">
           <span>
             <Clock3 size={13} />

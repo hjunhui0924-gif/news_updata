@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { getItems, getPreferences, getSubscriptions } from '../db/store';
 import { getPool } from '../db/client';
 import type { FeedItem, Notification } from '@/shared/types';
+import { itemSourceIds } from '@/shared/feed';
 
 export function digestItems(items: FeedItem[], now = Date.now()) {
   return items
@@ -23,7 +24,7 @@ export async function buildDigest(userId: string) {
   ]);
   const priority = new Map(subscriptions.map((x) => [x.id, x.priority]));
   const items = digestItems(
-    all.map((x) => ({ ...x, priority: priority.get(x.sourceId) ?? false })),
+    all.map((x) => ({ ...x, priority: itemSourceIds(x).some((id) => priority.get(id)) })),
   );
   const date = new Date().toLocaleDateString('zh-CN', {
     timeZone: preferences.timezone,
