@@ -11,3 +11,13 @@ playwright-report/
 coverage/
 .data/
 *.log
+# Local databases, backups and editor state
+*.dump
+*.backup
+*.sqlite
+*.sqlite3
+*.db
+*.pem
+*.key
+.DS_Store
+Thumbs.db

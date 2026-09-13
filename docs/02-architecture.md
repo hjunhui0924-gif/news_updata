@@ -8,8 +8,9 @@
 flowchart LR
   Browser[浏览器阅读器] --> Web[Next.js Web / API]
   Web --> DB[(PostgreSQL)]
+  Web --> GitHub[GitHub 公开 API]
   Worker[Node.js Worker] --> DB
-  Worker --> GitHub[GitHub 公开 API]
+  Worker --> GitHub
   Worker --> AI[可选模型服务]
 ```
 
@@ -37,6 +38,8 @@ Web 和 Worker 是两个进程，共享 TypeScript 类型、数据库访问及�
 - `src/server/db`：数据库连接、事务和带用户约束的持久化。
 - `src/server/auth`：配置、会话和访问允许名单，演示仅限本地开发。
 - `src/server/connectors/github.ts`：输入验证、公开 API 数据转换，不处理 UI 状态。
+- `src/server/connectors/github-auth.ts` / `github-user.ts`：跨进程续期、加密凭据、401 重试与状态；搜索、采集复用同一账号连接器。
+- `src/server/discovery`：Trending 快照、刷新恢复、简介翻译和缓存。
 - `src/server/subscriptions`：订阅管理、分页游标、去重、历史边界和同步覆盖。
 - `src/server/jobs`：应用任务、事务出站记录、pg-boss 投递和终态恢复。
 - `src/server/ai`：摘要/翻译排队、证据校验、缓存、预算和结果存储。
@@ -57,7 +60,7 @@ MVP 采用按用户保存条目的简化模型，身份与阅读状态为关系�
 | star_sync / star_sync_exclusions        | 每用户自动 Star 检查开关、分页检查点、重试期限与应用内取消订阅的排除记录 |
 | ai_usage / ai_cache                     | 预算预留、实际用量或不确定费用、按内容与模型缓存                         |
 | notifications                           | 站内 Markdown 简报                                                       |
-| system_state                            | 扫描游标、调度时间、演示种子标志和 Worker 心跳                           |
+| system_state                            | 扫描游标、调度时间、Trending 快照、授权错误指纹和 Worker 心跳                           |
 | app_migrations                          | 已执行的 SQL 文件                                                        |
 | user / session / account / verification | Better Auth 会话与 OAuth 数据                                            |
 
@@ -68,7 +71,7 @@ MVP 采用按用户保存条目的简化模型，身份与阅读状态为关系�
 1. 新订阅和同步任务在同一事务保存，避免订阅成功但任务丢失。
 2. Worker 使用 `FOR UPDATE SKIP LOCKED` 领取未投递记录，pg-boss 使用应用任务 UUID；入队与投递标记同事务提交。
 3. 活动任务按用户、类型、目标去重，普通同步错误允许有限重试。
-4. 每页条目与检查点同事务保存，重复采集不重置阅读状态；正文 hash 变化清除过期生成结果。
+4. 每页条目与检查点同事务保存；用户内事件以类型和外部 ID 去重，合并 sourceIds，重复采集不重置阅读状态；正文 hash 变化清除过期生成结果，版本更新时间阻止旧响应回写。
 5. Worker 对 GitHub 同步设置 240 秒取消期限，小于队列 300 秒期限。取消信号传递到 HTTP 与保存检查。
 6. 定期核对 pg-boss 终态；崩溃、超时或缺失任务不永久显示运行中，网页可重新同步。
 7. GitHub 限流等待期限持久化，自动和手动入口都遵守。

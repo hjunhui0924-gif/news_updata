@@ -11,7 +11,7 @@ pnpm install
 pnpm demo
 ```
 
-启动器自动补建 `.env.local`（已有文件不覆盖），生成新密钥，执行 `docker compose up -d --wait db`、迁移和演示种子，然后启动 Web 与 Worker。地址默认 http://127.0.0.1:3000 。端口已被占用时明确退出，不会终止其他程序。
+启动器首次补建 `.env.local` 并生成随机密钥（已有文件不覆盖），执行 `docker compose up -d --wait db`、迁移和演示种子，然后启动 Web 与 Worker。地址默认 http://127.0.0.1:3000 。端口已被占用时明确退出，不会终止其他程序。
 
 已有 PostgreSQL 时手工创建数据库，在 `.env.local` 设置 DATABASE_URL，使用：
 
@@ -45,7 +45,7 @@ pnpm worker:dev
 | GITHUB_READ_TOKEN                       | 可选，服务端公开数据读取 Token                   |
 | SYNC_STAR_INTERVAL_MINUTES              | 当前登录账号公开 Star 列表检查间隔，默认 5 分钟  |
 
-真实模式的 OAuth 回调为 `<APP_URL>/api/auth/callback/github`。将回调填入自己的 GitHub OAuth App，配置后重启 Web 与 Worker。OAuth 登录凭据和数据读取 Token 用途不同；采集优先使用 GITHUB_READ_TOKEN；未配置时，在服务端复用当前用户加密保存的 OAuth access token 读取公开数据。令牌不返回前端，过期时需重新登录。
+真实模式的 OAuth 回调为 `<APP_URL>/api/auth/callback/github`。将回调填入自己的 GitHub OAuth App，配置后重启 Web 与 Worker。OAuth 登录凭据和数据读取 Token 用途不同；采集优先使用 GITHUB_READ_TOKEN；未配置时，在服务端复用当前用户加密保存的 OAuth access token 读取公开数据。业务接口不向前端返回令牌。访问令牌距到期不足 60 秒或已到期时按需自动续期；只有刷新令牌失效、授权撤销等需要重新连接。网络失败保留重试，授权错误不再关闭订阅偏好。设置页提供状态和检查入口，详见 [授权续期](12-github-auth-renewal.md)。
 
 没有配置真实 OAuth 凭据时登录流程未完成，不能将登录页面可见视为验证通过。演示固定用户的数据不会自动迁移到真实登录用户。
 
@@ -69,7 +69,7 @@ LLM_MONTHLY_BUDGET_USD=5
 
 上面地址和单价是填写示意，不能直接调用。base URL 不包含 `/chat/completions`，请求路径由应用追加。模型须支持严格 JSON Schema 和 max_completion_tokens；部分兼容服务可能不支持，需实际验证。非本地模型地址要求 HTTPS。
 
-`LLM_ENABLE_THINKING=auto` 默认不发送供应商特定参数；对支持该参数的 Qwen，可设为 `false` 关闭思考。当前本地已启用 Qwen3.8 Flash，具体价格快照及真实结果见 [AI 联调记录](09-ai-connection-status.md)。
+`LLM_ENABLE_THINKING=auto` 默认不发送供应商特定参数；对支持该参数的 Qwen，可设为 `false` 关闭思考。开发者联调环境曾启用 Qwen3.8 Flash；新克隆默认关闭模型。具体价格快照及真实结果见 [AI 联调记录](09-ai-connection-status.md)。
 
 费用按 UTC 日/月累计，独立于阅读显示时区。用量缺失或超时时保留保守估计。应用预算不能替代供应商账户硬额度，定价变化时需更新配置。默认参数不是报价或质量推荐。
 
@@ -95,7 +95,8 @@ Next.js start 与 worker:start 均强制使用生产模式，启用生产配置�
 pnpm typecheck
 pnpm lint
 pnpm test
-pnpm test:e2e
+pnpm test:e2e:search # 推荐：自动启动隔离端口的增量组合
+pnpm test:e2e        # 基础演示流程，需要 demo Web/Worker
 pnpm build
 ```
 
