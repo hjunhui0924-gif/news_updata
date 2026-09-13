@@ -70,7 +70,14 @@ test('bilingual paragraphs keep original above Chinese on desktop and mobile', a
           language: 'en',
           translation: '加载更快。',
           translationBlocks: [
+            { original: '### Improvements', translation: '### 改进' },
             { original: 'Faster loading.', translation: '加载更快。' },
+            {
+              original:
+                '- Default image requests to GPT Image 2.5 Flare. [#101](https://github.com/example/repo/issues/101)\n- Refresh image backend guidance across all languages.',
+              translation:
+                '- 默认图片请求使用 GPT Image 2.5 Flare。[#101](https://github.com/example/repo/issues/101)\n- 更新所有语言的图片后端指引。',
+            },
             { original: '```js\nconsole.log(1);\n```', translation: null },
           ],
         })),
@@ -83,13 +90,24 @@ test('bilingual paragraphs keep original above Chinese on desktop and mobile', a
   await page.getByRole('tab', { name: '对照翻译' }).click();
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 1000 });
-    const block = page.getByRole('region', { name: '对照段落 1', exact: true });
+    const block = page.getByRole('region', { name: '对照段落 2', exact: true });
     const original = await block.getByText('Faster loading.').boundingBox();
     const translated = await block.getByText('加载更快。').boundingBox();
     expect(original).not.toBeNull();
     expect(translated).not.toBeNull();
     expect(translated!.y).toBeGreaterThan(original!.y + original!.height);
     expect(await page.getByText('console.log(1);').count()).toBe(1);
+    const list = page.getByRole('region', { name: '对照段落 3', exact: true });
+    const entries = list.getByRole('listitem');
+    await expect(entries).toHaveCount(2);
+    const firstEnglish = await entries.first().locator('p').first().boundingBox();
+    const firstChinese = await entries.first().locator('p[lang="zh-CN"]').boundingBox();
+    const nextEnglish = await entries.nth(1).locator('p').first().boundingBox();
+    expect(firstChinese!.y).toBeGreaterThan(firstEnglish!.y + firstEnglish!.height);
+    expect(nextEnglish!.y).toBeGreaterThan(firstChinese!.y + firstChinese!.height);
+    expect(firstChinese!.x).toBe(firstEnglish!.x);
+    await expect(entries.first().getByRole('link', { name: '#101' })).toHaveCount(2);
+    expect(await list.evaluate((el) => getComputedStyle(el).borderTopWidth)).toBe('0px');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
     );

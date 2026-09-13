@@ -201,24 +201,41 @@
   }
 }
 
+/* Continuous bilingual prose: each translation stays inside its original list item. */
 .bilingual-reader {
   display: grid;
-  gap: 24px;
+  gap: 8px;
 }
 .bilingual-block {
   min-width: 0;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  overflow: hidden;
-}
-.bilingual-original,
-.bilingual-chinese {
-  padding: 18px 20px;
   overflow-wrap: anywhere;
 }
-.bilingual-chinese {
-  background: var(--primary-soft);
-  border-top: 1px solid var(--border);
+.bilingual-reader .markdown {
+  font-size: 15px;
+  line-height: 1.9;
+  color: var(--foreground);
+}
+.bilingual-reader .markdown h3 {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 16px 0 12px;
+}
+.bilingual-reader .markdown li > p {
+  margin: 0;
+}
+.bilingual-reader .markdown li + li {
+  margin-top: 20px;
+}
+.bilingual-reader .markdown .bilingual-inline-chinese {
+  margin-top: 8px;
+  margin-bottom: 20px;
+}
+.bilingual-reader .markdown li > .bilingual-inline-chinese {
+  margin-bottom: 0;
+}
+.bilingual-reader .markdown ul,
+.bilingual-reader .markdown ol {
+  padding-left: 24px;
 }
 .bilingual-label {
   display: block;
@@ -229,12 +246,6 @@
 }
 .bilingual-block .markdown > :last-child {
   margin-bottom: 0;
-}
-@media (max-width: 600px) {
-  .bilingual-original,
-  .bilingual-chinese {
-    padding: 14px;
-  }
 }
 
 :root {
