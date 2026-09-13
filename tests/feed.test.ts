@@ -5,10 +5,10 @@ const now = Date.parse('2026-09-13T10:00:00Z');
 const { items } = createDemoData(new Date(now));
 const filters = { view: 'feed', type: 'all', search: '', unread: false, source: '', now };
 describe('reader filters', () => {
-  it('keeps demo data explicitly labelled and excludes backfill from highlights', () => {
+  it('keeps demo labels and does not reuse subscription updates for Trending discovery', () => {
     expect(items).toHaveLength(24);
     expect(items.every((x) => x.demo)).toBe(true);
-    expect(filterItems(items, { ...filters, view: 'today' }).every((x) => !x.backfill)).toBe(true);
+    expect(filterItems(items, { ...filters, view: 'today' })).toEqual([]);
   });
   it('combines saved, search and unread filters without exposing muted items', () => {
     const result = filterItems(items, {

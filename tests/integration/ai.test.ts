@@ -110,6 +110,10 @@ it('does not save or cache a partial translation, and caches a complete retry', 
   await runAi(userId, current.id, 'translation', complete);
   expect(calls).toBe(1);
   expect((await getItem(userId, current.id))?.translation).toBe(translated);
+  expect((await getItem(userId, current.id))?.translationBlocks).toEqual([
+    { original: '### Changes', translation: '### 变化' },
+    { original: source.split('\n\n')[1].trim(), translation: translated.split('\n\n')[1].trim() },
+  ]);
 });
 it('concurrent reservations cannot exceed the configured daily budget', async () => {
   const results = await Promise.allSettled(

@@ -1,4 +1,6 @@
 allowBuilds:
   esbuild: true
+overrides:
+  unified: 11.0.5
 minimumReleaseAgeExclude:
   - '@next/swc-win32-x64-msvc@16.3.5'

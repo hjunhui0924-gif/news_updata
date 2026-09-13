@@ -1,4 +1,5 @@
 export type ItemType = 'release' | 'new_repo';
+export type TranslationBlock = { original: string; translation: string | null };
 export type AiStatus = 'ready' | 'pending' | 'disabled' | 'failed' | 'insufficient';
 export type Summary = {
   headline: string;
@@ -32,6 +33,7 @@ export type FeedItem = {
   aiStatus: AiStatus;
   aiError?: string;
   translation: string | null;
+  translationBlocks?: TranslationBlock[] | null;
   read: boolean;
   saved: boolean;
   muted: boolean;

@@ -1,5 +1,242 @@
 @import 'tailwindcss';
 
+.discovery-panel {
+  flex: 1;
+  overflow-y: auto;
+  padding: 40px clamp(20px, 4vw, 64px) 72px;
+  min-width: 0;
+}
+.discovery-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+  margin-bottom: 28px;
+}
+.discovery-heading h1 {
+  font-size: 30px;
+  letter-spacing: -1px;
+  margin: 12px 0;
+}
+.discovery-heading h1 span {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--muted);
+  letter-spacing: 0;
+  margin-left: 18px;
+}
+.discovery-heading p {
+  color: var(--muted);
+  line-height: 1.8;
+  max-width: 650px;
+}
+.discovery-mark {
+  padding: 20px;
+  border-radius: 24px;
+  color: var(--primary);
+  background: var(--primary-soft);
+}
+.discovery-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+.discovery-controls label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.discovery-controls select {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 32px 10px 12px;
+  background: var(--surface);
+  color: var(--foreground);
+}
+.discovery-controls a {
+  margin-left: auto;
+  color: var(--primary);
+}
+.discovery-controls a,
+.discovery-controls .neutral-tag,
+.discovery-stats span,
+.discovery-chinese .bilingual-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.discovery-context {
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 8px;
+  line-height: 1.8;
+}
+.discovery-warning {
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: var(--amber-tint);
+  color: var(--warning);
+  margin-top: 18px;
+  line-height: 1.7;
+}
+.discovery-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  padding: 24px 0;
+}
+.discovery-list {
+  display: grid;
+  gap: 14px;
+  margin-top: 26px;
+}
+.discovery-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  padding: 26px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+}
+.discovery-rank {
+  color: var(--muted);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  padding-top: 3px;
+}
+.discovery-card-body {
+  min-width: 0;
+  flex: 1;
+}
+.discovery-card h2 {
+  font-size: 18px;
+  margin-bottom: 10px;
+  overflow-wrap: anywhere;
+}
+.discovery-card h2 a:hover {
+  color: var(--primary);
+}
+.discovery-card h2 svg {
+  display: inline;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+.discovery-description {
+  color: var(--muted);
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+.discovery-chinese {
+  background: var(--primary-soft);
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-top: 14px;
+  overflow-wrap: anywhere;
+}
+.discovery-chinese .markdown p {
+  margin: 0;
+}
+.discovery-stats {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  margin-top: 18px;
+  color: var(--muted);
+}
+.discovery-stats .discovery-growth {
+  color: var(--success);
+}
+.discovery-card-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+@media (max-width: 700px) {
+  .discovery-panel {
+    padding: 26px 16px 96px;
+  }
+  .discovery-heading h1 {
+    font-size: 26px;
+  }
+  .discovery-heading h1 span {
+    display: block;
+    margin: 8px 0 0;
+  }
+  .discovery-mark {
+    display: none;
+  }
+  .discovery-controls {
+    gap: 12px;
+  }
+  .discovery-controls a {
+    margin-left: 0;
+    font-size: 13px;
+    min-height: 44px;
+  }
+  .discovery-card {
+    flex-wrap: wrap;
+    padding: 18px;
+    gap: 12px;
+  }
+  .discovery-card h2 {
+    font-size: 16px;
+  }
+  .discovery-card-actions {
+    width: 100%;
+    flex-direction: row;
+    padding-left: 28px;
+  }
+  .discovery-card-actions button {
+    min-height: 44px;
+  }
+  .discovery-stats {
+    gap: 12px;
+  }
+}
+
+.bilingual-reader {
+  display: grid;
+  gap: 24px;
+}
+.bilingual-block {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.bilingual-original,
+.bilingual-chinese {
+  padding: 18px 20px;
+  overflow-wrap: anywhere;
+}
+.bilingual-chinese {
+  background: var(--primary-soft);
+  border-top: 1px solid var(--border);
+}
+.bilingual-label {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.bilingual-block .markdown > :last-child {
+  margin-bottom: 0;
+}
+@media (max-width: 600px) {
+  .bilingual-original,
+  .bilingual-chinese {
+    padding: 14px;
+  }
+}
+
 :root {
   --background: #f6f7f9;
   --surface: #fff;

@@ -22,6 +22,7 @@ import { ItemDetail } from './item-detail';
 import { Button } from './ui/button';
 import { SubscriptionsPanel, AddSubscription } from './subscriptions-panel';
 import { SettingsPanel } from './settings-panel';
+import { TrendingPanel } from './trending-panel';
 
 export async function requestJson<T>(url: string, method = 'GET', body?: unknown): Promise<T> {
   const response = await fetch(url, {
@@ -65,6 +66,7 @@ export function ReaderApp({
   const [toast, setToast] = useState('');
   const [busy, setBusy] = useState('');
   const [noticeOpen, setNoticeOpen] = useState(false);
+  const [discoveryRefresh, setDiscoveryRefresh] = useState(0);
   const refresh = useCallback(async () => {
     const next = await requestJson<Bootstrap>('/api/bootstrap');
     setData(next);
@@ -246,7 +248,15 @@ export function ReaderApp({
             </Button>
           </div>
         )}
-        {['today', 'feed', 'saved'].includes(view) ? (
+        {view === 'today' ? (
+          <TrendingPanel
+            subscriptions={data.subscriptions}
+            aiEnabled={data.services.ai}
+            timezone={data.preferences.timezone}
+            onSubscribed={refresh}
+            refreshVersion={discoveryRefresh}
+          />
+        ) : ['feed', 'saved'].includes(view) ? (
           <div className="reader-grid">
             <FeedList
               items={filtered}
@@ -381,7 +391,12 @@ export function ReaderApp({
             <span className="online-dot" />
             {data.mode === 'demo' ? '24 条固定示例 · 可添加真实 GitHub 订阅' : 'GitHub 公开数据'}
           </span>
-          <button onClick={() => execute('refresh', refresh, '内容已刷新')}>
+          <button
+            onClick={() => {
+              setDiscoveryRefresh((x) => x + 1);
+              void execute('refresh', refresh, '内容已刷新');
+            }}
+          >
             {busy === 'refresh' ? <Loader2 size={12} className="spin" /> : <RefreshCw size={12} />}
             刷新内容
           </button>

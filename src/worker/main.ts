@@ -7,6 +7,7 @@ import pino from 'pino';
 import { runAi, AiError } from '../server/ai/service';
 import { GitHubError } from '../server/connectors/github';
 import { scheduleStarSync, syncStarred } from '../server/subscriptions/star-sync';
+import { getTrending } from '../server/discovery/service';
 
 const config = getConfig();
 const logger = pino({ level: config.LOG_LEVEL });
@@ -102,8 +103,23 @@ const timer = setInterval(
   3000,
 );
 logger.info('Worker ready');
+let refreshingTrending = false;
+async function refreshTrending() {
+  if (refreshingTrending || config.APP_MODE !== 'live') return;
+  refreshingTrending = true;
+  try {
+    await getTrending();
+  } catch {
+    logger.warn('Trending snapshot refresh failed');
+  } finally {
+    refreshingTrending = false;
+  }
+}
+void refreshTrending();
+const trendingTimer = setInterval(() => void refreshTrending(), 60000);
 async function stop() {
   clearInterval(timer);
+  clearInterval(trendingTimer);
   await boss.stop();
   await getPool().end();
   process.exit(0);

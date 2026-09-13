@@ -4,8 +4,14 @@ import { getConfig } from '../config';
 import { getPool, transaction } from '../db/client';
 import { getItem } from '../db/store';
 import { createDemoData, demoTranslation } from '../demo/fixtures';
-import type { FeedItem, Summary } from '@/shared/types';
-import { prepareTranslation, assembleTranslation, translationResponseSchema } from './translation';
+import type { FeedItem, Summary, TranslationBlock } from '@/shared/types';
+import {
+  prepareTranslation,
+  assembleTranslation,
+  translationResponseSchema,
+  buildTranslationBlocks,
+} from './translation';
+type TranslationArtifact = { text: string; blocks: TranslationBlock[] };
 
 export class AiError extends Error {}
 const evidenceIds = z.array(z.string()).max(20);
@@ -104,7 +110,7 @@ export function cacheKey(
         type: item.type,
         kind,
         language: 'zh-CN',
-        prompt: kind === 'translation' ? '2026-09-13-v3-segments' : '2026-09-13-v2-zh-complete',
+        prompt: kind === 'translation' ? '2026-09-13-v4-bilingual' : '2026-09-13-v2-zh-complete',
         thinking,
         model,
         baseUrl,
@@ -224,7 +230,12 @@ async function applyArtifact(
   const patch =
     kind === 'summary'
       ? { summary: artifact, aiStatus: 'ready', aiError: null }
-      : { translation: artifact };
+      : typeof artifact === 'string'
+        ? { translation: artifact, translationBlocks: null }
+        : {
+            translation: (artifact as TranslationArtifact).text,
+            translationBlocks: (artifact as TranslationArtifact).blocks,
+          };
   const result = await getPool().query(
     "UPDATE items SET data=data || $4::jsonb WHERE user_id=$1 AND id=$2 AND data->>'contentHash'=$3",
     [userId, item.id, item.contentHash, JSON.stringify(patch)],
@@ -303,7 +314,7 @@ export async function runAi(
       reservation,
       cost,
     ]);
-    let artifact: Summary | string;
+    let artifact: Summary | TranslationArtifact;
     if (kind === 'summary') artifact = validateSummary(response.value, evidence);
     else {
       let translated: string;
@@ -312,7 +323,16 @@ export async function runAi(
       } catch {
         throw new AiError('译文段落不完整或格式错误，本次结果未保存，请重试。');
       }
-      artifact = validateTranslation({ translation: translated }, item.body);
+      artifact = {
+        text: validateTranslation({ translation: translated }, item.body),
+        blocks: buildTranslationBlocks(response.value, translationPlan!).map((block) => ({
+          ...block,
+          translation:
+            block.translation === null
+              ? null
+              : validateTranslation({ translation: block.translation }, block.original),
+        })),
+      };
     }
     await getPool().query('INSERT INTO ai_cache(key,result) VALUES($1,$2) ON CONFLICT DO NOTHING', [
       key,

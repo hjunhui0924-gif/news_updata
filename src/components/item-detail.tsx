@@ -18,6 +18,7 @@ import {
 import type { FeedItem } from '@/shared/types';
 import { Button } from './ui/button';
 import { Markdown } from './markdown';
+import { BilingualTranslation } from './bilingual-translation';
 export function ItemDetail({
   item,
   toggleSaved,
@@ -119,7 +120,7 @@ export function ItemDetail({
         <div className="detail-tabs" role="tablist" aria-label="内容视图">
           {[
             { key: 'summary', label: '中文摘要', icon: Sparkles },
-            { key: 'translation', label: '中文译文', icon: Languages },
+            { key: 'translation', label: '对照翻译', icon: Languages },
             { key: 'original', label: '原文', icon: Code2 },
           ].map(({ key, label, icon: Icon }) => (
             <button
@@ -255,7 +256,7 @@ export function ItemDetail({
             (item.language === 'zh' ? (
               <Markdown text={item.body} />
             ) : item.translation ? (
-              <Markdown text={item.translation} />
+              <BilingualTranslation item={item} />
             ) : (
               <div className="ai-empty">
                 <Languages size={30} />

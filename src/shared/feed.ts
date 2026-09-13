@@ -14,13 +14,7 @@ export function filterItems(
   return items.filter((item) => {
     if (item.muted) return false;
     if (filters.view === 'saved' && !item.saved) return false;
-    if (
-      filters.view === 'today' &&
-      (!(item.priority || item.type === 'new_repo') ||
-        item.backfill ||
-        Date.parse(item.publishedAt) < (filters.now ?? Date.now()) - 86400000)
-    )
-      return false;
+    if (filters.view === 'today') return false; // Discovery has its own Trending data source.
     if (filters.unread && item.read) return false;
     if (filters.type !== 'all' && item.type !== filters.type) return false;
     if (filters.source && item.sourceId !== filters.source) return false;

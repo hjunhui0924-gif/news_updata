@@ -44,23 +44,13 @@ export function FeedList({
   return (
     <section className="feed-panel" aria-label="更新列表">
       <div className="feed-heading">
-        <div className="eyebrow">
-          {view === 'today'
-            ? 'YOUR DAILY SIGNAL'
-            : view === 'saved'
-              ? 'WORTH KEEPING'
-              : 'THE UPDATE STREAM'}
-        </div>
+        <div className="eyebrow">{view === 'saved' ? 'WORTH KEEPING' : 'THE UPDATE STREAM'}</div>
         <div className="title-row">
-          <h1>{view === 'today' ? '今日精选' : view === 'saved' ? '已收藏' : '全部更新'}</h1>
+          <h1>{view === 'saved' ? '已收藏' : '全部更新'}</h1>
           <span className="count-pill">{items.length}</span>
         </div>
         <p>
-          {view === 'today'
-            ? '过去 24 小时，值得你留意的新变化。'
-            : view === 'saved'
-              ? '把值得反复阅读的更新，留在这里。'
-              : '你关注的每一次变化，都在这里。'}
+          {view === 'saved' ? '把值得反复阅读的更新，留在这里。' : '你关注的每一次变化，都在这里。'}
         </p>
       </div>
       <div className="search-box">
@@ -105,7 +95,7 @@ export function FeedList({
         </button>
       )}
       <div className="list-toolbar">
-        <span>{view === 'today' ? '为你筛选' : '按发布时间排序'}</span>
+        <span>按发布时间排序</span>
         <button onClick={markAll} disabled={!items.some((x) => !x.read)}>
           <CheckCheck size={14} />
           当前结果标为已读

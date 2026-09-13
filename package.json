@@ -22,6 +22,7 @@
     "test:e2e": "playwright test",
     "test:e2e:starred": "playwright test --config playwright.starred.config.ts",
     "test:e2e:ai": "playwright test --config playwright.ai.config.ts",
+    "test:e2e:discovery": "playwright test --config playwright.discovery.config.ts",
     "format": "prettier --write src tests scripts",
     "demo": "tsx scripts/demo.ts"
   },
@@ -29,6 +30,7 @@
     "@octokit/rest": "22.0.1",
     "@radix-ui/react-dialog": "1.1.23",
     "better-auth": "1.7.4",
+    "cheerio": "^1.2.0",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
     "drizzle-orm": "0.45.2",
@@ -41,7 +43,9 @@
     "react-dom": "^19.3.0",
     "react-markdown": "10.1.0",
     "remark-gfm": "4.0.1",
+    "remark-parse": "^11.0.0",
     "tailwind-merge": "3.6.0",
+    "unified": "11.0.5",
     "zod": "4.6.2"
   },
   "devDependencies": {
