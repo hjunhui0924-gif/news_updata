@@ -6,6 +6,7 @@ import type { Subscription } from '../shared/types';
 import pino from 'pino';
 import { runAi, AiError } from '../server/ai/service';
 import { GitHubError } from '../server/connectors/github';
+import { scheduleStarSync, syncStarred } from '../server/subscriptions/star-sync';
 
 const config = getConfig();
 const logger = pino({ level: config.LOG_LEVEL });
@@ -29,6 +30,12 @@ await boss.work<{ id: string }, void, { includeMetadata: true; pollingIntervalSe
             undefined,
             AbortSignal.any([job.signal, AbortSignal.timeout(240000)]),
           );
+        else if (task.kind === 'stars')
+          await syncStarred(
+            task.user_id,
+            undefined,
+            AbortSignal.any([job.signal, AbortSignal.timeout(240000)]),
+          );
         else if (task.kind === 'summary' || task.kind === 'translation')
           await runAi(task.user_id, task.target_id, task.kind);
         else throw new Error('该任务处理器尚未就绪');
@@ -41,7 +48,7 @@ await boss.work<{ id: string }, void, { includeMetadata: true; pollingIntervalSe
         if (job.signal.aborted) throw error;
         const final =
           error instanceof AiError ||
-          task.kind !== 'sync' ||
+          !['sync', 'stars'].includes(task.kind) ||
           (error instanceof GitHubError && [401, 404, 429].includes(error.status)) ||
           job.retryCount >= job.retryLimit;
         await getPool().query('UPDATE jobs SET status=$2,error=$3,updated_at=now() WHERE id=$1', [
@@ -83,6 +90,7 @@ async function tick() {
       );
     }
     await reconcileJobs(boss);
+    await scheduleStarSync();
     await publishPending(boss);
   } finally {
     ticking = false;

@@ -21,6 +21,7 @@ const schema = z.object({
   LOG_LEVEL: z.string().default('info'),
   SYNC_REPO_INTERVAL_MINUTES: z.coerce.number().positive().default(15),
   SYNC_AUTHOR_INTERVAL_MINUTES: z.coerce.number().positive().default(30),
+  SYNC_STAR_INTERVAL_MINUTES: z.coerce.number().positive().default(5),
 });
 
 export function getConfig(input: Record<string, string | undefined> = process.env) {

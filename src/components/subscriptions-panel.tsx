@@ -12,10 +12,11 @@ import {
   Users,
   X,
 } from 'lucide-react';
-import type { Job, Subscription } from '@/shared/types';
+import type { Job, Subscription, StarSyncStatus } from '@/shared/types';
 import { Button } from './ui/button';
 import { requestJson } from './reader-app';
 import { StarredImport } from './starred-import';
+import { StarSyncPanel } from './star-sync-panel';
 
 export function SubscriptionsPanel({
   subscriptions,
@@ -23,12 +24,20 @@ export function SubscriptionsPanel({
   onAdd,
   onAction,
   busy,
+  starSync,
+  showStarSync,
+  workerOnline,
+  onStarAction,
 }: {
   subscriptions: Subscription[];
   jobs: Job[];
   onAdd: () => void;
   onAction: (id: string, action: string) => Promise<void>;
   busy: string;
+  starSync: StarSyncStatus | null;
+  showStarSync: boolean;
+  workerOnline: boolean;
+  onStarAction: (action: 'check' | 'enable' | 'disable') => Promise<void>;
 }) {
   const [kind, setKind] = useState('all');
   return (
@@ -56,6 +65,17 @@ export function SubscriptionsPanel({
           GitHub 公开内容
         </p>
       </div>
+      {showStarSync && (
+        <StarSyncPanel
+          status={starSync}
+          busy={busy === 'stars'}
+          workerOnline={workerOnline}
+          pending={jobs.some(
+            (job) => job.kind === 'stars' && ['pending', 'running'].includes(job.status),
+          )}
+          onAction={onStarAction}
+        />
+      )}
       <div className="segmented management-tabs">
         {[
           ['all', '全部来源'],

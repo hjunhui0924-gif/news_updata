@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import { api } from '@/server/http';
-import { getPool } from '@/server/db/client';
-import { updateSubscription } from '@/server/subscriptions/service';
+import { updateSubscription, deleteSubscription } from '@/server/subscriptions/service';
 type Context = { params: Promise<{ id: string }> };
 export const PATCH = (request: Request, context: Context) =>
   api(request, async (viewer) =>
@@ -17,9 +16,6 @@ export const PATCH = (request: Request, context: Context) =>
   );
 export const DELETE = (request: Request, context: Context) =>
   api(request, async (viewer) => {
-    await getPool().query('DELETE FROM subscriptions WHERE user_id=$1 AND id=$2', [
-      viewer.id,
-      (await context.params).id,
-    ]);
+    await deleteSubscription(viewer.id, (await context.params).id);
     return { ok: true };
   });

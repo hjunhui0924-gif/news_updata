@@ -54,6 +54,7 @@ MVP 采用按用户保存条目的简化模型，身份与阅读状态为关系�
 | items                                   | 用户与事件外部 ID 唯一，JSONB 保存原文/摘要/译文，已读/收藏/屏蔽独立字段 |
 | preferences                             | 时区、紧凑列表                                                           |
 | jobs                                    | 任务状态和待投递记录，与业务写入同一事务                                 |
+| star_sync / star_sync_exclusions        | 每用户自动 Star 检查开关、分页检查点、重试期限与应用内取消订阅的排除记录 |
 | ai_usage / ai_cache                     | 预算预留、实际用量或不确定费用、按内容与模型缓存                         |
 | notifications                           | 站内 Markdown 简报                                                       |
 | system_state                            | 扫描游标、调度时间、演示种子标志和 Worker 心跳                           |

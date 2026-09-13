@@ -52,6 +52,7 @@ export type Subscription = {
   error: string | null;
   coverage: 'complete' | 'partial' | 'pending';
   retryAt?: string | null;
+  autoFromStar?: boolean;
 };
 export type Preferences = {
   timezone: string;
@@ -69,7 +70,16 @@ export type StarredPreview = {
   repositories: StarredRepository[];
   nextPage: number | null;
 };
-export type JobKind = 'sync' | 'summary' | 'translation' | 'digest';
+export type StarSyncStatus = {
+  enabled: boolean;
+  nextSyncAt: string;
+  lastSyncAt: string | null;
+  lastAdded: number;
+  nextPage: number;
+  error: string | null;
+  intervalMinutes: number;
+};
+export type JobKind = 'sync' | 'stars' | 'summary' | 'translation' | 'digest';
 export type JobStatus = 'pending' | 'running' | 'completed' | 'failed';
 export type Job = {
   id: string;
@@ -96,6 +106,7 @@ export type Bootstrap = {
   preferences: Preferences;
   notifications: Notification[];
   jobs: Job[];
+  starSync: StarSyncStatus | null;
   services: {
     github: boolean;
     ai: boolean;

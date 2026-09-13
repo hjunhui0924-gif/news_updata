@@ -43,6 +43,7 @@ pnpm worker:dev
 | GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET | GitHub OAuth App 凭据                            |
 | ALLOWED_GITHUB_USER_IDS                 | 允许登录的稳定数字 ID，逗号分隔，不是用户名      |
 | GITHUB_READ_TOKEN                       | 可选，服务端公开数据读取 Token                   |
+| SYNC_STAR_INTERVAL_MINUTES              | 当前登录账号公开 Star 列表检查间隔，默认 5 分钟  |
 
 真实模式的 OAuth 回调为 `<APP_URL>/api/auth/callback/github`。将回调填入自己的 GitHub OAuth App，配置后重启 Web 与 Worker。OAuth 登录凭据和数据读取 Token 用途不同；采集优先使用 GITHUB_READ_TOKEN；未配置时，在服务端复用当前用户加密保存的 OAuth access token 读取公开数据。令牌不返回前端，过期时需重新登录。
 
@@ -100,6 +101,8 @@ pnpm build
 浏览器测试使用本地 demo 数据，会修改示例的已读、收藏和偏好。启动 Web 与 Worker 后执行；默认使用 Windows 已安装的 Chrome，可设置 CHROME_PATH。其他环境安装 Playwright Chromium：`pnpm exec playwright install chromium`。
 
 `/api/health/live` 用于存活检查；Worker 心跳和费用出现在设置页。Web 在运行不代表 Worker 正在同步，应检查设置中的后台状态。
+
+升级自动 Star 跟踪后先运行 `pnpm db:migrate` 应用 `0003_star_sync.sql`，再启动 Web 和 Worker。真实模式下 Worker 默认为允许名单中的已登录 GitHub 账号开启自动发现，用户关闭后不会被调度器重新打开。在「订阅管理 → Star 自动跟踪」查看上次结果、错误及下一轮时间，或点击「立即检查」。需保持数据库和 Worker 运行，浏览器可以关闭；这不是即时 webhook 推送。新 Star 先加入订阅，正式 Release 抓取随后执行；已有仓库的 Release 检查默认每 15 分钟。限流、排队和服务离线会延长等待，不能保证严格 5 分钟内完成。
 
 ## 已知运行限制
 

@@ -218,7 +218,7 @@ export function StarredImport({
         </p>
       )}
       <div className="dialog-footer">
-        <span>新增 Star 后可再次导入</span>
+        <span>也可在订阅管理开启自动跟踪</span>
         <Button
           variant="primary"
           disabled={busy || !checked.length}

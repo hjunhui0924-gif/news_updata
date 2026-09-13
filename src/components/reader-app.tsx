@@ -313,6 +313,25 @@ export function ReaderApp({
         ) : view === 'subscriptions' ? (
           <SubscriptionsPanel
             subscriptions={data.subscriptions}
+            starSync={data.starSync}
+            showStarSync={data.mode === 'live' || !!data.starSync}
+            workerOnline={data.services.workerOnline}
+            onStarAction={(action) =>
+              execute(
+                'stars',
+                () =>
+                  requestJson(
+                    '/api/github/starred/auto',
+                    action === 'check' ? 'POST' : 'PATCH',
+                    action === 'check' ? undefined : { enabled: action === 'enable' },
+                  ),
+                action === 'check'
+                  ? 'Star 检查已加入队列'
+                  : action === 'enable'
+                    ? 'Star 自动跟踪已开启'
+                    : 'Star 自动跟踪已关闭',
+              )
+            }
             jobs={data.jobs}
             onAdd={() => setAddOpen(true)}
             onAction={(id, action) =>

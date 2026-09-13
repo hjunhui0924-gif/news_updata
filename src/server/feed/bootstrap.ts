@@ -2,6 +2,7 @@ import { getConfig } from '../config';
 import { getPool } from '../db/client';
 import { getItems, getJobs, getNotifications, getPreferences, getSubscriptions } from '../db/store';
 import type { Bootstrap } from '@/shared/types';
+import { getStarSync } from '../subscriptions/star-sync';
 
 export async function bootstrap(user: {
   id: string;
@@ -37,6 +38,7 @@ export async function bootstrap(user: {
     subscriptions,
     preferences,
     jobs,
+    starSync: await getStarSync(user.id),
     notifications,
     services: {
       github: !!config.GITHUB_READ_TOKEN || githubAccount.rows[0].configured,
