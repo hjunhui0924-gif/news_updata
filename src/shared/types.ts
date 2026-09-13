@@ -57,6 +57,18 @@ export type Preferences = {
   timezone: string;
   compact: boolean;
 };
+export type StarredRepository = {
+  id: string;
+  name: string;
+  description: string;
+  url: string;
+  subscribed: boolean;
+};
+export type StarredPreview = {
+  username: string;
+  repositories: StarredRepository[];
+  nextPage: number | null;
+};
 export type JobKind = 'sync' | 'summary' | 'translation' | 'digest';
 export type JobStatus = 'pending' | 'running' | 'completed' | 'failed';
 export type Job = {

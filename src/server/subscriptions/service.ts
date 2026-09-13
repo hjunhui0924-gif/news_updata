@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { GitHubConnector, GitHubError, createGitHubTransport } from '../connectors/github';
+import { GitHubConnector, GitHubError } from '../connectors/github';
+import { createUserGitHubConnector } from '../connectors/github-user';
 import { getPool, transaction } from '../db/client';
 import { getSubscription } from '../db/store';
 import { enqueue } from '../jobs/queue';
@@ -10,8 +11,9 @@ export async function addSubscription(
   userId: string,
   kind: 'repo' | 'author',
   input: string,
-  connector = new GitHubConnector(),
+  connector?: GitHubConnector,
 ) {
+  connector ??= await createUserGitHubConnector(userId);
   const resolved = await connector.resolve(kind, input);
   const subscription = await transaction(async (client) => {
     await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`subscription:${userId}`]);
@@ -75,7 +77,6 @@ export async function syncSubscription(
   signal?: AbortSignal,
 ) {
   signal?.throwIfAborted();
-  connector ??= new GitHubConnector(createGitHubTransport(signal));
   const sub = await getSubscription(userId, id);
   if (!sub || !sub.enabled) return;
   if (sub.retryAt && Date.parse(sub.retryAt) > Date.now())
@@ -100,6 +101,7 @@ export async function syncSubscription(
   let historyCount = cursor && !cursor.completed ? cursor.historyCount : 0;
   const startedAt = cursor && !cursor.completed ? cursor.startedAt : new Date().toISOString();
   try {
+    connector ??= await createUserGitHubConnector(userId, signal);
     // Five pages per job keeps work bounded; unfinished scans retain a durable next page.
     for (let iteration = 0; iteration < 5; iteration++, page++) {
       signal?.throwIfAborted();

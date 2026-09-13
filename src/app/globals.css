@@ -1574,6 +1574,62 @@ svg {
   border-bottom: 1px solid var(--border);
   font-size: 12px;
 }
+.starred-import form > .button {
+  margin-top: 14px;
+}
+.starred-selection-bar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 18px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.starred-candidates {
+  max-height: 260px;
+}
+.starred-candidate {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+}
+.starred-candidate:last-child {
+  border-bottom: 0;
+}
+.starred-candidate label {
+  flex: 1;
+  min-width: 0;
+  border-bottom: 0;
+  align-items: flex-start;
+}
+.starred-candidate input {
+  margin-top: 3px;
+  flex-shrink: 0;
+}
+.starred-candidate label span {
+  min-width: 0;
+}
+.starred-candidate strong {
+  display: block;
+  overflow-wrap: anywhere;
+  font-weight: 600;
+}
+.starred-candidate small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.starred-candidate .icon-button {
+  flex-shrink: 0;
+  margin-right: 4px;
+}
+.starred-candidates + .button {
+  margin-top: 10px;
+}
 .form-error {
   font-size: 12px;
   line-height: 1.7;

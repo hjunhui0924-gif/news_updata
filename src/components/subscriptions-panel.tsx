@@ -15,6 +15,7 @@ import {
 import type { Job, Subscription } from '@/shared/types';
 import { Button } from './ui/button';
 import { requestJson } from './reader-app';
+import { StarredImport } from './starred-import';
 
 export function SubscriptionsPanel({
   subscriptions,
@@ -149,7 +150,7 @@ export function SubscriptionsPanel({
         <div className="empty-state">
           <Github size={30} />
           <h3>从一个喜欢的项目开始</h3>
-          <p>添加仓库，或导入你关注的开发者。</p>
+          <p>添加仓库、导入 Star 项目，或关注开发者。</p>
           <Button onClick={onAdd}>添加第一个订阅</Button>
         </div>
       )}
@@ -174,7 +175,7 @@ export function AddSubscription({
   onOpenChange: (v: boolean) => void;
   onAdded: () => Promise<void>;
 }) {
-  const [kind, setKind] = useState<'repo' | 'author' | 'following'>('repo');
+  const [kind, setKind] = useState<'repo' | 'author' | 'following' | 'starred'>('repo');
   const [value, setValue] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -222,12 +223,17 @@ export function AddSubscription({
     }
   }
   return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+    <Dialog.Root
+      open={open}
+      onOpenChange={(next) => {
+        if (!busy) onOpenChange(next);
+      }}
+    >
       <Dialog.Portal>
         <Dialog.Overlay className="dialog-overlay" />
         <Dialog.Content className="dialog-content">
           <Dialog.Close asChild>
-            <button className="dialog-close icon-button" aria-label="关闭添加订阅">
+            <button className="dialog-close icon-button" aria-label="关闭添加订阅" disabled={busy}>
               <X size={19} />
             </button>
           </Dialog.Close>
@@ -241,11 +247,13 @@ export function AddSubscription({
           <div className="segmented dialog-tabs">
             {[
               ['repo', '项目仓库'],
+              ['starred', '导入 Star'],
               ['author', '开发者'],
               ['following', '导入关注'],
             ].map(([key, label]) => (
               <button
                 key={key}
+                disabled={busy}
                 className={kind === key ? 'selected' : ''}
                 onClick={() => {
                   setKind(key as typeof kind);
@@ -257,74 +265,82 @@ export function AddSubscription({
               </button>
             ))}
           </div>
-          <form onSubmit={submit}>
-            <label className="field-label" htmlFor="source-input">
-              {kind === 'repo' ? '仓库地址或 owner/repo' : 'GitHub 用户名'}
-            </label>
-            <input
-              id="source-input"
-              className="text-input"
-              value={value}
-              onChange={(e) => {
-                setValue(e.target.value);
-                setCandidates([]);
-              }}
-              placeholder={kind === 'repo' ? '例如 vercel/next.js' : '例如 torvalds'}
-              required
-              maxLength={200}
+          {kind === 'starred' ? (
+            <StarredImport
+              onAdded={onAdded}
+              onClose={() => onOpenChange(false)}
+              onBusyChange={setBusy}
             />
-            <p className="helper">
-              {kind === 'repo'
-                ? '跟踪正式版本发布，首次导入的历史版本不会作为新提醒。'
-                : kind === 'author'
-                  ? '发现该开发者新建的公开仓库，不自动追踪全部项目。'
-                  : '读取该账号公开的关注列表，勾选后导入。'}
-            </p>
-            {candidates.length > 0 && (
-              <div className="candidate-list">
-                {candidates.map((candidate) => (
-                  <label key={candidate.id}>
-                    <input
-                      type="checkbox"
-                      checked={checked.includes(candidate.login)}
-                      onChange={(e) =>
-                        setChecked(
-                          e.target.checked
-                            ? [...checked, candidate.login]
-                            : checked.filter((x) => x !== candidate.login),
-                        )
-                      }
-                    />
-                    <Github size={16} />
-                    {candidate.login}
-                  </label>
-                ))}
-              </div>
-            )}
-            {error && (
-              <p className="form-error" role="alert">
-                {error}
+          ) : (
+            <form onSubmit={submit}>
+              <label className="field-label" htmlFor="source-input">
+                {kind === 'repo' ? '仓库地址或 owner/repo' : 'GitHub 用户名'}
+              </label>
+              <input
+                id="source-input"
+                className="text-input"
+                value={value}
+                onChange={(e) => {
+                  setValue(e.target.value);
+                  setCandidates([]);
+                }}
+                placeholder={kind === 'repo' ? '例如 vercel/next.js' : '例如 torvalds'}
+                required
+                maxLength={200}
+              />
+              <p className="helper">
+                {kind === 'repo'
+                  ? '跟踪正式版本发布，首次导入的历史版本不会作为新提醒。'
+                  : kind === 'author'
+                    ? '发现该开发者新建的公开仓库，不自动追踪全部项目。'
+                    : '读取该账号公开的关注列表，勾选后导入。'}
               </p>
-            )}
-            <div className="dialog-footer">
-              <span>
-                <Github size={14} />
-                仅访问公开信息
-              </span>
-              <Button
-                type="submit"
-                variant="primary"
-                disabled={busy || (candidates.length > 0 && !checked.length)}
-              >
-                {busy ? <Loader2 size={15} className="spin" /> : <Check size={15} />}{' '}
-                {kind === 'following' && !candidates.length
-                  ? '查看关注列表'
-                  : kind === 'following'
-                    ? `导入 ${checked.length} 人`
-                    : '添加订阅'}
-              </Button>
-            </div>
-          </form>
+              {candidates.length > 0 && (
+                <div className="candidate-list">
+                  {candidates.map((candidate) => (
+                    <label key={candidate.id}>
+                      <input
+                        type="checkbox"
+                        checked={checked.includes(candidate.login)}
+                        onChange={(e) =>
+                          setChecked(
+                            e.target.checked
+                              ? [...checked, candidate.login]
+                              : checked.filter((x) => x !== candidate.login),
+                          )
+                        }
+                      />
+                      <Github size={16} />
+                      {candidate.login}
+                    </label>
+                  ))}
+                </div>
+              )}
+              {error && (
+                <p className="form-error" role="alert">
+                  {error}
+                </p>
+              )}
+              <div className="dialog-footer">
+                <span>
+                  <Github size={14} />
+                  仅访问公开信息
+                </span>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  disabled={busy || (candidates.length > 0 && !checked.length)}
+                >
+                  {busy ? <Loader2 size={15} className="spin" /> : <Check size={15} />}{' '}
+                  {kind === 'following' && !candidates.length
+                    ? '查看关注列表'
+                    : kind === 'following'
+                      ? `导入 ${checked.length} 人`
+                      : '添加订阅'}
+                </Button>
+              </div>
+            </form>
+          )}
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>

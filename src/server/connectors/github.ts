@@ -88,9 +88,9 @@ export function parseSourceInput(input: string, kind: 'repo' | 'author') {
   return value;
 }
 
-export function createGitHubTransport(signal?: AbortSignal): GitHubTransport {
+export function createGitHubTransport(signal?: AbortSignal, accessToken?: string): GitHubTransport {
   const octokit = new Octokit({
-    auth: getConfig().GITHUB_READ_TOKEN || undefined,
+    auth: accessToken || getConfig().GITHUB_READ_TOKEN || undefined,
     userAgent: 'newsroom-mvp',
     request: { timeout: 20000 },
   });
@@ -233,6 +233,39 @@ export class GitHubConnector {
         .parse(response.data)
         .map((x) => ({ login: x.login, id: x.id })),
       truncated: response.hasNext,
+    };
+  }
+  async usernameById(accountId: string) {
+    if (!/^\d+$/.test(accountId)) throw new GitHubError('GitHub 账号 ID 无效', 400);
+    const response = await this.request(`/user/${accountId}`);
+    return userSchema.parse(response.data).login;
+  }
+  async starred(input: string, page = 1) {
+    const name = parseSourceInput(input, 'author');
+    if (!Number.isSafeInteger(page) || page < 1 || page > 10000)
+      throw new GitHubError('分页参数无效', 400);
+    const response = await this.request(
+      `/users/${name}/starred?sort=created&direction=desc&per_page=50&page=${page}`,
+    );
+    const repositories = z
+      .array(repoSchema)
+      .parse(response.data)
+      .filter((repo) => !repo.private);
+    return {
+      repositories: [
+        ...new Map(
+          repositories.map((repo) => [
+            repo.id,
+            {
+              id: repo.id,
+              name: repo.full_name,
+              description: repo.description ?? '',
+              url: repo.html_url,
+            },
+          ]),
+        ).values(),
+      ],
+      nextPage: response.hasNext ? page + 1 : null,
     };
   }
 }

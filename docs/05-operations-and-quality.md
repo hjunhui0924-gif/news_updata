@@ -44,7 +44,7 @@ pnpm worker:dev
 | ALLOWED_GITHUB_USER_IDS                 | 允许登录的稳定数字 ID，逗号分隔，不是用户名      |
 | GITHUB_READ_TOKEN                       | 可选，服务端公开数据读取 Token                   |
 
-真实模式的 OAuth 回调为 `<APP_URL>/api/auth/callback/github`。将回调填入自己的 GitHub OAuth App，配置后重启 Web 与 Worker。OAuth 登录凭据和数据读取 Token 用途不同；当前采集统一使用 GITHUB_READ_TOKEN，不读取用户会话 Token。
+真实模式的 OAuth 回调为 `<APP_URL>/api/auth/callback/github`。将回调填入自己的 GitHub OAuth App，配置后重启 Web 与 Worker。OAuth 登录凭据和数据读取 Token 用途不同；采集优先使用 GITHUB_READ_TOKEN；未配置时，在服务端复用当前用户加密保存的 OAuth access token 读取公开数据。令牌不返回前端，过期时需重新登录。
 
 没有配置真实 OAuth 凭据时登录流程未完成，不能将登录页面可见视为验证通过。演示固定用户的数据不会自动迁移到真实登录用户。
 

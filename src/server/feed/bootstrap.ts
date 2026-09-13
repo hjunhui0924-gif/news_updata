@@ -9,7 +9,7 @@ export async function bootstrap(user: {
   image?: string | null;
 }): Promise<Bootstrap> {
   const config = getConfig();
-  const [items, subscriptions, preferences, jobs, notifications, heartbeat, usage] =
+  const [items, subscriptions, preferences, jobs, notifications, heartbeat, usage, githubAccount] =
     await Promise.all([
       getItems(user.id),
       getSubscriptions(user.id),
@@ -20,6 +20,10 @@ export async function bootstrap(user: {
       getPool().query(
         "SELECT coalesce(sum(cost),0) cost FROM ai_usage WHERE user_id=$1 AND created_at >= date_trunc('day',now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'",
         [user.id],
+      ),
+      getPool().query(
+        'SELECT EXISTS(SELECT 1 FROM account WHERE "userId"=$1 AND "providerId"=$2 AND "accessToken" IS NOT NULL) AS configured',
+        [user.id, 'github'],
       ),
     ]);
   const currentSubscriptions = new Map(subscriptions.map((sub) => [sub.id, sub]));
@@ -35,7 +39,7 @@ export async function bootstrap(user: {
     jobs,
     notifications,
     services: {
-      github: !!config.GITHUB_READ_TOKEN,
+      github: !!config.GITHUB_READ_TOKEN || githubAccount.rows[0].configured,
       ai: config.LLM_ENABLED === 'true',
       workerLastSeen: heartbeat.rows[0]?.value ?? null,
       workerOnline:
