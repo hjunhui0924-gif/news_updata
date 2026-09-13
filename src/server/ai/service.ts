@@ -135,7 +135,17 @@ export const callModel: ModelCall = async (input) => {
       },
     }),
   });
-  if (!response.ok) throw new AiError(`模型服务返回 ${response.status}，请检查配置或稍后重试。`);
+  if (!response.ok) {
+    const detail = await response.json().catch(() => null);
+    // Match known codes only; provider messages may contain request data or credentials.
+    if (detail?.error?.code === 'AllocationQuota.FreeTierOnly')
+      throw new AiError(
+        '模型免费额度已耗尽，当前账号仅允许使用免费额度。请在百炼控制台恢复可用额度或更换有额度的模型。',
+      );
+    if (response.status === 401) throw new AiError('模型服务授权失败，请检查 API Key。');
+    if (response.status === 429) throw new AiError('模型服务请求受限，请稍后重试或检查账户额度。');
+    throw new AiError(`模型服务返回 ${response.status}，请检查配置或稍后重试。`);
+  }
   const body = z
     .object({
       choices: z

@@ -7,6 +7,8 @@ import { migrate } from '../../scripts/migrate';
 import { GitHubConnector, GitHubError } from '../../src/server/connectors/github';
 import { previewStarred, importStarred } from '../../src/server/subscriptions/starred';
 import { syncSubscription } from '../../src/server/subscriptions/service';
+import { getSubscriptions, saveSubscription } from '../../src/server/db/store';
+import { createDemoData } from '../../src/server/demo/fixtures';
 
 const userId = `stars-${randomUUID()}`;
 const otherId = `stars-${randomUUID()}`;
@@ -80,6 +82,31 @@ it('validates the whole selection before creating any subscriptions', async () =
   expect(
     (await getPool().query('SELECT id FROM subscriptions WHERE user_id=$1', [otherId])).rows,
   ).toHaveLength(0);
+});
+it('orders subscriptions newest first and preserves that order after status updates', async () => {
+  const base = createDemoData().subscriptions[0];
+  const earlier = {
+    ...base,
+    id: randomUUID(),
+    externalId: 'order-old',
+    createdAt: '2026-09-01T01:00:00Z',
+  };
+  const later = {
+    ...base,
+    id: randomUUID(),
+    externalId: 'order-new',
+    createdAt: '2026-09-02T01:00:00Z',
+  };
+  await saveSubscription(otherId, later);
+  await saveSubscription(otherId, earlier);
+  expect((await getSubscriptions(otherId)).map((s) => s.id)).toEqual([later.id, earlier.id]);
+  await saveSubscription(otherId, {
+    ...earlier,
+    priority: true,
+    enabled: false,
+    lastSyncAt: new Date().toISOString(),
+  });
+  expect((await getSubscriptions(otherId)).map((s) => s.id)).toEqual([later.id, earlier.id]);
 });
 it('reads only the caller OAuth credential, checks permission/expiry and redacts decryption errors', async () => {
   vi.stubEnv('GITHUB_READ_TOKEN', '');

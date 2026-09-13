@@ -1,4 +1,4 @@
-import { desc, eq, and } from 'drizzle-orm';
+import { desc, eq, and, sql } from 'drizzle-orm';
 import { getDb, getPool } from './client';
 import { items, subscriptions, preferences } from './schema';
 import type { FeedItem, Preferences, Subscription, Notification } from '@/shared/types';
@@ -55,9 +55,16 @@ export async function patchItemState(
   return result.length > 0;
 }
 export async function getSubscriptions(userId: string): Promise<Subscription[]> {
-  return (await getDb().select().from(subscriptions).where(eq(subscriptions.userId, userId))).map(
-    (row) => row.data,
-  );
+  return (
+    await getDb()
+      .select()
+      .from(subscriptions)
+      .where(eq(subscriptions.userId, userId))
+      .orderBy(
+        desc(sql`(${subscriptions.data}->>'createdAt')::timestamptz`),
+        desc(subscriptions.id),
+      )
+  ).map((row) => row.data);
 }
 export async function getSubscription(userId: string, id: string) {
   const rows = await getDb()

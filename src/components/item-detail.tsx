@@ -27,6 +27,7 @@ export function ItemDetail({
   back,
   timezone,
   error,
+  aiEnabled,
 }: {
   item: FeedItem | null;
   toggleSaved: () => void;
@@ -36,6 +37,7 @@ export function ItemDetail({
   back: () => void;
   timezone: string;
   error?: string | null;
+  aiEnabled: boolean;
 }) {
   const [tab, setTab] = useState<'summary' | 'translation' | 'original'>('summary');
   const [evidence, setEvidence] = useState(false);
@@ -215,10 +217,26 @@ export function ItemDetail({
               <div className="ai-empty">
                 <Sparkles size={28} />
                 <h3>
-                  {item.aiStatus === 'insufficient' ? '项目介绍尚未完善' : '这条更新还没有中文摘要'}
+                  {!item.body
+                    ? '暂无可供总结的正文'
+                    : !item.demo && !aiEnabled
+                      ? 'AI 摘要尚未启用'
+                      : busy
+                        ? '该条目的 AI 任务正在处理…'
+                        : '这条更新还没有中文摘要'}
                 </h3>
-                <p>{item.aiError || '原文始终可读。配置 AI 服务后，可以生成有来源依据的摘要。'}</p>
-                <Button onClick={summarize} disabled={busy || !item.body}>
+                <p>
+                  {!item.demo && !aiEnabled
+                    ? 'AI 服务当前关闭，暂时无法生成摘要。你可以切换到「原文」阅读更新。'
+                    : item.aiError ||
+                      (busy
+                        ? '任务正在排队或生成中，完成后会自动显示。'
+                        : '生成中文概览、关键变化和原文依据。')}
+                </p>
+                <Button
+                  onClick={summarize}
+                  disabled={busy || !item.body || (!item.demo && !aiEnabled)}
+                >
                   {busy ? <Loader2 className="spin" size={16} /> : <Sparkles size={16} />}生成摘要
                 </Button>
               </div>
@@ -245,9 +263,15 @@ export function ItemDetail({
                 <p>
                   {item.demo
                     ? '体验按需翻译流程，演示译文已预先编写，不消耗模型额度。'
-                    : '完整翻译仅在你需要时生成，并会复用已有结果。'}
+                    : !aiEnabled
+                      ? 'AI 服务当前关闭，暂时无法翻译。你可以切换到「原文」阅读更新。'
+                      : '点击下方按钮生成中文译文，完成后会保存，后续打开可直接阅读。'}
                 </p>
-                <Button variant="primary" onClick={translate} disabled={busy || !item.body}>
+                <Button
+                  variant="primary"
+                  onClick={translate}
+                  disabled={busy || !item.body || (!item.demo && !aiEnabled)}
+                >
                   {busy ? <Loader2 size={16} className="spin" /> : <Languages size={16} />}
                   生成中文翻译
                 </Button>

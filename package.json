@@ -21,6 +21,7 @@
     "test:integration": "vitest run tests/integration",
     "test:e2e": "playwright test",
     "test:e2e:starred": "playwright test --config playwright.starred.config.ts",
+    "test:e2e:ai": "playwright test --config playwright.ai.config.ts",
     "format": "prettier --write src tests scripts",
     "demo": "tsx scripts/demo.ts"
   },

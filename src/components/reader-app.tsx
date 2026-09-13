@@ -269,6 +269,7 @@ export function ReaderApp({
             />
             <ItemDetail
               key={selected?.id ?? 'empty'}
+              aiEnabled={data.services.ai}
               item={selected}
               timezone={data.preferences.timezone}
               toggleSaved={() =>
