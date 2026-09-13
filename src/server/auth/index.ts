@@ -19,6 +19,9 @@ function createAuth() {
     baseURL: config.APP_URL,
     secret: config.BETTER_AUTH_SECRET,
     trustedOrigins: [config.APP_URL],
+    // All token rotation goes through our cross-process lock; these unused routes
+    // otherwise rotate independently and can return provider tokens to clients.
+    disabledPaths: ['/get-access-token', '/refresh-token', '/account-info'],
     account: { encryptOAuthTokens: true, accountLinking: { enabled: false } },
     socialProviders: {
       github: {

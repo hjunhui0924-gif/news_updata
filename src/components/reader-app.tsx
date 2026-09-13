@@ -23,6 +23,7 @@ import { Button } from './ui/button';
 import { SubscriptionsPanel, AddSubscription } from './subscriptions-panel';
 import { SettingsPanel } from './settings-panel';
 import { TrendingPanel } from './trending-panel';
+import { GitHubConnection } from './github-connection';
 
 export async function requestJson<T>(url: string, method = 'GET', body?: unknown): Promise<T> {
   const response = await fetch(url, {
@@ -248,6 +249,14 @@ export function ReaderApp({
             </Button>
           </div>
         )}
+        {data.mode === 'live' && view !== 'settings' && (
+          <GitHubConnection
+            key={data.services.githubAuth?.state}
+            banner
+            status={data.services.githubAuth}
+            onChecked={refresh}
+          />
+        )}
         {view === 'today' ? (
           <TrendingPanel
             subscriptions={data.subscriptions}
@@ -371,6 +380,7 @@ export function ReaderApp({
           />
         ) : (
           <SettingsPanel
+            onAuthChecked={refresh}
             data={data}
             busy={busy}
             save={(preferences: Preferences) =>

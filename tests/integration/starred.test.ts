@@ -130,25 +130,25 @@ it('reads only the caller OAuth credential, checks permission/expiry and redacts
       'UPDATE account SET "accessTokenExpiresAt"=now()-interval \'1 minute\' WHERE "userId"=$1',
       [userId],
     );
-    await expect(githubReadToken(userId)).rejects.toThrow('过期');
+    await expect(githubReadToken(userId)).rejects.toThrow('重新连接');
     const { rows: subscriptions } = await getPool().query(
       'SELECT id FROM subscriptions WHERE user_id=$1',
       [userId],
     );
-    await expect(syncSubscription(userId, subscriptions[0].id)).rejects.toThrow('过期');
+    await expect(syncSubscription(userId, subscriptions[0].id)).rejects.toThrow('重新连接');
     const { rows: paused } = await getPool().query('SELECT data FROM subscriptions WHERE id=$1', [
       subscriptions[0].id,
     ]);
     expect(paused[0].data).toMatchObject({
-      enabled: false,
+      enabled: true,
       coverage: 'partial',
-      error: 'GitHub 授权已过期，请重新登录。',
+      error: 'GitHub 授权已失效，请重新连接。订阅和阅读记录仍保留。',
     });
     await getPool().query(
       'UPDATE account SET "accessTokenExpiresAt"=NULL,"accessToken"=$2 WHERE "userId"=$1',
       [userId, 'invalid-sensitive-token'],
     );
-    await expect(githubReadToken(userId)).rejects.toThrow('GitHub 授权无法读取，请重新登录。');
+    await expect(githubReadToken(userId)).rejects.toThrow('重新连接');
   } finally {
     vi.unstubAllEnvs();
   }

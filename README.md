@@ -33,6 +33,7 @@ Docker Compose **只运行数据库**。Web 与 Worker 直接运行在本机；�
 - 导入当前账号的 Star 仓库，支持分页、勾选、重复导入和部分失败重试；也支持导入公开关注列表（前 50 人）。
 - 真实登录后每 5 分钟自动检查当前账号的公开 Star，新项目自动加入 Release 订阅；订阅管理可关闭或立即检查。
 - 订阅暂停/恢复、重点标记、手动同步，以及 Worker 定时轮询。
+- GitHub OAuth 访问令牌按需自动续期；设置页显示授权状态并支持检查连接，只有授权失效时要求重新连接。
 - 中文摘要、原文依据、按需上下对照翻译和原文阅读；历史译文保持全文对照，模拟数据明确标记为演示。
 - 在设置页生成站内更新简报，查看服务状态并保存阅读偏好。
 
@@ -54,6 +55,7 @@ pnpm lint
 pnpm test                # 独立 news_test 数据库，需要 PostgreSQL
 pnpm test:e2e:discovery  # 隔离浏览器验证 Trending、对照翻译和 Star 管理
 pnpm test:e2e:following  # 包含博主/项目双来源、按订阅查看和手机布局
+pnpm test:e2e:auth       # 包含授权续期状态、临时故障和重新连接交互
 pnpm test:e2e            # 演示 Web + Worker 启动后运行
 pnpm build              # 构建 Web 和 Worker
 ```
@@ -77,3 +79,5 @@ pnpm build              # 构建 Web 和 Worker
 新增发现与对照阅读的设计、接口、缓存规则及验证见 [增量开发文档](docs/10-discovery-and-bilingual.md)。
 
 项目与博主分别跟踪什么、发布者归属和数据覆盖限制见 [GitHub 关注规则](docs/11-github-following-scope.md)。
+
+登录会话与 GitHub 访问令牌的区别、自动续期和实测恢复见 [授权续期记录](docs/12-github-auth-renewal.md)。

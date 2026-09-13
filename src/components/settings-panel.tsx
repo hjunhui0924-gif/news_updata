@@ -14,16 +14,19 @@ import {
 import type { Bootstrap, Preferences } from '@/shared/types';
 import { Button } from './ui/button';
 import { Markdown } from './markdown';
+import { GitHubConnection } from './github-connection';
 export function SettingsPanel({
   data,
   busy,
   save,
   preview,
+  onAuthChecked,
 }: {
   data: Bootstrap;
   busy: string;
   save: (v: Preferences) => Promise<void>;
   preview: () => Promise<void>;
+  onAuthChecked: () => Promise<unknown>;
   notify: (m: string) => void;
 }) {
   const [preferences, setPreferences] = useState(data.preferences);
@@ -95,7 +98,10 @@ export function SettingsPanel({
           <div>
             <Github size={21} />
             <strong>GitHub</strong>
-            <span>{data.services.github ? '已配置访问凭据' : '公开访问 · 未配置 Token'}</span>
+            <span>
+              {data.services.githubAuth?.message ??
+                (data.services.github ? '已配置访问凭据' : '公开访问 · 未配置 Token')}
+            </span>
           </div>
           <div>
             <Sparkles size={21} />
@@ -116,6 +122,13 @@ export function SettingsPanel({
             </span>
           </div>
         </div>
+        {data.mode === 'live' && (
+          <GitHubConnection
+            key={data.services.githubAuth?.state}
+            status={data.services.githubAuth}
+            onChecked={onAuthChecked}
+          />
+        )}
         <p className="service-note">
           真实 AI 调用的今日估算费用：${data.services.costToday.toFixed(4)}
           。模型未配置时，原文阅读不受影响。

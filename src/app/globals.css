@@ -1,5 +1,35 @@
 @import 'tailwindcss';
 
+.github-connection {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  margin-top: 20px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.github-connection > div:first-child {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+.github-connection p {
+  margin: 6px 0 0;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.connection-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.connection-banner {
+  margin: 12px 20px;
+  background: #fffbeb;
+  flex-shrink: 0;
+}
+
 .item-sources {
   display: flex;
   flex-wrap: wrap;

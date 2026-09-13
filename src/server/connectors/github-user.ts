@@ -1,36 +1,31 @@
-import { symmetricDecrypt } from 'better-auth/crypto';
 import { getConfig } from '../config';
-import { getPool } from '../db/client';
 import { GitHubConnector, GitHubError, createGitHubTransport } from './github';
+import { githubReadToken, GitHubAuthError, markGitHubRejected } from './github-auth';
+export { githubReadToken } from './github-auth';
 
-export async function githubReadToken(userId: string) {
-  const config = getConfig();
-  if (config.GITHUB_READ_TOKEN) return config.GITHUB_READ_TOKEN;
-  const { rows } = await getPool().query(
-    'SELECT "accountId","accessToken","accessTokenExpiresAt" FROM account WHERE "userId"=$1 AND "providerId"=$2',
-    [userId, 'github'],
-  );
-  const account = rows[0];
-  if (!account?.accessToken) return '';
-  if (
-    !config.ALLOWED_GITHUB_USER_IDS.split(',')
-      .map((id) => id.trim())
-      .includes(account.accountId)
-  )
-    throw new GitHubError('此 GitHub 账号已不在访问允许名单中。', 401);
-  if (
-    account.accessTokenExpiresAt &&
-    new Date(account.accessTokenExpiresAt).getTime() <= Date.now()
-  )
-    throw new GitHubError('GitHub 授权已过期，请重新登录。', 401);
-  try {
-    // Same public crypto API used by Better Auth's encryptOAuthTokens option.
-    return await symmetricDecrypt({ key: config.BETTER_AUTH_SECRET, data: account.accessToken });
-  } catch {
-    throw new GitHubError('GitHub 授权无法读取，请重新登录。', 401);
-  }
-}
 export async function createUserGitHubConnector(userId: string, signal?: AbortSignal) {
-  signal?.throwIfAborted();
-  return new GitHubConnector(createGitHubTransport(signal, await githubReadToken(userId)));
+  let token = await githubReadToken(userId, { signal });
+  return new GitHubConnector(async (path, etag) => {
+    const sentToken = token;
+    try {
+      return await createGitHubTransport(signal, sentToken)(path, etag);
+    } catch (error) {
+      if (!(error instanceof GitHubError) || error.status !== 401 || !sentToken) throw error;
+      if (getConfig().GITHUB_READ_TOKEN) {
+        await markGitHubRejected(userId, sentToken);
+        throw new GitHubAuthError('configuration_error');
+      }
+      const retryToken = await githubReadToken(userId, { signal, rejectedToken: sentToken });
+      token = retryToken;
+      try {
+        return await createGitHubTransport(signal, retryToken)(path, etag);
+      } catch (retryError) {
+        if (retryError instanceof GitHubError && retryError.status === 401) {
+          await markGitHubRejected(userId, retryToken);
+          throw new GitHubAuthError('reconnect_required');
+        }
+        throw retryError;
+      }
+    }
+  });
 }

@@ -104,6 +104,19 @@ export type Notification = {
   createdAt: string;
   error: string | null;
 };
+export type GitHubAuthStatus = {
+  state:
+    | 'connected'
+    | 'refresh_pending'
+    | 'reconnect_required'
+    | 'temporary_error'
+    | 'configuration_error'
+    | 'public'
+    | 'configured';
+  message: string;
+  expiresAt: string | null;
+  retryAt: string | null;
+};
 export type Bootstrap = {
   mode: 'demo' | 'live';
   user: { name: string; image?: string | null };
@@ -114,6 +127,7 @@ export type Bootstrap = {
   jobs: Job[];
   starSync: StarSyncStatus | null;
   services: {
+    githubAuth?: GitHubAuthStatus;
     github: boolean;
     ai: boolean;
     workerLastSeen: string | null;
