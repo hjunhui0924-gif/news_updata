@@ -17,6 +17,7 @@ import { Button } from './ui/button';
 import { requestJson } from './reader-app';
 import { StarredImport } from './starred-import';
 import { StarSyncPanel } from './star-sync-panel';
+import { RepositorySearch } from './repository-search';
 
 export function SubscriptionsPanel({
   subscriptions,
@@ -216,7 +217,7 @@ export function AddSubscription({
   onOpenChange: (v: boolean) => void;
   onAdded: () => Promise<void>;
 }) {
-  const [kind, setKind] = useState<'repo' | 'author' | 'following' | 'starred'>('repo');
+  const [kind, setKind] = useState<'repo' | 'author' | 'following' | 'starred' | 'search'>('repo');
   const [value, setValue] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -288,6 +289,7 @@ export function AddSubscription({
           <div className="segmented dialog-tabs">
             {[
               ['repo', '项目仓库'],
+              ['search', '搜索项目'],
               ['starred', '导入 Star'],
               ['author', '开发者'],
               ['following', '导入关注'],
@@ -306,7 +308,9 @@ export function AddSubscription({
               </button>
             ))}
           </div>
-          {kind === 'starred' ? (
+          {kind === 'search' ? (
+            <RepositorySearch onAdded={onAdded} onBusyChange={setBusy} />
+          ) : kind === 'starred' ? (
             <StarredImport
               onAdded={onAdded}
               onClose={() => onOpenChange(false)}

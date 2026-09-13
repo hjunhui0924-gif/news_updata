@@ -76,6 +76,19 @@ export type StarredPreview = {
   repositories: StarredRepository[];
   nextPage: number | null;
 };
+export type RepositorySearchResult = {
+  query: string;
+  page: number;
+  totalCount: number;
+  incomplete: boolean;
+  nextPage: number | null;
+  repositories: (StarredRepository & {
+    stars: number;
+    language: string | null;
+    updatedAt: string;
+    archived: boolean;
+  })[];
+};
 export type StarSyncStatus = {
   enabled: boolean;
   nextSyncAt: string;

@@ -27,6 +27,7 @@ Docker Compose **只运行数据库**。Web 与 Worker 直接运行在本机；�
 
 - 今日精选：GitHub Trending 每日热门项目、常用语言榜单、中文简介按需翻译与一键订阅。
 - 全部更新：订阅动态、搜索、类型/来源/未读筛选、收藏、批量已读。
+- 添加订阅 → 搜索项目：按关键词搜索 GitHub 公开仓库，支持排序、分页和在知更中订阅，不修改 GitHub Star。
 - 桌面分栏阅读，手机和平板查看详情、返回列表；详情链接可刷新。
 - 添加公开仓库以跟踪正式 Release 和已收录版本说明的修改；关注个人开发者以发现其新建的非 fork 公开仓库、本人发布的正式 Release（含组织项目）。
 - 同一版本命中项目和博主时只显示一次，保留两种来源；订阅卡片可直接「查看更新」。博主发布动态受 GitHub 最近 30 天 / 300 条公开事件窗口限制，可能延迟 30 秒至 6 小时。
@@ -56,6 +57,7 @@ pnpm test                # 独立 news_test 数据库，需要 PostgreSQL
 pnpm test:e2e:discovery  # 隔离浏览器验证 Trending、对照翻译和 Star 管理
 pnpm test:e2e:following  # 包含博主/项目双来源、按订阅查看和手机布局
 pnpm test:e2e:auth       # 包含授权续期状态、临时故障和重新连接交互
+pnpm test:e2e:search     # 包含公开项目搜索、翻页、订阅和手机布局
 pnpm test:e2e            # 演示 Web + Worker 启动后运行
 pnpm build              # 构建 Web 和 Worker
 ```
@@ -81,3 +83,5 @@ pnpm build              # 构建 Web 和 Worker
 项目与博主分别跟踪什么、发布者归属和数据覆盖限制见 [GitHub 关注规则](docs/11-github-following-scope.md)。
 
 登录会话与 GitHub 访问令牌的区别、自动续期和实测恢复见 [授权续期记录](docs/12-github-auth-renewal.md)。
+
+公开项目搜索的入口、接口和限制见 [项目搜索说明](docs/13-github-project-search.md)。

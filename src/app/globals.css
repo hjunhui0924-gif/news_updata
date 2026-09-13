@@ -1,5 +1,55 @@
 @import 'tailwindcss';
 
+.repository-search-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+}
+.repository-search-summary {
+  font-size: 12px;
+  margin: 16px 0 10px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.repository-search-results {
+  max-height: 340px;
+  overflow-y: auto;
+}
+.repository-search-results article {
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border);
+}
+.repository-search-results a {
+  font-weight: 600;
+  color: var(--blue);
+  overflow-wrap: anywhere;
+}
+.repository-search-results p {
+  font-size: 13px;
+  line-height: 1.7;
+  margin: 8px 0;
+  overflow-wrap: anywhere;
+}
+.repository-result-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.repository-result-footer > span {
+  font-size: 11px;
+  color: var(--muted);
+}
+.dialog-tabs {
+  flex-wrap: wrap;
+}
+.dialog-tabs button {
+  min-width: 75px;
+}
+
 .github-connection {
   display: flex;
   flex-wrap: wrap;

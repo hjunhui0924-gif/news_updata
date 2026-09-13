@@ -15,6 +15,13 @@ export type GitHubTransport = (
   path: string,
   etag?: string,
 ) => Promise<{ data: unknown; etag?: string; hasNext: boolean; notModified?: boolean }>;
+export const repositorySearchSchema = z
+  .object({
+    query: z.string().trim().min(1, '请输入项目关键词').max(200),
+    page: z.number().int().min(1).max(50).default(1),
+    sort: z.enum(['relevance', 'stars', 'updated']).default('relevance'),
+  })
+  .strict();
 const id = z.union([z.number().int().safe(), z.string()]).transform(String);
 const userSchema = z.object({
   id,
@@ -139,6 +146,53 @@ export function createGitHubTransport(signal?: AbortSignal, accessToken?: string
 
 export class GitHubConnector {
   constructor(private request: GitHubTransport = createGitHubTransport()) {}
+  async searchRepositories(input: unknown) {
+    const { query, page, sort } = repositorySearchSchema.parse(input);
+    const params = new URLSearchParams({
+      q: `${query} is:public`,
+      per_page: '20',
+      page: String(page),
+    });
+    if (sort !== 'relevance') {
+      params.set('sort', sort);
+      params.set('order', 'desc');
+    }
+    const response = await this.request(`/search/repositories?${params}`);
+    const result = z
+      .object({
+        total_count: z.number().int().nonnegative(),
+        incomplete_results: z.boolean(),
+        items: z.array(
+          repoSchema.extend({
+            private: z.boolean(),
+            stargazers_count: z.number().int().nonnegative(),
+            language: z.string().nullable(),
+            updated_at: z.string(),
+            archived: z.boolean(),
+          }),
+        ),
+      })
+      .parse(response.data);
+    return {
+      query,
+      page,
+      totalCount: result.total_count,
+      incomplete: result.incomplete_results,
+      nextPage: response.hasNext && page < 50 && page * 20 < result.total_count ? page + 1 : null,
+      repositories: result.items
+        .filter((repo) => !repo.private)
+        .map((repo) => ({
+          id: repo.id,
+          name: repo.full_name,
+          description: repo.description ?? '',
+          url: `https://github.com/${parseSourceInput(repo.full_name, 'repo')}`,
+          stars: repo.stargazers_count,
+          language: repo.language,
+          updatedAt: repo.updated_at,
+          archived: repo.archived,
+        })),
+    };
+  }
   async resolve(kind: 'repo' | 'author', input: string) {
     const name = parseSourceInput(input, kind);
     const response = await this.request(kind === 'repo' ? `/repos/${name}` : `/users/${name}`);

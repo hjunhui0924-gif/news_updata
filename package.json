@@ -25,6 +25,7 @@
     "test:e2e:discovery": "playwright test --config playwright.discovery.config.ts",
     "test:e2e:following": "playwright test --config playwright.following.config.ts",
     "test:e2e:auth": "playwright test --config playwright.auth.config.ts",
+    "test:e2e:search": "playwright test --config playwright.search.config.ts",
     "format": "prettier --write src tests scripts",
     "demo": "tsx scripts/demo.ts"
   },
