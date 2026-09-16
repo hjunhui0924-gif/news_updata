@@ -2926,6 +2926,10 @@ svg {
   justify-content: space-between;
   gap: 22px;
 }
+.skill-detail-heading > div:first-child {
+  min-width: 0;
+  flex: 1;
+}
 .skill-detail-heading h1 {
   margin: 9px 0 10px;
   overflow-wrap: anywhere;
@@ -2934,11 +2938,32 @@ svg {
   font-weight: 650;
   letter-spacing: -0.8px;
 }
-.skill-detail-heading p {
-  max-width: 680px;
-  color: var(--muted);
-  font-size: 13px;
-  line-height: 1.8;
+.skill-detail-description {
+  max-width: 780px;
+  margin-top: 16px;
+  padding: 16px 19px 15px;
+  border: 1px solid #e5ebf4;
+  border-radius: 9px;
+  background: #fcfdff;
+}
+.skill-description-label {
+  display: block;
+  margin-bottom: 9px;
+  color: #7b8ca6;
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.8px;
+}
+.skill-detail-description p {
+  color: #61738f;
+  font-size: 14px;
+  line-height: 2;
+  text-wrap: pretty;
+}
+.skill-detail-description p + p {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #edf1f6;
 }
 .skill-detail-actions {
   display: flex;
@@ -3259,6 +3284,14 @@ svg {
   }
   .skill-detail-heading h1 {
     font-size: 25px;
+  }
+  .skill-detail-description {
+    margin-top: 13px;
+    padding: 14px 15px;
+  }
+  .skill-detail-description p {
+    font-size: 13px;
+    line-height: 1.9;
   }
   .skill-detail-content {
     padding: 20px 17px;

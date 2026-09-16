@@ -49,6 +49,15 @@ function withoutFrontmatter(markdown: string) {
   return markdown.replace(/^---\s*[\s\S]*?\r?\n---\s*/, '');
 }
 
+function splitSkillDescription(description: string) {
+  const normalized = description.replace(/\s+/g, ' ').trim();
+  const blocks = normalized
+    .split(/(?<=[。！？；])\s*|(?<=[.!?])\s+(?=[A-Z0-9【])/)
+    .map((block) => block.trim())
+    .filter(Boolean);
+  return blocks.length > 0 ? blocks : [normalized];
+}
+
 function sourceLabel(source: SkillSource) {
   return source === 'local' ? '本机已安装' : 'GitHub Star';
 }
@@ -257,7 +266,12 @@ function SkillDetail({
         <div>
           <span className="eyebrow">{sourceLabel(detail.source)}</span>
           <h1>{detail.name}</h1>
-          <p>{detail.description}</p>
+          <div className="skill-detail-description">
+            <span className="skill-description-label">Skill 简介</span>
+            {splitSkillDescription(detail.description).map((block, index) => (
+              <p key={`${index}-${block.slice(0, 24)}`}>{block}</p>
+            ))}
+          </div>
         </div>
         <div className="skill-detail-actions">
           {detail.repositoryUrl && (

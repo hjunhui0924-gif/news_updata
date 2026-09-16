@@ -47,7 +47,7 @@ test('GitHub Star source renders mocked Skill results and details', async ({ pag
             source: 'github',
             scope: 'github',
             name: 'reviewer',
-            description: 'Review changes with a repeatable workflow.',
+            description: 'Review changes with a repeatable workflow. Inspect the diff first. Then verify the tests and report findings.',
             relativePath: 'skills/reviewer/SKILL.md',
             location: 'GitHub Star',
             repository: 'owner/skill-pack',
@@ -71,7 +71,7 @@ test('GitHub Star source renders mocked Skill results and details', async ({ pag
         source: 'github',
         scope: 'github',
         name: 'reviewer',
-        description: 'Review changes with a repeatable workflow.',
+        description: 'Review changes with a repeatable workflow. Inspect the diff first. Then verify the tests and report findings.',
         relativePath: 'skills/reviewer/SKILL.md',
         location: 'GitHub Star',
         repository: 'owner/skill-pack',
@@ -115,6 +115,7 @@ test('GitHub Star source renders mocked Skill results and details', async ({ pag
   );
   await page.getByRole('button', { name: /reviewer/ }).click();
   await expect(page.getByRole('heading', { name: 'reviewer', exact: true })).toBeVisible();
+  await expect(page.locator('.skill-detail-description p')).toHaveCount(3);
   await expect(page.getByRole('link', { name: /打开项目/ })).toHaveAttribute(
     'href',
     'https://github.com/owner/skill-pack',
@@ -124,4 +125,5 @@ test('GitHub Star source renders mocked Skill results and details', async ({ pag
   await expect(page.getByText(/审查工作流/)).toBeVisible();
   await page.getByRole('tab', { name: '原文', exact: true }).click();
   await expect(page.getByText(/Review workflow/)).toBeVisible();
+  await page.screenshot({ path: 'work/skills-detail-desktop.png', fullPage: true });
 });
