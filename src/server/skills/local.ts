@@ -2,6 +2,7 @@ import { readdir, readFile, stat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import type { SkillFiles, SkillScope, SkillSummary } from '@/shared/skills';
+import { classifySkill } from '@/shared/skill-taxonomy';
 import { parseSkillMetadata } from './metadata';
 
 export type LocalSkillRoot = {
@@ -129,6 +130,12 @@ async function walk(
       const metadata = parseSkillMetadata(content);
       if (!metadata) continue;
       const relativePath = path.relative(root.path, fullPath).split(path.sep).join('/');
+      const taxonomy = classifySkill({
+        ...metadata,
+        relativePath,
+        repository: undefined,
+        scope: scopeFor(root, relativePath),
+      });
       found.push({
         id: `local:${root.id}:${relativePath}`,
         source: 'local',
@@ -139,6 +146,7 @@ async function walk(
         location: root.label,
         updatedAt: await readUpdatedAt(fullPath),
         files: await skillFiles(path.dirname(fullPath)),
+        ...taxonomy,
         rootId: root.id,
         filePath: fullPath,
       });

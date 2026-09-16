@@ -10,6 +10,8 @@ test('local Skill directory searches, opens details, and fits a phone', async ({
     'true',
   );
   await page.getByLabel('搜索 Skill').fill('codebase-design');
+  await expect(page.getByRole('group', { name: 'Skill 分类' })).toBeVisible();
+  await expect(page.getByRole('group', { name: 'Skill 标签' })).toBeVisible();
   const localCard = page.getByRole('button', { name: /codebase-design/ }).first();
   await expect(localCard).toBeVisible();
   await localCard.click();
@@ -54,6 +56,8 @@ test('GitHub Star source renders mocked Skill results and details', async ({ pag
             url: 'https://github.com/owner/skill-pack/blob/HEAD/skills/reviewer/SKILL.md',
             updatedAt: null,
             files: { scripts: false, references: true, assets: false, interface: false },
+            category: '测试与质量',
+            tags: ['测试', '代码'],
           },
         ],
       }),
@@ -75,6 +79,8 @@ test('GitHub Star source renders mocked Skill results and details', async ({ pag
         url: 'https://github.com/owner/skill-pack/blob/HEAD/skills/reviewer/SKILL.md',
         updatedAt: null,
         files: { scripts: false, references: true, assets: false, interface: false },
+        category: '测试与质量',
+        tags: ['测试', '代码'],
         contentHash: 'remote-reviewer-hash',
         ai: {
           summary: {
@@ -100,6 +106,8 @@ test('GitHub Star source renders mocked Skill results and details', async ({ pag
   );
   await page.goto('/skills');
   await page.getByRole('tab', { name: 'GitHub Star', exact: true }).click();
+  await expect(page.getByRole('button', { name: /测试与质量/ })).toBeVisible();
+  await page.getByRole('button', { name: /测试与质量/ }).click();
   await expect(page.getByRole('button', { name: /reviewer/ })).toBeVisible();
   await expect(page.getByRole('link', { name: /打开项目/ })).toHaveAttribute(
     'href',

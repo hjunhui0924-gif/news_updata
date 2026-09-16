@@ -1,6 +1,7 @@
 import { GitHubError, GitHubConnector } from '../connectors/github';
 import { parseSkillMetadata } from './metadata';
 import type { SkillDocument, SkillFiles, SkillSummary } from '@/shared/skills';
+import { classifySkill } from '@/shared/skill-taxonomy';
 
 type StarredRepository = Awaited<ReturnType<GitHubConnector['starred']>>['repositories'][number];
 type RepositoryTree = Awaited<ReturnType<GitHubConnector['repositoryTree']>>;
@@ -54,6 +55,13 @@ function summary(
   tree: RepositoryTree['tree'],
 ): SkillSummary {
   const directory = skillDirectory(path);
+  const taxonomy = classifySkill({
+    name: metadata.name,
+    description: metadata.description,
+    relativePath: path,
+    repository: repository.name,
+    scope: 'github',
+  });
   return {
     id: `github:${repository.name}:${path}`,
     source: 'github',
@@ -68,6 +76,7 @@ function summary(
     url: `${repository.url}/blob/HEAD/${path}`,
     updatedAt: null,
     files: fileFlags(tree, directory),
+    ...taxonomy,
   };
 }
 

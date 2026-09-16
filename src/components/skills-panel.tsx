@@ -20,6 +20,12 @@ import {
   Sparkles,
   X,
 } from 'lucide-react';
+import {
+  skillCategories,
+  skillTags,
+  type SkillCategory,
+  type SkillTag,
+} from '@/shared/skill-taxonomy';
 import type {
   SkillAiState,
   SkillCatalogPage,
@@ -187,6 +193,12 @@ function SkillCard({ skill, onSelect }: { skill: SkillSummary; onSelect: (skill:
             <span className="skill-scope-tag">{scopeLabel(skill)}</span>
           </span>
           <span className="skill-card-description">{skill.description}</span>
+          {skill.tags.length > 0 && (
+            <span className="skill-card-tags" aria-label="Skill 标签">
+              {skill.tags.slice(0, 3).map((tag) => <span key={tag}>{tag}</span>)}
+              {skill.tags.length > 3 && <span>+{skill.tags.length - 3}</span>}
+            </span>
+          )}
           <span className="skill-card-footer">
             <span>{skill.repository || skill.location}</span>
             <span className="skill-capabilities" aria-label="Skill 附件">
@@ -266,6 +278,8 @@ function SkillDetail({
           {detail.repository || detail.location}
         </span>
         <span>{detail.relativePath}</span>
+        <span>{detail.category}</span>
+        {detail.tags.length > 0 && <span>{detail.tags.join(' · ')}</span>}
         {detail.files.interface && <span>包含界面配置</span>}
       </div>
       <div className="skill-detail-tabs" role="tablist" aria-label="Skill 内容视图">
@@ -345,6 +359,8 @@ export function SkillsPanel() {
   const [selected, setSelected] = useState<SkillSummary | null>(null);
   const [detail, setDetail] = useState<SkillDetails | null>(null);
   const [query, setQuery] = useState('');
+  const [category, setCategory] = useState<SkillCategory | 'all'>('all');
+  const [selectedTags, setSelectedTags] = useState<SkillTag[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [busyKind, setBusyKind] = useState<'summary' | 'translation' | ''>('');
@@ -389,15 +405,26 @@ export function SkillsPanel() {
   }, []);
 
   const catalog = catalogs[source];
+  const categoryCounts = useMemo(
+    () => new Map(skillCategories.map((value) => [value, catalog.skills.filter((skill) => skill.category === value).length])),
+    [catalog.skills],
+  );
+  const tagCounts = useMemo(
+    () => new Map(skillTags.map((value) => [value, catalog.skills.filter((skill) => skill.tags.includes(value)).length])),
+    [catalog.skills],
+  );
+  const availableTags = skillTags.filter((value) => tagCounts.get(value));
   const visibleSkills = useMemo(() => {
     const value = query.trim().toLowerCase();
-    if (!value) return catalog.skills;
+    if (!value && category === 'all' && selectedTags.length === 0) return catalog.skills;
     return catalog.skills.filter((skill) =>
-      [skill.name, skill.description, skill.repository, skill.location]
+      (category === 'all' || skill.category === category) &&
+      selectedTags.every((tag) => skill.tags.includes(tag)) &&
+      [skill.name, skill.description, skill.repository, skill.location, skill.category, ...skill.tags]
         .filter(Boolean)
         .some((field) => field!.toLowerCase().includes(value)),
     );
-  }, [catalog.skills, query]);
+  }, [catalog.skills, category, query, selectedTags]);
 
   async function selectSkill(skill: SkillSummary) {
     setSelected(skill);
@@ -451,6 +478,8 @@ export function SkillsPanel() {
     setSelected(null);
     setDetail(null);
     setQuery('');
+    setCategory('all');
+    setSelectedTags([]);
     setError('');
     history.pushState({}, '', '/skills');
   }
@@ -520,6 +549,69 @@ export function SkillsPanel() {
         </label>
         <span className="skills-result-count">显示 {visibleSkills.length} 个</span>
       </div>
+      <div className="skill-filters" aria-label="Skill 分类与标签筛选">
+        <div className="skill-filter-row">
+          <span className="skill-filter-label">分类</span>
+          <div className="skill-filter-options" role="group" aria-label="Skill 分类">
+            <button
+              type="button"
+              className={category === 'all' ? 'active' : ''}
+              aria-pressed={category === 'all'}
+              onClick={() => setCategory('all')}
+            >
+              全部 <small>{catalog.skills.length}</small>
+            </button>
+            {skillCategories.filter((value) => categoryCounts.get(value)).map((value) => (
+              <button
+                type="button"
+                key={value}
+                className={category === value ? 'active' : ''}
+                aria-pressed={category === value}
+                onClick={() => setCategory(value)}
+              >
+                {value} <small>{categoryCounts.get(value)}</small>
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="skill-filter-row">
+          <span className="skill-filter-label">标签</span>
+          <div className="skill-filter-options skill-tag-options" role="group" aria-label="Skill 标签">
+            {availableTags.map((value) => {
+              const active = selectedTags.includes(value);
+              return (
+                <button
+                  type="button"
+                  key={value}
+                  className={active ? 'active' : ''}
+                  aria-pressed={active}
+                  onClick={() =>
+                    setSelectedTags((current) =>
+                      active ? current.filter((tag) => tag !== value) : [...current, value],
+                    )
+                  }
+                >
+                  {value} <small>{tagCounts.get(value)}</small>
+                </button>
+              );
+            })}
+            {!availableTags.length && <span className="skill-filter-muted">暂无标签</span>}
+          </div>
+        </div>
+        {(category !== 'all' || selectedTags.length > 0 || query) && (
+          <button
+            type="button"
+            className="skill-clear-filters"
+            onClick={() => {
+              setCategory('all');
+              setSelectedTags([]);
+              setQuery('');
+            }}
+          >
+            <X size={13} /> 清除筛选
+          </button>
+        )}
+      </div>
       {error && (
         <div className="skills-error" role="alert">
           <AlertCircle size={16} />
@@ -538,8 +630,8 @@ export function SkillsPanel() {
       ) : (
         <div className="skills-empty">
           <BookOpen size={30} />
-          <h2>{query ? '没有匹配的 Skill' : source === 'github' ? '暂时没有读取到 Star Skill' : '本机还没有可识别的 Skill'}</h2>
-          <p>{query ? '换一个名称或关键词试试。' : source === 'github' ? '请先连接 GitHub，或确认 Star 项目包含 SKILL.md。' : 'Skill 目录需要包含带有 name 和 description 的 SKILL.md。'}</p>
+          <h2>{query || category !== 'all' || selectedTags.length > 0 ? '没有匹配的 Skill' : source === 'github' ? '暂时没有读取到 Star Skill' : '本机还没有可识别的 Skill'}</h2>
+          <p>{query || category !== 'all' || selectedTags.length > 0 ? '换一个关键词、分类或标签组合试试。' : source === 'github' ? '请先连接 GitHub，或确认 Star 项目包含 SKILL.md。' : 'Skill 目录需要包含带有 name 和 description 的 SKILL.md。'}</p>
         </div>
       )}
       {catalog.nextPage && !query && (

@@ -58,6 +58,8 @@ function publicSkill(skill: LocalSkillRecord): SkillSummary {
     url: skill.url,
     updatedAt: skill.updatedAt,
     files: skill.files,
+    category: skill.category,
+    tags: skill.tags,
   };
 }
 

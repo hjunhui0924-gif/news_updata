@@ -1,4 +1,5 @@
 import type { TranslationBlock } from './types';
+import type { SkillCategory, SkillTag } from './skill-taxonomy';
 
 export type SkillSource = 'local' | 'github';
 export type SkillScope = 'project' | 'user' | 'system' | 'plugin' | 'github';
@@ -24,6 +25,8 @@ export type SkillSummary = {
   url?: string;
   updatedAt: string | null;
   files: SkillFiles;
+  category: SkillCategory;
+  tags: SkillTag[];
 };
 
 export type SkillDocument = SkillSummary & {
