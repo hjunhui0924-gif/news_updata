@@ -10,12 +10,14 @@ import {
   CodeXml as Github,
   ArrowUpRight,
   CircleHelp,
+  BookOpen,
 } from 'lucide-react';
 import type { Bootstrap } from '@/shared/types';
 const nav = [
   { id: 'today', label: '今日精选', icon: Sparkles },
   { id: 'feed', label: '全部更新', icon: Inbox },
   { id: 'saved', label: '已收藏', icon: Bookmark },
+  { id: 'skills', label: 'Skill 目录', icon: BookOpen },
 ];
 export function Sidebar({
   data,

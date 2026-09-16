@@ -352,6 +352,42 @@ export class GitHubConnector {
       throw error;
     }
   }
+  async repositoryTree(repo: string) {
+    const name = parseSourceInput(repo, 'repo');
+    const repository = z
+      .object({ default_branch: z.string().min(1) })
+      .parse((await this.request(`/repos/${name}`)).data);
+    const branch = encodeURIComponent(repository.default_branch);
+    const response = await this.request(`/repos/${name}/git/trees/${branch}?recursive=1`);
+    const tree = z
+      .object({
+        truncated: z.boolean(),
+        tree: z.array(z.object({ path: z.string(), type: z.string() })),
+      })
+      .parse(response.data);
+    return { branch: repository.default_branch, truncated: tree.truncated, tree: tree.tree };
+  }
+  async readFile(repo: string, filePath: string) {
+    const name = parseSourceInput(repo, 'repo');
+    if (
+      !filePath ||
+      filePath.startsWith('/') ||
+      filePath.includes('\\') ||
+      filePath.split('/').some((part) => !part || part === '.' || part === '..')
+    )
+      throw new GitHubError('Skill 文件路径无效', 400);
+    const encodedPath = filePath.split('/').map(encodeURIComponent).join('/');
+    try {
+      const response = await this.request(`/repos/${name}/contents/${encodedPath}`);
+      const file = z
+        .object({ type: z.literal('file'), content: z.string(), encoding: z.literal('base64') })
+        .parse(response.data);
+      return Buffer.from(file.content.replace(/\s/g, ''), 'base64').toString('utf8');
+    } catch (error) {
+      if (error instanceof GitHubError && error.status === 404) return null;
+      throw error;
+    }
+  }
   async following(input: string) {
     const name = parseSourceInput(input, 'author');
     const response = await this.request(`/users/${name}/following?per_page=50&page=1`);

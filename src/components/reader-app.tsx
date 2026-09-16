@@ -13,6 +13,7 @@ import {
   Sparkles,
   Bookmark,
   PanelsTopLeft,
+  BookOpen,
 } from 'lucide-react';
 import type { Bootstrap, FeedItem, Preferences } from '@/shared/types';
 import { filterItems } from '@/shared/feed';
@@ -24,6 +25,7 @@ import { SubscriptionsPanel, AddSubscription } from './subscriptions-panel';
 import { SettingsPanel } from './settings-panel';
 import { TrendingPanel } from './trending-panel';
 import { GitHubConnection } from './github-connection';
+import { SkillsPanel } from './skills-panel';
 
 export async function requestJson<T>(url: string, method = 'GET', body?: unknown): Promise<T> {
   const response = await fetch(url, {
@@ -41,6 +43,7 @@ const titles: Record<string, string> = {
   feed: '全部更新',
   saved: '已收藏',
   subscriptions: '订阅管理',
+  skills: 'Skill 目录',
   settings: '偏好设置',
   onboarding: '添加你的第一份关注',
   items: '更新详情',
@@ -229,6 +232,15 @@ export function ReaderApp({
               <Plus size={15} />
               <span>添加订阅</span>
             </Button>
+            <Button
+              size="small"
+              aria-label="Skill 目录"
+              title="Skill 目录"
+              onClick={() => navigate('skills')}
+            >
+              <BookOpen size={15} />
+              <span>Skill 目录</span>
+            </Button>
           </div>
         </header>
         {noticeOpen && (
@@ -257,7 +269,9 @@ export function ReaderApp({
             onChecked={refresh}
           />
         )}
-        {view === 'today' ? (
+        {view === 'skills' ? (
+          <SkillsPanel />
+        ) : view === 'today' ? (
           <TrendingPanel
             subscriptions={data.subscriptions}
             aiEnabled={data.services.ai}
