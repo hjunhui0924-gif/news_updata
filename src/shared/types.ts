@@ -98,7 +98,14 @@ export type StarSyncStatus = {
   error: string | null;
   intervalMinutes: number;
 };
-export type JobKind = 'sync' | 'stars' | 'summary' | 'translation' | 'digest';
+export type JobKind =
+  | 'sync'
+  | 'stars'
+  | 'summary'
+  | 'translation'
+  | 'skill-summary'
+  | 'skill-translation'
+  | 'digest';
 export type JobStatus = 'pending' | 'running' | 'completed' | 'failed';
 export type Job = {
   id: string;

@@ -1,3 +1,5 @@
+import type { TranslationBlock } from './types';
+
 export type SkillSource = 'local' | 'github';
 export type SkillScope = 'project' | 'user' | 'system' | 'plugin' | 'github';
 
@@ -24,8 +26,12 @@ export type SkillSummary = {
   files: SkillFiles;
 };
 
-export type SkillDetails = SkillSummary & {
+export type SkillDocument = SkillSummary & {
   content: string;
+};
+export type SkillDetails = SkillDocument & {
+  contentHash: string;
+  ai: SkillAiState;
 };
 
 export type SkillCatalogPage = {
@@ -33,4 +39,26 @@ export type SkillCatalogPage = {
   nextPage: number | null;
   truncated: boolean;
   username?: string;
+};
+
+export type SkillAiStatus = 'idle' | 'pending' | 'ready' | 'disabled' | 'failed';
+export type SkillAiSummary = {
+  headline: string;
+  overview: string;
+  scenarios: string[];
+  workflow: string[];
+  cautions: string[];
+  evidence: { id: string; text: string }[];
+};
+export type SkillAiTranslation = {
+  text: string;
+  blocks: TranslationBlock[];
+};
+export type SkillAiState = {
+  summary: SkillAiSummary | null;
+  translation: SkillAiTranslation | null;
+  summaryStatus: SkillAiStatus;
+  translationStatus: SkillAiStatus;
+  summaryError: string | null;
+  translationError: string | null;
 };

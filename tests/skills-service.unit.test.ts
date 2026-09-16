@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { GitHubSkillClient } from '../src/server/skills/github';
+import type { SkillAiState } from '../src/shared/skills';
 import {
   getLocalSkillDetails,
   getUserSkillDetails,
@@ -12,6 +13,14 @@ import {
 } from '../src/server/skills/service';
 
 const temporaryDirectories: string[] = [];
+const emptyAi: SkillAiState = {
+  summary: null,
+  translation: null,
+  summaryStatus: 'idle',
+  translationStatus: 'idle',
+  summaryError: null,
+  translationError: null,
+};
 
 afterEach(async () => {
   await Promise.all(temporaryDirectories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })));
@@ -41,8 +50,13 @@ describe('SkillCatalog service', () => {
     expect(catalog.skills[0]).toMatchObject({ name: 'one', location: '测试目录' });
     expect(catalog.skills[0]).not.toHaveProperty('filePath');
     expect(catalog.skills[0]).not.toHaveProperty('rootId');
-    await expect(getLocalSkillDetails(catalog.skills[0].id, dependencies)).resolves.toMatchObject({
+    const withAi = {
+      ...dependencies,
+      getAiState: vi.fn(async () => emptyAi),
+    };
+    await expect(getLocalSkillDetails('user-1', catalog.skills[0].id, withAi)).resolves.toMatchObject({
       content: expect.stringContaining('# Local details'),
+      contentHash: expect.any(String),
     });
   });
 
@@ -60,6 +74,7 @@ describe('SkillCatalog service', () => {
     const client: GitHubSkillClient = { starred, repositoryTree: tree, readFile };
     const dependencies: SkillServiceDependencies = {
       resolveGitHub: vi.fn(async () => ({ username: 'alice', client })),
+      getAiState: vi.fn(async () => emptyAi),
     };
     const catalog = await listUserStarredSkillCatalog('user-1', 1, undefined, dependencies);
     expect(catalog.skills[0]).toMatchObject({ name: 'remote', repository: 'owner/repo' });
@@ -72,6 +87,9 @@ describe('SkillCatalog service', () => {
 
   it('does not treat malformed GitHub ids as local paths', async () => {
     const { dependencies } = await localDependencies();
-    await expect(getUserSkillDetails('user-1', 'github:invalid', undefined, dependencies)).resolves.toBeNull();
+    await expect(getUserSkillDetails('user-1', 'github:invalid', undefined, {
+      ...dependencies,
+      getAiState: vi.fn(async () => emptyAi),
+    })).resolves.toBeNull();
   });
 });

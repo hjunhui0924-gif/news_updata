@@ -1,8 +1,18 @@
 import { z } from 'zod';
+import { getConfig } from '../config';
 import { getPool } from '../db/client';
 import { GitHubError } from '../connectors/github';
 import { createUserGitHubConnector } from '../connectors/github-user';
-import type { SkillCatalogPage, SkillDetails, SkillSummary } from '@/shared/skills';
+import { AccessError } from '../auth';
+import { enqueue } from '../jobs/queue';
+import { getSkillAiState, skillContentHash } from './ai';
+import type {
+  SkillAiState,
+  SkillCatalogPage,
+  SkillDetails,
+  SkillDocument,
+  SkillSummary,
+} from '@/shared/skills';
 import {
   getDefaultLocalSkillRoots,
   getLocalSkill,
@@ -25,6 +35,10 @@ export type UserGitHubSkillClient = {
 export type SkillServiceDependencies = {
   roots?: LocalSkillRoot[];
   resolveGitHub?: (userId: string, signal?: AbortSignal) => Promise<UserGitHubSkillClient>;
+  getAiState?: (
+    userId: string,
+    detail: Pick<SkillDetails, 'id' | 'contentHash'>,
+  ) => Promise<SkillAiState>;
 };
 
 const detailIdSchema = z.string().trim().min(1).max(1000);
@@ -81,11 +95,20 @@ export async function listLocalSkillCatalog(
 }
 
 export async function getLocalSkillDetails(
+  userId: string,
   id: string,
   dependencies?: SkillServiceDependencies,
 ): Promise<SkillDetails | null> {
   const skill = await getLocalSkill(detailIdSchema.parse(id), localRoots(dependencies));
-  return skill ? { ...publicSkill(skill), content: skill.content } : null;
+  if (!skill) return null;
+  const document: SkillDocument = { ...publicSkill(skill), content: skill.content };
+  const contentHash = skillContentHash(document.content);
+  const getAiState = dependencies?.getAiState ?? getSkillAiState;
+  return {
+    ...document,
+    contentHash,
+    ai: await getAiState(userId, { id: document.id, contentHash }),
+  };
 }
 
 export async function listUserStarredSkillCatalog(
@@ -124,7 +147,35 @@ export async function getUserSkillDetails(
   dependencies?: SkillServiceDependencies,
 ): Promise<SkillDetails | null> {
   const parsed = parseGitHubSkillId(id);
-  if (!parsed) return getLocalSkillDetails(id, dependencies);
+  if (!parsed) return getLocalSkillDetails(userId, id, dependencies);
   const resolved = await githubClient(userId, signal, dependencies);
-  return getStarredSkill(resolved.username, parsed.repository, parsed.filePath, resolved.client);
+  const document = await getStarredSkill(
+    resolved.username,
+    parsed.repository,
+    parsed.filePath,
+    resolved.client,
+  );
+  if (!document) return null;
+  const contentHash = skillContentHash(document.content);
+  const getAiState = dependencies?.getAiState ?? getSkillAiState;
+  return {
+    ...document,
+    contentHash,
+    ai: await getAiState(userId, { id: document.id, contentHash }),
+  };
+}
+
+export async function enqueueUserSkillAi(
+  userId: string,
+  id: string,
+  kind: 'summary' | 'translation',
+  signal?: AbortSignal,
+) {
+  const detail = await getUserSkillDetails(userId, id, signal);
+  if (!detail) throw new AccessError('Skill 不存在或已不可读取。', 404);
+  if (detail.ai[`${kind}Status`] === 'ready') return { status: 'completed', ai: detail.ai };
+  if (getConfig().APP_MODE !== 'demo' && getConfig().LLM_ENABLED !== 'true')
+    throw new AccessError('尚未配置 AI 服务，原文仍可阅读。', 400);
+  const job = await enqueue(userId, kind === 'summary' ? 'skill-summary' : 'skill-translation', id);
+  return { status: job.status, job, ai: detail.ai };
 }

@@ -15,6 +15,11 @@ test('local Skill directory searches, opens details, and fits a phone', async ({
   await localCard.click();
   await expect(page.getByRole('region', { name: /codebase-design Skill 详情/ })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'codebase-design', exact: true })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'AI 摘要', exact: true })).toBeVisible();
+  await expect(page.getByRole('tab', { name: '中英文对照', exact: true })).toBeVisible();
+  await expect(page.getByRole('tab', { name: '原文', exact: true })).toBeVisible();
+  await page.getByRole('tab', { name: '原文', exact: true }).click();
+  await expect(page.getByText('Codebase Design', { exact: false })).toBeVisible();
   await page.getByRole('button', { name: '返回 Skill 列表' }).click();
   await expect(page.getByRole('heading', { name: 'Skill 目录', exact: true })).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
@@ -70,6 +75,25 @@ test('GitHub Star source renders mocked Skill results and details', async ({ pag
         url: 'https://github.com/owner/skill-pack/blob/HEAD/skills/reviewer/SKILL.md',
         updatedAt: null,
         files: { scripts: false, references: true, assets: false, interface: false },
+        contentHash: 'remote-reviewer-hash',
+        ai: {
+          summary: {
+            headline: 'reviewer 的代码审查工作流',
+            overview: '帮助团队按固定步骤检查代码变更。',
+            scenarios: ['适合提交代码审查请求时使用。'],
+            workflow: ['先阅读变更，再运行测试。'],
+            cautions: ['最终结论仍需人工确认。'],
+            evidence: [{ id: 'k1', text: 'Review changes with a repeatable workflow.' }],
+          },
+          translation: {
+            text: '# Review workflow\n# 审查工作流',
+            blocks: [{ original: '# Review workflow', translation: '# 审查工作流' }],
+          },
+          summaryStatus: 'ready',
+          translationStatus: 'ready',
+          summaryError: null,
+          translationError: null,
+        },
         content: '---\nname: reviewer\ndescription: Review changes\n---\n# Review workflow',
       }),
     }),
@@ -77,7 +101,19 @@ test('GitHub Star source renders mocked Skill results and details', async ({ pag
   await page.goto('/skills');
   await page.getByRole('tab', { name: 'GitHub Star', exact: true }).click();
   await expect(page.getByRole('button', { name: /reviewer/ })).toBeVisible();
+  await expect(page.getByRole('link', { name: /打开项目/ })).toHaveAttribute(
+    'href',
+    'https://github.com/owner/skill-pack',
+  );
   await page.getByRole('button', { name: /reviewer/ }).click();
   await expect(page.getByRole('heading', { name: 'reviewer', exact: true })).toBeVisible();
-  await expect(page.getByText('Review workflow', { exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: /打开项目/ })).toHaveAttribute(
+    'href',
+    'https://github.com/owner/skill-pack',
+  );
+  await expect(page.getByText('reviewer 的代码审查工作流', { exact: true })).toBeVisible();
+  await page.getByRole('tab', { name: '中英文对照', exact: true }).click();
+  await expect(page.getByText(/审查工作流/)).toBeVisible();
+  await page.getByRole('tab', { name: '原文', exact: true }).click();
+  await expect(page.getByText(/Review workflow/)).toBeVisible();
 });

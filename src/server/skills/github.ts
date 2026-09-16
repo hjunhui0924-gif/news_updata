@@ -1,6 +1,6 @@
 import { GitHubError, GitHubConnector } from '../connectors/github';
 import { parseSkillMetadata } from './metadata';
-import type { SkillDetails, SkillFiles, SkillSummary } from '@/shared/skills';
+import type { SkillDocument, SkillFiles, SkillSummary } from '@/shared/skills';
 
 type StarredRepository = Awaited<ReturnType<GitHubConnector['starred']>>['repositories'][number];
 type RepositoryTree = Awaited<ReturnType<GitHubConnector['repositoryTree']>>;
@@ -116,7 +116,7 @@ export async function getStarredSkill(
   repository: string,
   filePath: string,
   client: GitHubSkillClient = new GitHubConnector(),
-): Promise<SkillDetails | null> {
+): Promise<SkillDocument | null> {
   let page = 1;
   let repositoryInfo: StarredRepository | undefined;
   while (page <= 10000 && !repositoryInfo) {

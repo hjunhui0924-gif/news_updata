@@ -8,6 +8,8 @@ import { runAi, AiError } from '../server/ai/service';
 import { GitHubError } from '../server/connectors/github';
 import { scheduleStarSync, syncStarred } from '../server/subscriptions/star-sync';
 import { getTrending } from '../server/discovery/service';
+import { getUserSkillDetails } from '../server/skills/service';
+import { runSkillAi } from '../server/skills/ai';
 
 const config = getConfig();
 const logger = pino({ level: config.LOG_LEVEL });
@@ -39,6 +41,15 @@ await boss.work<{ id: string }, void, { includeMetadata: true; pollingIntervalSe
           );
         else if (task.kind === 'summary' || task.kind === 'translation')
           await runAi(task.user_id, task.target_id, task.kind);
+        else if (task.kind === 'skill-summary' || task.kind === 'skill-translation') {
+          const detail = await getUserSkillDetails(task.user_id, task.target_id, job.signal);
+          if (!detail) throw new AiError('Skill 不存在或已不可读取。');
+          await runSkillAi(
+            task.user_id,
+            detail,
+            task.kind === 'skill-summary' ? 'summary' : 'translation',
+          );
+        }
         else throw new Error('该任务处理器尚未就绪');
         await getPool().query(
           "UPDATE jobs SET status='completed',error=NULL,updated_at=now() WHERE id=$1",

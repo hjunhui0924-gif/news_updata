@@ -149,6 +149,8 @@ export type ModelCall = (input: {
   user: string;
   kind: 'summary' | 'translation';
   outputLimit: number;
+  responseSchema?: z.ZodType;
+  schemaName?: string;
 }) => Promise<ModelResponse>;
 export const callModel: ModelCall = async (input) => {
   const config = getConfig();
@@ -172,10 +174,11 @@ export const callModel: ModelCall = async (input) => {
       response_format: {
         type: 'json_schema',
         json_schema: {
-          name: input.kind,
+          name: input.schemaName ?? input.kind,
           strict: true,
           schema: z.toJSONSchema(
-            input.kind === 'summary' ? summarySchema : translationResponseSchema,
+            input.responseSchema ??
+              (input.kind === 'summary' ? summarySchema : translationResponseSchema),
           ),
         },
       },
