@@ -18,9 +18,9 @@ test('local Skill directory searches, opens details, and fits a phone', async ({
   await expect(page.getByRole('region', { name: /codebase-design Skill 详情/ })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'codebase-design', exact: true })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'AI 摘要', exact: true })).toBeVisible();
-  await expect(page.getByRole('tab', { name: '中英文对照', exact: true })).toBeVisible();
   await expect(page.getByRole('tab', { name: '原文', exact: true })).toBeVisible();
   await page.getByRole('tab', { name: '原文', exact: true }).click();
+  await expect(page.getByText('在原文下生成中文对照', { exact: true })).toBeVisible();
   await expect(page.getByText('Codebase Design', { exact: false })).toBeVisible();
   await page.getByRole('button', { name: '返回 Skill 列表' }).click();
   await expect(page.getByRole('heading', { name: 'Skill 目录', exact: true })).toBeVisible();
@@ -92,7 +92,7 @@ test('GitHub Star source renders mocked Skill results and details', async ({ pag
             evidence: [{ id: 'k1', text: 'Review changes with a repeatable workflow.' }],
           },
           translation: {
-            text: '# Review workflow\n# 审查工作流',
+            text: '# 审查工作流',
             blocks: [{ original: '# Review workflow', translation: '# 审查工作流' }],
           },
           summaryStatus: 'ready',
@@ -113,17 +113,36 @@ test('GitHub Star source renders mocked Skill results and details', async ({ pag
     'href',
     'https://github.com/owner/skill-pack',
   );
+  await expect(page.getByRole('link', { name: /Skill 源文件/ })).toHaveAttribute(
+    'href',
+    'https://github.com/owner/skill-pack/blob/HEAD/skills/reviewer/SKILL.md',
+  );
   await page.getByRole('button', { name: /reviewer/ }).click();
   await expect(page.getByRole('heading', { name: 'reviewer', exact: true })).toBeVisible();
-  await expect(page.locator('.skill-detail-description p')).toHaveCount(3);
+  await expect(page.locator('.skill-detail-description p')).toHaveCount(1);
   await expect(page.getByRole('link', { name: /打开项目/ })).toHaveAttribute(
     'href',
     'https://github.com/owner/skill-pack',
   );
+  await expect(page.getByRole('link', { name: /查看 Skill 文件/ })).toHaveAttribute(
+    'href',
+    'https://github.com/owner/skill-pack/blob/HEAD/skills/reviewer/SKILL.md',
+  );
   await expect(page.getByText('reviewer 的代码审查工作流', { exact: true })).toBeVisible();
-  await page.getByRole('tab', { name: '中英文对照', exact: true }).click();
-  await expect(page.getByText(/审查工作流/)).toBeVisible();
+  await expect(page.getByText('适用场景', { exact: true })).toBeVisible();
+  await expect(page.getByText('怎么使用', { exact: true })).toBeVisible();
+  await page.screenshot({ path: 'work/skills-guide-desktop.png', fullPage: true });
   await page.getByRole('tab', { name: '原文', exact: true }).click();
-  await expect(page.getByText(/Review workflow/)).toBeVisible();
+  await page.getByRole('button', { name: '显示中英文对照', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'Skill 中英文对照' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Review workflow', exact: true }).first()).toBeVisible();
+  await expect(page.getByRole('heading', { name: '审查工作流', exact: true })).toBeVisible();
+  await expect(page.locator('.skill-bilingual-block')).toHaveCount(0);
+  const bilingualHeadings = page.locator('.skill-bilingual .markdown h1');
+  await expect(bilingualHeadings).toHaveCount(2);
+  const headingTops = await bilingualHeadings.evaluateAll((elements) =>
+    elements.map((element) => element.getBoundingClientRect().top),
+  );
+  expect(headingTops[1]).toBeGreaterThan(headingTops[0]);
   await page.screenshot({ path: 'work/skills-detail-desktop.png', fullPage: true });
 });

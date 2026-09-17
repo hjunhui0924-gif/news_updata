@@ -1,8 +1,8 @@
 # 知更 / NEWSROOM
 
-在一个网页里查看你关注的 GitHub 项目与开发者更新，阅读中文摘要、对照译文和原文，减少逐个打开仓库检查的时间。
+在一个网页里查看你关注的 GitHub 项目与开发者更新，阅读中文摘要、对照译文和原文，减少逐个打开仓库检查的时间。当前先把 GitHub 主流程做扎实，并记录 X / RSS 的跨平台扩展路线。
 
-**当前为可运行的本地 MVP，先做好 GitHub，再考虑其他平台。** 仅读取 GitHub 公开数据；网页内的订阅、已读和收藏只保存在本应用，不会替你 Star 或 Follow。没有邮件功能。
+**当前为可运行的本地 MVP，GitHub 已接入，X / RSS 尚未接入。** 仅读取 GitHub 公开数据；网页内的订阅、已读和收藏只保存在本应用，不会替你 Star 或 Follow。没有邮件功能。
 
 ![知更桌面阅读器，使用演示数据](docs/assets/reader-demo.png)
 
@@ -22,6 +22,7 @@
 | AI 辅助 | 中文摘要、原文依据、按需翻译、缓存和用量预算，模型可关闭 |
 | 授权与同步 | GitHub OAuth、账号允许名单、访问令牌自动续期、后台轮询和失败提示 |
 | 站内简报 | 整理近期未读更新，网页内阅读，不发送邮件或推送 |
+| Skill 目录 | 浏览本机已安装 Skill 与 GitHub Star 项目中的 Skill；查看原始简介、项目/源文件链接、AI 教程式摘要和连续中英文对照 |
 
 ## 快速体验
 
@@ -104,7 +105,7 @@ pnpm build              # Web + Worker 构建
 
 浏览器测试优先使用 Windows 已安装的 Chrome；其他环境可先运行 `pnpm exec playwright install chromium`。测试与开发约定见 [贡献指南](CONTRIBUTING.md)。
 
-2026-09-13 最新功能验证：**126 项单元/集成测试、10 项增量浏览器测试通过**，类型检查、Lint 和 Web/Worker 构建通过。真实 GitHub 登录、读取、令牌续期、项目搜索，以及 Qwen 摘要/翻译样本已联调。模拟浏览器测试不等同于真实模型端到端测试，不据此宣称内容准确率或长期稳定性。[完整验收记录](docs/07-mvp-validation.md)
+2026-09-18 最新功能验证：**144 项单元/集成测试、2 项 Skill 浏览器测试通过**，类型检查、Lint 和 Web/Worker 构建通过。真实 GitHub 登录、读取、令牌续期、项目搜索，以及 Qwen 摘要/翻译样本已联调。模拟浏览器测试不等同于真实模型端到端测试，不据此宣称内容准确率或长期稳定性。[完整验收记录](docs/07-mvp-validation.md)
 
 ## 当前边界与后续
 
@@ -112,10 +113,10 @@ pnpm build              # Web + Worker 构建
 - 博主版本事件最多覆盖 GitHub 最近 30 天、300 条公开活动；事件接口还可能延迟 30 秒至 6 小时，无法保证窗口外补查。
 - 每用户最多 100 个项目、50 个博主；following 完整分页、后端信息流分页仍待实现。项目搜索最多浏览前 1000 个匹配。
 - 全文翻译上限 16000 字符；Markdown 图片目前不展示。完整长文与图片阅读仍待完善。
-- 暂不包含 X/Twitter、RSS、PR/Issue/提交动态、私有仓库、邮件、浏览器通知或公开注册。
+- X/Twitter 和 RSS 目前只完成路线预研说明，尚未接入；也不包含 PR/Issue/提交动态、私有仓库、邮件、浏览器通知或公开注册。
 - 没有完成公开部署、长期连续试用、备份恢复演练或正式安全审计。
 
-下一步先完善博主导入、同步反馈和站内阅读，再进行至少 7 天真实试用，之后评估其他平台。[开发路线](docs/04-development-plan.md)
+下一步先完善博主导入、同步反馈和站内阅读，再进行至少 7 天真实试用；之后按准入条件评估 X，必要时先用 RSS 验证跨平台阅读模型。[开发路线](docs/04-development-plan.md) · [跨平台预研](docs/14-platform-expansion.md)
 
 ## 文档导航
 
@@ -124,4 +125,5 @@ pnpm build              # Web + Worker 构建
 - [验收记录](docs/07-mvp-validation.md) · [Star 跟踪](docs/08-starred-tracking.md) · [AI 联调](docs/09-ai-connection-status.md)
 - [Trending 与对照翻译](docs/10-discovery-and-bilingual.md) · [博主与项目规则](docs/11-github-following-scope.md)
 - [授权自动续期](docs/12-github-auth-renewal.md) · [公开项目搜索](docs/13-github-project-search.md)
+- [跨平台扩展预研](docs/14-platform-expansion.md) · [领域词汇](CONTEXT.md)
 - [变更记录](CHANGELOG.md) · [安全说明](SECURITY.md) · [开发贡献](CONTRIBUTING.md)

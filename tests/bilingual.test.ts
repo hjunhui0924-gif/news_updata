@@ -19,6 +19,20 @@ function render(original: string, translated: string) {
     ),
   );
 }
+function renderWithHeadings(original: string, translated: string) {
+  return load(
+    renderToStaticMarkup(
+      createElement(
+        ReactMarkdown,
+        {
+          remarkPlugins: [() => () => bilingualTree(original, translated, { includeHeadings: true })],
+          skipHtml: true,
+        },
+        original,
+      ),
+    ),
+  );
+}
 it('renders each original and translation within one list item, keeping source heading and links', () => {
   const $ = render(
     '### Improvements\n\n- Default image requests. [#101](https://github.com/example/repo/issues/101)\n- Refresh image guidance.',
@@ -70,4 +84,11 @@ it('preserves full blocks on unequal list shapes instead of misaligning entries'
   expect($('ul')).toHaveLength(2);
   expect($('ul').first().children()).toHaveLength(2);
   expect($('ul').last().children()).toHaveLength(3);
+});
+it('can include translated headings for Skill documents without changing the feed format', () => {
+  const $ = renderWithHeadings('# Review workflow', '# 审查工作流');
+  expect($('h1')).toHaveLength(2);
+  expect($('h1').first().text()).toBe('Review workflow');
+  expect($('h1').last().text()).toBe('审查工作流');
+  expect($('h1').last().attr('lang')).toBe('zh-CN');
 });

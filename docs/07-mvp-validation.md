@@ -1,6 +1,6 @@
 # MVP 验收记录
 
-更新日期：2026-09-13。验证环境：Windows / PowerShell、Node 24.15.0、pnpm 11.19.0、PostgreSQL 17、系统 Chrome。
+更新日期：2026-09-18。验证环境：Windows / PowerShell、Node 24.15.0、pnpm 11.19.0、PostgreSQL 17、系统 Chrome。
 
 ## 最新功能版本
 
@@ -17,6 +17,27 @@
 | 真实 AI | Qwen3.8 Flash 摘要与全文译文样本已生成，详见 09 文档 |
 
 `pnpm test` 使用独立 `news_test` 数据库。增量浏览器测试使用 3002 端口的 demo Web 与模拟接口，验证 UI 和错误处理，不代表真实 GitHub/模型端到端验收。未清空真实用户数据库。真实服务联调与自动化记录分开提供，不宣称摘要准确率。
+
+## 2026-09-18 Skill 与连续对照增量
+
+本轮在保留上述历史记录的基础上，完成 Skill 目录详情和对照阅读优化：
+
+- Skill 详情保留来源原始简介，并提供项目主页与 `SKILL.md` 源文件直达链接。
+- AI 摘要按教程式结构展示适用场景、使用路径、工作流和注意事项。
+- 原文对照改为整篇连续阅读流，英文后紧跟中文，不生成段落级卡片。
+- 新增分类/标签筛选、双语 Markdown 标题对照和移动端无横向溢出回归。
+
+本轮新鲜验证结果：
+
+| 检查 | 实际结果 |
+| --- | --- |
+| `pnpm test` | 25 个测试文件，144 项通过 |
+| `pnpm exec vitest run tests/bilingual.test.ts` | 5 项通过 |
+| `pnpm exec playwright test --config playwright.skills.config.ts` | 2 项通过 |
+| `pnpm typecheck` / `pnpm lint` | 均通过 |
+| `pnpm build` | Next.js Web 与 tsup Worker 构建通过 |
+
+X/Twitter 和 RSS 仍未接入；本轮只同步跨平台预研文档和领域词汇，不代表新增平台功能已经验收。
 
 ## 当前覆盖
 
@@ -50,6 +71,6 @@
 - 公开网站部署、HTTPS 反向代理、备份恢复演练、压测、正式安全审计和完整屏幕阅读器验证。
 - 所有模型输出的逐条事实准确性、供应商账单完整校对。
 - following 完整分页、后端信息流分页、ETag 检查点、正文图片和超长全文翻译。
-- X/Twitter、RSS、PR/Issue/提交活动、私有仓库、邮件、浏览器推送与公开注册。
+- X/Twitter、RSS、PR/Issue/提交活动、私有仓库、邮件、浏览器推送与公开注册；X/RSS 目前只有预研说明。
 
 上传 GitHub 表示交付源代码与文档，不表示网站已部署，也不会上传作者的账号配置或业务数据库。

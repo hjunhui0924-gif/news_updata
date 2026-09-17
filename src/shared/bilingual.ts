@@ -36,16 +36,20 @@ function chinese<T extends RootContent>(node: T): T {
   };
 }
 
-function interleave(original: RootContent[], translated: RootContent[]): RootContent[] {
+function interleave(
+  original: RootContent[],
+  translated: RootContent[],
+  includeHeadings: boolean,
+): RootContent[] {
   return original.flatMap((node, index): RootContent[] => {
     const zh = translated[index];
     if (
-      node.type === 'heading' ||
       node.type === 'code' ||
       node.type === 'thematicBreak' ||
       node.type === 'html'
     )
       return [node];
+    if (node.type === 'heading' && !includeHeadings) return [node];
     if (node.type === 'list' && zh.type === 'list') {
       return [
         {
@@ -54,14 +58,17 @@ function interleave(original: RootContent[], translated: RootContent[]): RootCon
           children: node.children.map((item, i) => ({
             ...item,
             spread: true,
-            children: interleave(item.children, zh.children[i].children) as typeof item.children,
+            children: interleave(item.children, zh.children[i].children, includeHeadings) as typeof item.children,
           })),
         },
       ];
     }
     if (node.type === 'blockquote' && zh.type === 'blockquote') {
       return [
-        { ...node, children: interleave(node.children, zh.children) as typeof node.children },
+        {
+          ...node,
+          children: interleave(node.children, zh.children, includeHeadings) as typeof node.children,
+        },
       ];
     }
     if (node.type === 'definition' || node.type === 'footnoteDefinition') return [node, zh];
@@ -78,7 +85,11 @@ function namespaceReferences(root: Root, prefix: string) {
   visit(root);
 }
 
-export function bilingualTree(original: string, translation: string): Root {
+export function bilingualTree(
+  original: string,
+  translation: string,
+  options: { includeHeadings?: boolean } = {},
+): Root {
   const source = parser.parse(original);
   const translated = parser.parse(translation);
   namespaceReferences(source, 'original-');
@@ -88,7 +99,7 @@ export function bilingualTree(original: string, translation: string): Root {
   return {
     type: 'root',
     children: compatible(source, translated)
-      ? interleave(source.children, translated.children)
+      ? interleave(source.children, translated.children, options.includeHeadings ?? false)
       : [...source.children, ...translated.children.map(chinese)],
   };
 }

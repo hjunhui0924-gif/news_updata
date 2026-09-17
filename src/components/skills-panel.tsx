@@ -3,14 +3,18 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AlertCircle,
+  ArrowRight,
   ArrowUpRight,
   BookOpen,
+  CheckCircle2,
   Code2,
   CodeXml as Github,
   ChevronLeft,
   FileCode2,
   FolderOpen,
   Languages,
+  ListChecks,
+  Lightbulb,
   Link2,
   Loader2,
   RefreshCw,
@@ -18,6 +22,7 @@ import {
   ShieldCheck,
   Star,
   Sparkles,
+  Target,
   X,
 } from 'lucide-react';
 import {
@@ -33,6 +38,7 @@ import type {
   SkillSource,
   SkillSummary,
 } from '@/shared/skills';
+import { bilingualTree } from '@/shared/bilingual';
 import { Markdown } from './markdown';
 import { Button } from './ui/button';
 
@@ -47,15 +53,6 @@ async function requestSkills<T>(url: string, init?: RequestInit) {
 
 function withoutFrontmatter(markdown: string) {
   return markdown.replace(/^---\s*[\s\S]*?\r?\n---\s*/, '');
-}
-
-function splitSkillDescription(description: string) {
-  const normalized = description.replace(/\s+/g, ' ').trim();
-  const blocks = normalized
-    .split(/(?<=[。！？；])\s*|(?<=[.!?])\s+(?=[A-Z0-9【])/)
-    .map((block) => block.trim())
-    .filter(Boolean);
-  return blocks.length > 0 ? blocks : [normalized];
 }
 
 function sourceLabel(source: SkillSource) {
@@ -84,19 +81,88 @@ const emptyAi: SkillAiState = {
   translationError: null,
 };
 
-function SkillBilingual({ blocks }: { blocks: { original: string; translation: string | null }[] }) {
+function SkillBilingual({ original, translation }: { original: string; translation: string }) {
   return (
-    <div className="skill-bilingual" aria-label="Skill 中英文对照">
-      {blocks.map((block, index) => (
-        <section className="skill-bilingual-block" key={`${index}-${block.original.slice(0, 24)}`}>
-          <div className="skill-bilingual-label">原文</div>
-          <div className="skill-bilingual-original">{block.original}</div>
-          <div className="skill-bilingual-label translated">中文</div>
-          <div className="skill-bilingual-translation">
-            {block.translation || '该段暂未生成译文。'}
+    <div className="skill-bilingual" role="region" aria-label="Skill 中英文对照">
+      <Markdown
+        text={original}
+        tree={bilingualTree(original, translation, { includeHeadings: true })}
+      />
+    </div>
+  );
+}
+
+function SkillOriginalView({
+  detail,
+  ai,
+  busy,
+  generate,
+  revealTranslation,
+}: {
+  detail: SkillDetails;
+  ai: SkillAiState;
+  busy: boolean;
+  generate: () => void;
+  revealTranslation: boolean;
+}) {
+  const [manualVisible, setManualVisible] = useState<boolean | null>(null);
+  const bilingual = !!ai.translation && (manualVisible ?? revealTranslation);
+  const translationUnavailable = ai.translationStatus === 'disabled';
+  return (
+    <div className="skill-original-view">
+      <div className="skill-original-toolbar">
+        <div className="skill-original-heading">
+          <Code2 size={16} />
+          <div>
+            <strong>{bilingual ? '中英文对照' : '原文'}</strong>
+            <span>{bilingual ? '原文在上，中文译文在下' : '保留 SKILL.md 的原始结构'}</span>
           </div>
-        </section>
-      ))}
+        </div>
+        {ai.translation && (
+          <button
+            type="button"
+            className="skill-translation-toggle"
+            aria-pressed={bilingual}
+            onClick={() => setManualVisible(!bilingual)}
+          >
+            <Languages size={14} /> {bilingual ? '仅看原文' : '显示中英文对照'}
+          </button>
+        )}
+      </div>
+      {!ai.translation && (
+        <div className="skill-translation-cta">
+          <div>
+            <strong>在原文下生成中文对照</strong>
+            <p>
+              {ai.translationError ||
+                (translationUnavailable
+                  ? 'AI 服务未启用，当前仅提供原文。'
+                  : '按段落保留 Markdown、代码、链接和命令格式。')}
+            </p>
+          </div>
+          <Button
+            variant="primary"
+            size="small"
+            onClick={generate}
+            disabled={busy || translationUnavailable || ai.translationStatus === 'pending'}
+          >
+            {busy || ai.translationStatus === 'pending' ? (
+              <Loader2 className="spin" size={15} />
+            ) : (
+              <Languages size={15} />
+            )}
+            {ai.translationStatus === 'failed' ? '重试对照翻译' : '生成中文对照'}
+          </Button>
+        </div>
+      )}
+      {bilingual ? (
+        <SkillBilingual
+          original={withoutFrontmatter(detail.content)}
+          translation={ai.translation!.text}
+        />
+      ) : (
+        <Markdown text={withoutFrontmatter(detail.content)} />
+      )}
     </div>
   );
 }
@@ -114,21 +180,35 @@ function SkillAiSummary({
 }) {
   if (!ai.summary) {
     return (
-      <div className="skill-ai-empty">
-        <Sparkles size={27} />
+      <div className="skill-ai-empty skill-guide-empty">
+        <div className="skill-guide-empty-art" aria-hidden="true">
+          <Sparkles size={27} />
+          <span />
+          <span />
+          <span />
+        </div>
+        <span className="skill-guide-empty-kicker">SKILL 入门介绍</span>
         <h3>
           {ai.summaryStatus === 'pending'
             ? '正在整理 Skill 摘要…'
             : ai.summaryStatus === 'failed'
               ? '摘要生成失败'
-              : '还没有 Skill 摘要'}
+              : '先生成一份易懂的介绍'}
         </h3>
         <p>
           {ai.summaryError ||
             (ai.summaryStatus === 'disabled'
               ? 'AI 服务未启用，仍可直接阅读原文。'
-              : `根据 ${detail.name} 的说明，整理适用场景、工作流和注意事项。`)}
+              : `根据 ${detail.name} 的说明，整理它解决什么问题、适用场景、工作流和注意事项。`)}
         </p>
+        <div className="skill-guide-empty-description">
+          <span>原始简介</span>
+          <p>{detail.description}</p>
+        </div>
+        <div className="skill-guide-empty-facts">
+          <span><BookOpen size={14} /> 保留完整原文</span>
+          <span><ListChecks size={14} /> 摘要后续可生成</span>
+        </div>
         <Button onClick={generate} disabled={busy || ai.summaryStatus === 'disabled'}>
           {busy || ai.summaryStatus === 'pending' ? (
             <Loader2 className="spin" size={16} />
@@ -140,42 +220,91 @@ function SkillAiSummary({
       </div>
     );
   }
+  const summary = ai.summary;
+  const workflowPreview = summary.workflow.slice(0, 3);
   return (
-    <div className="skill-ai-summary">
-      <div className="skill-ai-summary-intro">
-        <div className="skill-ai-label">
-          <Sparkles size={15} /> AI 摘要 <span>辅助理解 · 以原文为准</span>
+    <div className="skill-ai-summary skill-guide">
+      <div className="skill-guide-hero">
+        <div className="skill-guide-hero-copy">
+          <div className="skill-ai-label">
+            <Sparkles size={15} /> AI 摘要 <span>辅助理解 · 以原文为准</span>
+          </div>
+          <span className="skill-guide-kicker">先用一句话理解</span>
+          <h2>{summary.headline}</h2>
+          <p>{summary.overview}</p>
+          {detail.repositoryDescription && (
+            <div className="skill-guide-project-note">
+              <span>项目简介</span>
+              <p>{detail.repositoryDescription}</p>
+            </div>
+          )}
         </div>
-        <h2>{ai.summary.headline}</h2>
-        <p>{ai.summary.overview}</p>
+        <div className="skill-guide-hero-art" aria-label="Skill 使用路径示意图">
+          <div className="skill-guide-art-heading">
+            <Lightbulb size={15} />
+            <span>使用路径</span>
+          </div>
+          <div className="skill-guide-art-track">
+            {workflowPreview.map((item, index) => (
+              <div className="skill-guide-art-step" key={`${index}-${item}`}>
+                <span>{String(index + 1).padStart(2, '0')}</span>
+                <p>{item}</p>
+                {index < workflowPreview.length - 1 && <ArrowRight size={14} aria-hidden="true" />}
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
-      <div className="skill-ai-grid">
-        <section>
+      <div className="skill-guide-section-heading">
+        <div className="skill-guide-section-icon"><Target size={16} /></div>
+        <div>
           <h3>适用场景</h3>
-          <ul>
-            {ai.summary.scenarios.map((item) => <li key={item}>{item}</li>)}
-          </ul>
-        </section>
-        <section>
-          <h3>建议工作流</h3>
-          <ol>
-            {ai.summary.workflow.map((item) => <li key={item}>{item}</li>)}
-          </ol>
-        </section>
+          <p>先判断它是否适合当前任务，再开始阅读具体步骤。</p>
+        </div>
+      </div>
+      <div className="skill-guide-scenarios">
+        {summary.scenarios.map((item, index) => (
+          <div className="skill-guide-scenario" key={`${index}-${item}`}>
+            <span>{String(index + 1).padStart(2, '0')}</span>
+            <p>{item}</p>
+          </div>
+        ))}
+      </div>
+      <div className="skill-guide-section-heading skill-guide-workflow-heading">
+        <div className="skill-guide-section-icon"><ListChecks size={16} /></div>
+        <div>
+          <h3>怎么使用</h3>
+          <p>把 AI 摘要整理成一条可快速浏览的工作流。</p>
+        </div>
+      </div>
+      <div className="skill-guide-workflow" aria-label="Skill 建议工作流">
+        {summary.workflow.map((item, index) => (
+          <div className="skill-guide-workflow-step" key={`${index}-${item}`}>
+            <div className="skill-guide-workflow-marker">
+              <span>{index + 1}</span>
+              {index < summary.workflow.length - 1 && <i aria-hidden="true" />}
+            </div>
+            <div className="skill-guide-workflow-copy">
+              <strong>步骤 {index + 1}</strong>
+              <p>{item}</p>
+            </div>
+            <CheckCircle2 size={16} aria-hidden="true" />
+          </div>
+        ))}
       </div>
       {ai.summary.cautions.length > 0 && (
-        <section className="skill-ai-cautions">
+        <section className="skill-ai-cautions skill-guide-cautions">
           <ShieldCheck size={18} />
           <div>
             <h3>使用前留意</h3>
-            <ul>{ai.summary.cautions.map((item) => <li key={item}>{item}</li>)}</ul>
+          <ul>{summary.cautions.map((item) => <li key={item}>{item}</li>)}</ul>
           </div>
         </section>
       )}
-      {ai.summary.evidence.length > 0 && (
-        <details className="skill-ai-evidence">
-          <summary>查看摘要依据（{ai.summary.evidence.length} 段）</summary>
-          {ai.summary.evidence.map((item) => (
+      {summary.evidence.length > 0 && (
+        <details className="skill-ai-evidence skill-guide-evidence">
+          <summary>查看摘要依据（{summary.evidence.length} 段）</summary>
+          {summary.evidence.map((item) => (
             <p key={item.id}><strong>[{item.id}]</strong> {item.text}</p>
           ))}
         </details>
@@ -225,21 +354,33 @@ function SkillCard({ skill, onSelect }: { skill: SkillSummary; onSelect: (skill:
         </span>
         <ArrowUpRight className="skill-card-arrow" size={16} />
       </button>
-      {skill.repositoryUrl ? (
-        <a
-          className="skill-project-link"
-          href={skill.repositoryUrl}
-          target="_blank"
-          rel="noreferrer"
-          onClick={(event) => event.stopPropagation()}
-        >
-          <Github size={13} /> 打开项目
-        </a>
-      ) : (
-        <span className="skill-project-local">
-          <FolderOpen size={13} /> 本机目录
-        </span>
-      )}
+      <div className="skill-card-sources" aria-label={`${skill.name} 来源链接`}>
+        {skill.repositoryUrl && (
+          <a
+            href={skill.repositoryUrl}
+            target="_blank"
+            rel="noreferrer"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <Github size={13} /> 打开项目
+          </a>
+        )}
+        {skill.url && (
+          <a
+            href={skill.url}
+            target="_blank"
+            rel="noreferrer"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <Link2 size={13} /> Skill 源文件
+          </a>
+        )}
+        {!skill.repositoryUrl && !skill.url && (
+          <span title={`${skill.location} · ${skill.relativePath}`}>
+            <FolderOpen size={13} /> 本机来源 · {skill.relativePath}
+          </span>
+        )}
+      </div>
     </article>
   );
 }
@@ -249,13 +390,15 @@ function SkillDetail({
   onBack,
   generate,
   busyKind,
+  revealTranslation,
 }: {
   detail: SkillDetails;
   onBack: () => void;
   generate: (kind: 'summary' | 'translation') => void;
   busyKind: 'summary' | 'translation' | '';
+  revealTranslation: boolean;
 }) {
-  const [tab, setTab] = useState<'summary' | 'translation' | 'original'>('summary');
+  const [tab, setTab] = useState<'summary' | 'original'>('summary');
   const ai = detail.ai ?? emptyAi;
   return (
     <section className="skill-detail-view" aria-label={`${detail.name} Skill 详情`}>
@@ -268,9 +411,7 @@ function SkillDetail({
           <h1>{detail.name}</h1>
           <div className="skill-detail-description">
             <span className="skill-description-label">Skill 简介</span>
-            {splitSkillDescription(detail.description).map((block, index) => (
-              <p key={`${index}-${block.slice(0, 24)}`}>{block}</p>
-            ))}
+            <p>{detail.description}</p>
           </div>
         </div>
         <div className="skill-detail-actions">
@@ -299,7 +440,6 @@ function SkillDetail({
       <div className="skill-detail-tabs" role="tablist" aria-label="Skill 内容视图">
         {[
           { key: 'summary', label: 'AI 摘要', icon: Sparkles },
-          { key: 'translation', label: '中英文对照', icon: Languages },
           { key: 'original', label: '原文', icon: Code2 },
         ].map(({ key, label, icon: Icon }) => (
           <button
@@ -323,41 +463,16 @@ function SkillDetail({
             generate={() => generate('summary')}
           />
         )}
-        {tab === 'translation' && (
-          ai.translation ? (
-            <SkillBilingual blocks={ai.translation.blocks} />
-          ) : (
-            <div className="skill-ai-empty">
-              <Languages size={28} />
-              <h3>
-                {ai.translationStatus === 'pending'
-                  ? '正在生成中英文对照…'
-                  : ai.translationStatus === 'failed'
-                    ? '对照翻译失败'
-                    : '还没有中英文对照'}
-              </h3>
-              <p>
-                {ai.translationError ||
-                  (ai.translationStatus === 'disabled'
-                    ? 'AI 服务未启用，仍可阅读原文。'
-                    : '按段落保留 Markdown、代码、链接和命令格式。')}
-              </p>
-              <Button
-                variant="primary"
-                onClick={() => generate('translation')}
-                disabled={busyKind === 'translation' || ai.translationStatus === 'disabled'}
-              >
-                {busyKind === 'translation' || ai.translationStatus === 'pending' ? (
-                  <Loader2 className="spin" size={16} />
-                ) : (
-                  <Languages size={16} />
-                )}
-                {ai.translationStatus === 'failed' ? '重试对照翻译' : '生成中英文对照'}
-              </Button>
-            </div>
-          )
+        {tab === 'original' && (
+          <SkillOriginalView
+            key={`${detail.contentHash}-${detail.ai.translation ? 'translated' : 'original'}`}
+            detail={detail}
+            ai={ai}
+            busy={busyKind === 'translation'}
+            generate={() => generate('translation')}
+            revealTranslation={revealTranslation}
+          />
         )}
-        {tab === 'original' && <Markdown text={withoutFrontmatter(detail.content)} />}
       </article>
     </section>
   );
@@ -378,6 +493,7 @@ export function SkillsPanel() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [busyKind, setBusyKind] = useState<'summary' | 'translation' | ''>('');
+  const [revealTranslation, setRevealTranslation] = useState(false);
 
   const load = useCallback(async (nextSource: SkillSource, page = 1, append = false) => {
     setLoading(true);
@@ -443,6 +559,7 @@ export function SkillsPanel() {
   async function selectSkill(skill: SkillSummary) {
     setSelected(skill);
     setDetail(null);
+    setRevealTranslation(false);
     setLoading(true);
     setError('');
     const params = new URLSearchParams({ id: skill.id });
@@ -458,6 +575,7 @@ export function SkillsPanel() {
 
   async function generateAi(kind: 'summary' | 'translation') {
     if (!selected) return;
+    if (kind === 'translation') setRevealTranslation(true);
     setBusyKind(kind);
     setError('');
     try {
@@ -484,6 +602,7 @@ export function SkillsPanel() {
   function backToList() {
     setSelected(null);
     setDetail(null);
+    setRevealTranslation(false);
     history.pushState({}, '', '/skills');
   }
 
@@ -505,6 +624,7 @@ export function SkillsPanel() {
         onBack={backToList}
         generate={generateAi}
         busyKind={busyKind}
+        revealTranslation={revealTranslation}
       />
     );
 
