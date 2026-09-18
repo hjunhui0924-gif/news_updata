@@ -72,12 +72,19 @@ export async function publishPending(boss: PgBoss) {
 
 export async function reconcileJobs(boss: PgBoss) {
   const { rows } = await getPool().query(
-    "SELECT id,enqueued_at FROM jobs WHERE status IN ('pending','running') AND enqueued_at IS NOT NULL ORDER BY updated_at LIMIT 100",
+    "SELECT id,kind,enqueued_at FROM jobs WHERE status IN ('pending','running') AND enqueued_at IS NOT NULL ORDER BY updated_at LIMIT 100",
   );
   for (const row of rows) {
     const delivery = await boss.getJobById(QUEUE, row.id);
     const missing = !delivery && Date.now() - new Date(row.enqueued_at).getTime() > 600000;
-    if (missing || (delivery && ['failed', 'cancelled', 'completed'].includes(delivery.state))) {
+    const interrupted = missing || (delivery && ['failed', 'cancelled', 'completed'].includes(delivery.state));
+    if (interrupted && ['sync', 'stars'].includes(row.kind)) {
+      if (delivery) await boss.deleteJob(QUEUE, row.id);
+      await getPool().query(
+        "UPDATE jobs SET status='pending',enqueued_at=NULL,error=$2,updated_at=now() WHERE id=$1 AND status IN ('pending','running')",
+        [row.id, '后台任务中断，已自动重新排队。'],
+      );
+    } else if (interrupted) {
       await getPool().query(
         "UPDATE jobs SET status='failed',error=$2,updated_at=now() WHERE id=$1 AND status IN ('pending','running')",
         [row.id, '后台任务中断或超时，请重新同步或生成。'],

@@ -32,7 +32,7 @@
 
 | 检查 | 实际结果 |
 | --- | --- |
-| `pnpm test` | 28 个测试文件，154 项通过 |
+| `pnpm test` | 28 个测试文件，155 项通过 |
 | `pnpm exec vitest run tests/bilingual.test.ts` | 5 项通过 |
 | `pnpm exec playwright test --config playwright.skills.config.ts` | 2 项通过 |
 | `pnpm typecheck` / `pnpm lint` | 均通过 |
@@ -48,8 +48,9 @@ X/Twitter 和 RSS 仍未接入；本轮只同步跨平台预研文档和领域�
 - 订阅管理页展示状态、上次检查时间、限流恢复时间和后台离线提示；无效的重复同步操作会被禁用。
 - `pnpm test`：28 个测试文件，154 项通过；新增状态矩阵测试覆盖 5 个核心场景。
 - G1 following 与 G2 状态反馈浏览器回归合计 6 项通过，桌面/手机截图已检查。
+- G2 同步任务恢复新增 2 项 PostgreSQL/pg-boss 集成场景：队列终态恢复、投递丢失后的 Worker 重启恢复。
 
-G2 的 Worker 重启恢复、失败任务重新入队、分页续扫和至少 7 天真实运行仍未宣称完成。
+G2 的失败任务细化重试反馈、分页续扫提示和至少 7 天真实运行仍未宣称完成；同步类任务的基本 Worker 恢复路径已完成验证。
 
 ## 当前覆盖
 

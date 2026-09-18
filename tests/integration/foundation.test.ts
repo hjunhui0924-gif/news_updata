@@ -27,7 +27,7 @@ afterAll(async () => {
   await getPool().end();
 });
 describe('persistent foundation', () => {
-  it('replayed publication stays singular and terminal failure releases the app job', async () => {
+  it('replayed publication stays singular and terminal delivery is requeued after a worker interruption', async () => {
     const job = await enqueue(userId, 'sync', 'crash-test-source');
     await publishPending(boss);
     await getPool().query('UPDATE jobs SET enqueued_at=NULL WHERE id=$1', [job.id]);
@@ -38,10 +38,15 @@ describe('persistent foundation', () => {
     await getPool().query("UPDATE jobs SET status='running' WHERE id=$1", [job.id]);
     await getPool().query("UPDATE pgboss.job SET state='failed' WHERE id=$1", [job.id]);
     await reconcileJobs(boss);
-    const next = await enqueue(userId, 'sync', 'crash-test-source');
-    expect(next.id).not.toBe(job.id);
+    expect(
+      (await getPool().query('SELECT status,enqueued_at FROM jobs WHERE id=$1', [job.id])).rows[0],
+    ).toMatchObject({ status: 'pending', enqueued_at: null });
+    await publishPending(boss);
+    const replayed = await boss.findJobs(QUEUE, { key: job.id });
+    expect(replayed).toHaveLength(1);
+    expect(replayed[0].id).toBe(job.id);
     await boss.deleteJob(QUEUE, job.id);
-    await getPool().query("UPDATE jobs SET status='failed' WHERE id=$1", [next.id]);
+    await getPool().query("UPDATE jobs SET status='failed' WHERE id=$1", [job.id]);
   });
   it('creates only one active job under concurrent requests and publishes it', async () => {
     const jobs = await Promise.all(
@@ -55,5 +60,24 @@ describe('persistent foundation', () => {
       QUEUE,
       pending.map((x) => x.id),
     );
+  });
+  it('requeues a stale active sync job whose queue delivery disappeared after a restart', async () => {
+    const job = await enqueue(userId, 'sync', 'stale-restart-source');
+    await publishPending(boss);
+    await getPool().query(
+      "UPDATE jobs SET status='running',enqueued_at=now()-interval '11 minutes' WHERE id=$1",
+      [job.id],
+    );
+    await boss.deleteJob(QUEUE, job.id);
+    await reconcileJobs(boss);
+    expect(
+      (await getPool().query('SELECT status,enqueued_at FROM jobs WHERE id=$1', [job.id])).rows[0],
+    ).toMatchObject({ status: 'pending', enqueued_at: null });
+    await publishPending(boss);
+    const replayed = await boss.findJobs(QUEUE, { key: job.id });
+    expect(replayed).toHaveLength(1);
+    expect(replayed[0].id).toBe(job.id);
+    await boss.deleteJob(QUEUE, job.id);
+    await getPool().query("UPDATE jobs SET status='failed' WHERE id=$1", [job.id]);
   });
 });
