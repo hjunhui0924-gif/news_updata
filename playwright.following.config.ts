@@ -7,5 +7,6 @@ export default defineConfig({
     '**/starred.spec.ts',
     '**/ai-state.spec.ts',
     '**/discovery.spec.ts',
+    '**/sync-status.spec.ts',
   ],
 });

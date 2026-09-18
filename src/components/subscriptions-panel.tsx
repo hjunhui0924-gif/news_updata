@@ -13,6 +13,7 @@ import {
   X,
 } from 'lucide-react';
 import type { Job, Subscription, StarSyncStatus } from '@/shared/types';
+import { getSubscriptionSyncStatus } from '@/shared/sync-status';
 import { Button } from './ui/button';
 import { requestJson } from './reader-app';
 import { StarredImport } from './starred-import';
@@ -80,6 +81,12 @@ export function SubscriptionsPanel({
           onAction={onStarAction}
         />
       )}
+      {!workerOnline && subscriptions.some((subscription) => subscription.enabled) && (
+        <div className="sync-service-banner" role="status">
+          <RefreshCw size={15} />
+          <span>后台同步服务未连接，已有内容仍可阅读；服务恢复后会继续检查。</span>
+        </div>
+      )}
       <div className="segmented management-tabs">
         {[
           ['all', '全部来源'],
@@ -99,9 +106,15 @@ export function SubscriptionsPanel({
         {subscriptions
           .filter((x) => kind === 'all' || x.kind === kind)
           .map((sub) => {
-            const syncing = jobs.some(
-              (x) => x.targetId === sub.id && ['pending', 'running'].includes(x.status),
-            );
+            const syncStatus = getSubscriptionSyncStatus(sub, jobs, workerOnline);
+            const syncing = ['waiting', 'syncing'].includes(syncStatus.state);
+            const syncBlocked = [
+              'waiting',
+              'syncing',
+              'rate_limited',
+              'auth_required',
+              'worker_offline',
+            ].includes(syncStatus.state);
             return (
               <article className={`subscription-card ${sub.enabled ? '' : 'paused'}`} key={sub.id}>
                 <span className={`repo-avatar large ${sub.kind === 'author' ? 'blue' : 'slate'}`}>
@@ -122,16 +135,18 @@ export function SubscriptionsPanel({
                       : '跟踪：正式版本 · 已收录版本的说明变化'}
                   </p>
                   <div className="subscription-status">
-                    <span>{sub.enabled ? '正在关注' : '已暂停'}</span>
-                    <span>
-                      {syncing
-                        ? '正在同步…'
-                        : sub.lastSyncAt
-                          ? `上次检查 ${new Date(sub.lastSyncAt).toLocaleString('zh-CN')}`
-                          : '等待首次同步'}
+                    <span className={`sync-state sync-state-${syncStatus.state}`}>
+                      {syncStatus.label}
                     </span>
-                    {sub.coverage === 'partial' && (
-                      <span className="warning-text">部分内容待补查</span>
+                    {syncStatus.state === 'completed' && sub.lastSyncAt && (
+                      <span>上次检查 {new Date(sub.lastSyncAt).toLocaleString('zh-CN')}</span>
+                    )}
+                    {syncStatus.state === 'partial' && <span>还有内容待补查</span>}
+                    {syncStatus.state === 'rate_limited' && syncStatus.retryAt && (
+                      <span>可在 {new Date(syncStatus.retryAt).toLocaleString('zh-CN')} 后重试</span>
+                    )}
+                    {syncStatus.state === 'waiting' && sub.lastSyncAt && (
+                      <span>等待下一次检查 · 上次 {new Date(sub.lastSyncAt).toLocaleString('zh-CN')}</span>
                     )}
                   </div>
                   {sub.error && <p className="error-text">{sub.error}</p>}
@@ -155,7 +170,7 @@ export function SubscriptionsPanel({
                   </button>
                   <button
                     className="icon-button"
-                    disabled={syncing || busy === sub.id || !sub.enabled}
+                    disabled={syncBlocked || busy === sub.id || !sub.enabled}
                     aria-label={`同步 ${sub.name}`}
                     onClick={() => onAction(sub.id, 'sync')}
                   >

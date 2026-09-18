@@ -1705,6 +1705,50 @@ svg {
   flex-wrap: wrap;
   justify-content: flex-end;
 }
+.sync-service-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 1100px;
+  margin: 0 auto 15px;
+  padding: 11px 14px;
+  border: 1px solid #ead9ad;
+  border-radius: 7px;
+  color: #8c713c;
+  background: #fffaf0;
+  font-size: 11px;
+  line-height: 1.6;
+}
+.sync-service-banner svg {
+  flex-shrink: 0;
+}
+.sync-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 550;
+}
+.sync-state-syncing {
+  color: var(--primary) !important;
+}
+.sync-state-waiting {
+  color: #7183a0 !important;
+}
+.sync-state-completed {
+  color: var(--success) !important;
+}
+.sync-state-partial,
+.sync-state-rate_limited,
+.sync-state-worker_offline {
+  color: var(--warning) !important;
+}
+.sync-state-auth_required,
+.sync-state-failed {
+  color: var(--danger) !important;
+}
+.sync-state-paused {
+  color: #9aa5b4 !important;
+}
 .text-action {
   font-size: 10px;
   color: #93a0b1;

@@ -32,14 +32,24 @@
 
 | 检查 | 实际结果 |
 | --- | --- |
-| `pnpm test` | 27 个测试文件，149 项通过 |
+| `pnpm test` | 28 个测试文件，154 项通过 |
 | `pnpm exec vitest run tests/bilingual.test.ts` | 5 项通过 |
 | `pnpm exec playwright test --config playwright.skills.config.ts` | 2 项通过 |
 | `pnpm typecheck` / `pnpm lint` | 均通过 |
 | `pnpm build` | Next.js Web 与 tsup Worker 构建通过 |
 | G1 following 浏览器回归 | 4 项通过 |
+| G2 状态反馈浏览器回归 | 2 项通过 |
 
 X/Twitter 和 RSS 仍未接入；本轮只同步跨平台预研文档和领域词汇，不代表新增平台功能已经验收。
+
+## G2 状态与反馈第一阶段
+
+- 新增订阅同步状态派生模块，覆盖排队、同步中、完成、部分完成、限流、授权失败、普通失败、暂停和 Worker 离线。
+- 订阅管理页展示状态、上次检查时间、限流恢复时间和后台离线提示；无效的重复同步操作会被禁用。
+- `pnpm test`：28 个测试文件，154 项通过；新增状态矩阵测试覆盖 5 个核心场景。
+- G1 following 与 G2 状态反馈浏览器回归合计 6 项通过，桌面/手机截图已检查。
+
+G2 的 Worker 重启恢复、失败任务重新入队、分页续扫和至少 7 天真实运行仍未宣称完成。
 
 ## 当前覆盖
 

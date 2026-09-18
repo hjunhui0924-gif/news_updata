@@ -52,7 +52,7 @@ GitHub 公开事件接口只提供最近 **30 天、最多 300 条事件**，此
 
 ## 本轮验证
 
-- `pnpm test`：27 个文件、149 项通过。包括 following 分页/导入单元测试、真实 PostgreSQL 幂等测试，以及原有 Star、AI、队列和阅读状态回归。
+- `pnpm test`：28 个文件、154 项通过。包括 following 分页/导入单元测试、真实 PostgreSQL 幂等测试，以及原有 Star、AI、队列和阅读状态回归。
 - 真实 PostgreSQL 集成覆盖：作者/项目并发去重、双来源筛选、AI 和阅读状态保留、旧版本说明修改、迟到快照、失败分页续查、发布者身份、暂停、历史上限及阻塞 SQL 期间取消回滚。
 - following 专项浏览器测试：4 项通过，使用隔离的模拟接口验证双来源、分页导入、已订阅状态、名额限制、部分失败重试和手机布局。这不等于真实 GitHub/模型端到端测试。
 - `pnpm lint`、`pnpm build`（Web 与 Worker）、`pnpm typecheck` 均通过；本地 `/api/health/live` 返回 200 / `{"status":"ok"}`。

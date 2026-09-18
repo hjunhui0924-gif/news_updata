@@ -105,7 +105,7 @@ pnpm build              # Web + Worker 构建
 
 浏览器测试优先使用 Windows 已安装的 Chrome；其他环境可先运行 `pnpm exec playwright install chromium`。测试与开发约定见 [贡献指南](CONTRIBUTING.md)。
 
-2026-09-18 最新功能验证：**149 项单元/集成测试、4 项 G1 following 浏览器测试通过**，类型检查、Lint 和 Web/Worker 构建通过。真实 GitHub 登录、读取、令牌续期、项目搜索，以及 Qwen 摘要/翻译样本已联调。模拟浏览器测试不等同于真实模型端到端测试，不据此宣称内容准确率或长期稳定性。[完整验收记录](docs/07-mvp-validation.md)
+2026-09-18 最新功能验证：**154 项单元/集成测试、6 项 G1/G2 浏览器测试通过**，类型检查、Lint 和 Web/Worker 构建通过。真实 GitHub 登录、读取、令牌续期、项目搜索，以及 Qwen 摘要/翻译样本已联调。模拟浏览器测试不等同于真实模型端到端测试，不据此宣称内容准确率或长期稳定性。[完整验收记录](docs/07-mvp-validation.md)
 
 ## 当前边界与后续
 
@@ -116,7 +116,7 @@ pnpm build              # Web + Worker 构建
 - X/Twitter 和 RSS 目前只完成路线预研说明，尚未接入；也不包含 PR/Issue/提交动态、私有仓库、邮件、浏览器通知或公开注册。
 - 没有完成公开部署、长期连续试用、备份恢复演练或正式安全审计。
 
-下一步进入同步可靠性与反馈（G2），完成后进行至少 7 天真实试用；之后按准入条件评估 X，必要时先用 RSS 验证跨平台阅读模型。[开发路线](docs/04-development-plan.md) · [跨平台预研](docs/14-platform-expansion.md)
+G2 的状态与反馈第一阶段已完成，下一步验证 Worker 重启恢复、失败重试和长期运行，再进行至少 7 天真实试用；之后按准入条件评估 X，必要时先用 RSS 验证跨平台阅读模型。[开发路线](docs/04-development-plan.md) · [跨平台预研](docs/14-platform-expansion.md)
 
 ## 文档导航
 
