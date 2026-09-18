@@ -111,3 +111,18 @@ pnpm build
 ## 已知运行限制
 
 单用户规模下使用客户端全量个人 feed，未做大数据量压测。部分历史扫描分批完成；长时间离线、来源改名/删除和 GitHub 限制可能影响覆盖。ETag 尚未接入同步检查点。没有邮件、浏览器推送、X/RSS 用户功能、自动数据库备份和已验证的生产部署。X/RSS 当前只有路线预研文档，不应配置或启动不存在的适配器。
+
+## 本地长期运行观察
+
+可以使用 PowerShell 监测脚本进行本机 7 天观察：
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File .\scripts\observe-live.ps1 `
+  -DurationHours 168 `
+  -IntervalSeconds 300 `
+  -LogPath .\work\live-observation.jsonl
+```
+
+脚本每 5 分钟记录 Web 健康接口、PostgreSQL 容器状态、Worker 心跳、任务状态数量、失败任务数量、最长运行任务和订阅错误/限流状态。启动时已有失败任务数量作为基线，只有观察期间新增失败数量才产生 `new_failed_jobs` 告警；状态变化会写入同一 JSONL 文件。日志和观察目录被 Git 忽略，不会上传账号配置或业务数据。
+
+该脚本是本机静默监测，不会向 Codex 对话或外部通知渠道发送消息。当前会话不能承诺七天后自动在聊天中提醒；需要查看进度时读取 `work/live-observation.jsonl`，或在 Codex 中请求重新检查。停止监测可使用启动后记录的 PowerShell 进程 ID 执行 `Stop-Process -Id <PID>`。
