@@ -1187,10 +1187,80 @@ svg {
   font-size: 10px;
   margin-top: 14px;
 }
+.project-subscribe-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 18px;
+  padding: 14px 16px;
+  border: 1px solid #dbe6ff;
+  border-radius: 9px;
+  background: #f6f8ff;
+}
+.project-subscribe-card strong {
+  display: block;
+  color: #314a7c;
+  font-size: 13px;
+}
+.project-subscribe-card p {
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 11px;
+}
 .detail-meta > span {
   display: flex;
   align-items: center;
   gap: 5px;
+}
+.long-content-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 18px;
+  padding: 11px 13px;
+  border: 1px solid #e6eaf1;
+  border-radius: 8px;
+  color: var(--muted);
+  background: #fafbfc;
+}
+.long-content-note > svg {
+  color: var(--primary);
+  margin-top: 1px;
+}
+.long-content-note strong,
+.long-content-note span {
+  display: block;
+}
+.long-content-note strong {
+  color: var(--foreground);
+  font-size: 12px;
+}
+.long-content-note span {
+  margin-top: 3px;
+  font-size: 11px;
+  line-height: 1.6;
+}
+.translation-limit-note {
+  display: grid;
+  justify-items: start;
+  gap: 9px;
+  padding: 24px 20px;
+  border: 1px solid #e6eaf1;
+  border-radius: 9px;
+  background: #fafbfc;
+  color: var(--muted);
+}
+.translation-limit-note > svg {
+  color: var(--primary);
+}
+.translation-limit-note h3 {
+  color: var(--foreground);
+  font-size: 15px;
+}
+.translation-limit-note p {
+  font-size: 12px;
+  line-height: 1.7;
 }
 .demo-label {
   font-size: 9px;
@@ -1474,6 +1544,7 @@ svg {
   color: #8b97aa;
 }
 .markdown pre {
+  max-width: 100%;
   background: #f3f5f8;
   padding: 17px;
   border-radius: 7px;
@@ -1484,11 +1555,39 @@ svg {
 .markdown code {
   font-family: Consolas, monospace;
 }
+.markdown-image {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 18px auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #f8fafc;
+}
+.markdown-image-fallback {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 100%;
+  margin: 12px 0;
+  padding: 9px 12px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 7px;
+  color: var(--muted);
+  background: #f8fafc;
+  overflow-wrap: anywhere;
+}
+.markdown-image-fallback > span {
+  color: var(--primary);
+  font-size: 11px;
+  font-weight: 700;
+}
 .markdown a {
   color: var(--primary);
   text-decoration: underline;
 }
 .markdown table {
+  max-width: 100%;
   display: block;
   overflow-x: auto;
   border-collapse: collapse;
@@ -2435,6 +2534,13 @@ svg {
   }
   .detail-title {
     font-size: 25px;
+  }
+  .long-content-note {
+    padding: 10px 11px;
+  }
+  .project-subscribe-card {
+    align-items: flex-start;
+    flex-direction: column;
   }
   .detail-tabs {
     gap: 25px;

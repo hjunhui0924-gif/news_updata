@@ -5,6 +5,7 @@ test('one release appears under both project and followed author with explicit c
   page,
 }) => {
   const errors: string[] = [];
+  let subscribedRepository = '';
   page.on('pageerror', (error) => errors.push(error.message));
   await page.route('**/api/bootstrap', async (route) => {
     const data: Bootstrap = await (await route.fetch()).json();
@@ -44,11 +45,20 @@ test('one release appears under both project and followed author with explicit c
       type: 'new_repo' as const,
       repo: 'alice/new',
       title: '作者的新项目',
+      contentUrl: 'https://github.com/alice/new/blob/HEAD/README.md',
       matchedSources: [{ id: author.id, kind: author.kind, name: author.name }],
     };
     await route.fulfill({
       json: { ...data, jobs: [], subscriptions: [project, author], items: [shared, authorOnly] },
     });
+  });
+  await page.route('**/api/subscriptions', async (route) => {
+    if (route.request().method() === 'POST') {
+      subscribedRepository = (route.request().postDataJSON() as { input: string }).input;
+      await route.fulfill({ json: { id: 'new-repository-subscription' } });
+      return;
+    }
+    await route.continue();
   });
   await page.goto('/subscriptions');
   await page.getByRole('button', { name: '刷新内容' }).click();
@@ -64,6 +74,15 @@ test('one release appears under both project and followed author with explicit c
   const feed = page.getByRole('region', { name: '更新列表' });
   await expect(feed.getByRole('heading', { name: 'v1.0 正式发布', exact: true })).toHaveCount(1);
   await expect(feed.getByRole('heading', { name: '作者的新项目', exact: true })).toBeVisible();
+  await feed.getByRole('button', { name: /作者的新项目/ }).click();
+  await expect(page.getByRole('link', { name: '查看正文来源', exact: true })).toHaveAttribute(
+    'href',
+    'https://github.com/alice/new/blob/HEAD/README.md',
+  );
+  await expect(page.getByRole('button', { name: '订阅项目更新', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '订阅项目更新', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('项目订阅已添加');
+  expect(subscribedRepository).toBe('alice/new');
   await feed.getByRole('button', { name: /v1\.0 正式发布/ }).click();
   const detail = page.getByRole('region', { name: '更新详情' });
   await expect(detail.getByText('订阅项目 · organization/tool')).toBeVisible();

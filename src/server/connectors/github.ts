@@ -62,6 +62,7 @@ export type GitHubUpdate = {
   body: string;
   description: string;
   url: string;
+  contentUrl?: string;
   publishedAt: string;
   sourceUpdatedAt?: string;
 };
@@ -266,6 +267,7 @@ export class GitHubConnector {
               body: '',
               description: repo.description ?? '',
               url: repo.html_url,
+              contentUrl: `https://github.com/${repo.full_name}/blob/HEAD/README.md`,
               publishedAt: repo.created_at,
             }));
     return { items, hasNext: response.hasNext, notModified: false, etag: response.etag };

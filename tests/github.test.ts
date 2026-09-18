@@ -101,6 +101,32 @@ describe('GitHub connector', () => {
     expect(page.items.map((x) => x.externalId)).toEqual(['1']);
     expect(page.hasNext).toBe(true);
   });
+  it('keeps the README source path for discovered repositories', async () => {
+    const connector = new GitHubConnector(async () => ({
+      data: [
+        {
+          id: 77,
+          name: 'tool',
+          full_name: 'alice/tool',
+          description: 'A tool',
+          html_url: 'https://github.com/alice/tool',
+          created_at: '2026-09-13T00:00:00Z',
+          fork: false,
+          private: false,
+          owner: { id: 42, login: 'alice' },
+        },
+      ],
+      hasNext: false,
+    }));
+    await expect(connector.updates('author', 'alice', 1)).resolves.toMatchObject({
+      items: [
+        expect.objectContaining({
+          repo: 'alice/tool',
+          contentUrl: 'https://github.com/alice/tool/blob/HEAD/README.md',
+        }),
+      ],
+    });
+  });
   it('returns an empty README for a repository without one but keeps network failures visible', async () => {
     const { GitHubError } = await import('../src/server/connectors/github');
     expect(

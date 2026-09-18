@@ -30,6 +30,9 @@ export function ItemDetail({
   timezone,
   error,
   aiEnabled,
+  projectSubscribed,
+  projectSubscribeBusy,
+  subscribeProject,
 }: {
   item: FeedItem | null;
   toggleSaved: () => void;
@@ -40,6 +43,9 @@ export function ItemDetail({
   timezone: string;
   error?: string | null;
   aiEnabled: boolean;
+  projectSubscribed?: boolean;
+  projectSubscribeBusy?: boolean;
+  subscribeProject?: () => void;
 }) {
   const [tab, setTab] = useState<'summary' | 'translation' | 'original'>('summary');
   const [evidence, setEvidence] = useState(false);
@@ -58,6 +64,7 @@ export function ItemDetail({
         <p>选择一条更新，阅读中文摘要与原文。</p>
       </section>
     );
+  const translationTooLong = item.body.length > 16000 && !item.translation;
   return (
     <section className="detail-panel" aria-label="更新详情">
       <div className="detail-toolbar">
@@ -105,6 +112,26 @@ export function ItemDetail({
         </div>
         <h2 className="detail-title">{item.title}</h2>
         <ItemSources item={item} />
+        {item.type === 'new_repo' && subscribeProject && (
+          <div className="project-subscribe-card" aria-label="项目订阅">
+            <div>
+              <strong>想持续跟踪这个项目？</strong>
+              <p>订阅后会收到它后续发布的正式版本更新。</p>
+            </div>
+            <Button
+              size="small"
+              variant="primary"
+              onClick={subscribeProject}
+              disabled={projectSubscribed || projectSubscribeBusy}
+            >
+              {projectSubscribeBusy
+                ? '正在添加…'
+                : projectSubscribed
+                  ? '已订阅项目更新'
+                  : '订阅项目更新'}
+            </Button>
+          </div>
+        )}
         <div className="detail-meta">
           <span>
             <Clock3 size={13} />
@@ -119,6 +146,17 @@ export function ItemDetail({
           <span>{timezone}</span>
           {item.demo && <span className="demo-label">演示内容 · 非官方发布记录</span>}
         </div>
+        {item.body.length > 4000 && (
+          <div className="long-content-note" role="status">
+            <FileText size={16} />
+            <div>
+              <strong>正文较长</strong>
+              <span>
+                约 {item.body.length.toLocaleString('zh-CN')} 字符，切换到原文后可按 Markdown 结构阅读。
+              </span>
+            </div>
+          </div>
+        )}
         <div className="detail-tabs" role="tablist" aria-label="内容视图">
           {[
             { key: 'summary', label: '中文摘要', icon: Sparkles },
@@ -246,7 +284,7 @@ export function ItemDetail({
             ))}
           {tab === 'original' &&
             (item.body ? (
-              <Markdown text={item.body} />
+              <Markdown text={item.body} baseUrl={item.contentUrl ?? item.url} />
             ) : (
               <div className="empty-state">
                 <FileText size={28} />
@@ -256,9 +294,15 @@ export function ItemDetail({
             ))}
           {tab === 'translation' &&
             (item.language === 'zh' ? (
-              <Markdown text={item.body} />
+              <Markdown text={item.body} baseUrl={item.contentUrl ?? item.url} />
             ) : item.translation ? (
               <BilingualTranslation item={item} />
+            ) : translationTooLong ? (
+              <div className="translation-limit-note" role="note">
+                <Languages size={28} />
+                <h3>原文超过 16000 字符</h3>
+                <p>当前版本不生成超长全文对照译文，请切换到「原文」按 Markdown 结构阅读。</p>
+              </div>
             ) : (
               <div className="ai-empty">
                 <Languages size={30} />
@@ -287,9 +331,15 @@ export function ItemDetail({
             {item.demo ? '以上内容是用于体验的固定示例' : '摘要用于辅助阅读，请以来源为准'}
           </span>
           <a href={item.url} target="_blank" rel="noreferrer">
-            {item.demo ? '查看参考项目' : '查看完整原文'}
+            {item.demo ? '查看参考项目' : item.contentUrl ? '查看项目来源' : '查看完整原文'}
             <ArrowUpRight size={14} />
           </a>
+          {item.contentUrl && item.contentUrl !== item.url && (
+            <a href={item.contentUrl} target="_blank" rel="noreferrer">
+              查看正文来源
+              <ArrowUpRight size={14} />
+            </a>
+          )}
         </footer>
       </article>
     </section>

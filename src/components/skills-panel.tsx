@@ -81,12 +81,21 @@ const emptyAi: SkillAiState = {
   translationError: null,
 };
 
-function SkillBilingual({ original, translation }: { original: string; translation: string }) {
+function SkillBilingual({
+  original,
+  translation,
+  baseUrl,
+}: {
+  original: string;
+  translation: string;
+  baseUrl?: string;
+}) {
   return (
     <div className="skill-bilingual" role="region" aria-label="Skill 中英文对照">
       <Markdown
         text={original}
         tree={bilingualTree(original, translation, { includeHeadings: true })}
+        baseUrl={baseUrl}
       />
     </div>
   );
@@ -159,9 +168,10 @@ function SkillOriginalView({
         <SkillBilingual
           original={withoutFrontmatter(detail.content)}
           translation={ai.translation!.text}
+          baseUrl={detail.url}
         />
       ) : (
-        <Markdown text={withoutFrontmatter(detail.content)} />
+        <Markdown text={withoutFrontmatter(detail.content)} baseUrl={detail.url} />
       )}
     </div>
   );

@@ -186,7 +186,10 @@ export async function syncSubscription(
             continue;
           // Count known candidates too, so later scans cannot expand the historical import cap.
           if (backfill) historyCount++;
-          if (update.type === 'new_repo') update.body = await connector.readme(update.repo);
+          if (update.type === 'new_repo') {
+            update.body = await connector.readme(update.repo);
+            if (!update.body) update.contentUrl = undefined;
+          }
           const contentHash = createHash('sha256')
             .update(`${update.title}\n${update.description}\n${update.body}`)
             .digest('hex');

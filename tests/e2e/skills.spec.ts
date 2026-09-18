@@ -100,8 +100,18 @@ test('GitHub Star source renders mocked Skill results and details', async ({ pag
           summaryError: null,
           translationError: null,
         },
-        content: '---\nname: reviewer\ndescription: Review changes\n---\n# Review workflow',
+        content:
+          '---\nname: reviewer\ndescription: Review changes\n---\n# Review workflow\n\n![审查流程图](./assets/flow.png)\n\n[阅读完整指南](../docs/guide.md)\n\n![不安全地址](javascript:alert(1))',
       }),
+    }),
+  );
+  await page.route('**/flow.png', (route) =>
+    route.fulfill({
+      contentType: 'image/png',
+      body: Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+        'base64',
+      ),
     }),
   );
   await page.goto('/skills');
@@ -145,4 +155,14 @@ test('GitHub Star source renders mocked Skill results and details', async ({ pag
   );
   expect(headingTops[1]).toBeGreaterThan(headingTops[0]);
   await page.screenshot({ path: 'work/skills-detail-desktop.png', fullPage: true });
+  await page.getByRole('button', { name: '仅看原文', exact: true }).click();
+  await expect(page.locator('.markdown-image')).toHaveAttribute(
+    'src',
+    'https://github.com/owner/skill-pack/blob/HEAD/skills/reviewer/assets/flow.png',
+  );
+  await expect(page.getByRole('link', { name: '阅读完整指南', exact: true })).toHaveAttribute(
+    'href',
+    'https://github.com/owner/skill-pack/blob/HEAD/skills/docs/guide.md',
+  );
+  await expect(page.locator('.markdown-image-fallback')).toHaveCount(1);
 });

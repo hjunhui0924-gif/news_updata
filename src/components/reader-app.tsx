@@ -305,6 +305,29 @@ export function ReaderApp({
               aiEnabled={data.services.ai}
               item={selected}
               timezone={data.preferences.timezone}
+              projectSubscribed={
+                !!selected &&
+                data.subscriptions.some(
+                  (subscription) =>
+                    subscription.kind === 'repo' &&
+                    subscription.name.toLowerCase() === selected.repo.toLowerCase(),
+                )
+              }
+              projectSubscribeBusy={busy === 'subscribe-project'}
+              subscribeProject={
+                selected?.type === 'new_repo'
+                  ? () =>
+                      void execute(
+                        'subscribe-project',
+                        () =>
+                          requestJson('/api/subscriptions', 'POST', {
+                            kind: 'repo',
+                            input: selected.repo,
+                          }),
+                        '项目订阅已添加，正在获取更新',
+                      )
+                  : undefined
+              }
               toggleSaved={() =>
                 selected && void patchItem(selected.id, { saved: !selected.saved })
               }

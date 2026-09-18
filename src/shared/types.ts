@@ -22,6 +22,7 @@ export type FeedItem = {
   title: string;
   description: string;
   url: string;
+  contentUrl?: string;
   publishedAt: string;
   firstSeenAt: string;
   body: string;

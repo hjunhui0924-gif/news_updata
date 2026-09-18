@@ -15,13 +15,14 @@ export function BilingualTranslation({ item }: { item: FeedItem }) {
             <Markdown
               text={block.original}
               tree={bilingualTree(block.original, block.translation)}
+              baseUrl={item.contentUrl ?? item.url}
             />
           ) : (
             <>
-              <Markdown text={block.original} />
+              <Markdown text={block.original} baseUrl={item.contentUrl ?? item.url} />
               {block.translation !== null && (
                 <div lang="zh-CN">
-                  <Markdown text={block.translation} />
+                  <Markdown text={block.translation} baseUrl={item.contentUrl ?? item.url} />
                 </div>
               )}
             </>
