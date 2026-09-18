@@ -171,7 +171,7 @@ export function SubscriptionsPanel({
                   <button
                     className="icon-button"
                     disabled={syncBlocked || busy === sub.id || !sub.enabled}
-                    aria-label={`同步 ${sub.name}`}
+                    aria-label={`${['failed', 'partial'].includes(syncStatus.state) ? '重试同步' : '同步'} ${sub.name}`}
                     onClick={() => onAction(sub.id, 'sync')}
                   >
                     <RefreshCw size={16} className={syncing ? 'spin' : ''} />

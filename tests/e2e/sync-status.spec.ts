@@ -86,6 +86,12 @@ test('subscription cards explain queue, completion, partial, rate-limit, and aut
   await expect(
     page
       .getByRole('article')
+      .filter({ has: page.getByRole('link', { name: 'partial/repo', exact: true }) })
+      .getByRole('button', { name: '重试同步 partial/repo', exact: true }),
+  ).toBeEnabled();
+  await expect(
+    page
+      .getByRole('article')
       .filter({ has: page.getByRole('link', { name: 'rate/repo', exact: true }) })
       .getByRole('button', { name: '同步 rate/repo', exact: true }),
   ).toBeDisabled();
