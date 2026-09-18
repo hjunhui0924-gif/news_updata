@@ -43,6 +43,30 @@ describe('GitHub connector', () => {
     await expect(connector.starred('https://evil.test', 1)).rejects.toThrow();
     expect(paths).toHaveLength(1);
   });
+  it('pages following users with an explicit page contract', async () => {
+    const paths: string[] = [];
+    const connector = new GitHubConnector(async (path) => {
+      paths.push(path);
+      return {
+        hasNext: true,
+        data: [
+          { id: 10, login: 'alice', type: 'User' },
+          { id: 11, login: 'bob', type: 'User' },
+        ],
+      };
+    });
+    await expect(connector.following('example', 2)).resolves.toEqual({
+      users: [
+        { id: '10', login: 'alice' },
+        { id: '11', login: 'bob' },
+      ],
+      page: 2,
+      nextPage: 3,
+      truncated: true,
+    });
+    expect(paths).toEqual(['/users/example/following?per_page=50&page=2']);
+    await expect(connector.following('example', 0)).rejects.toThrow('分页');
+  });
   it('resolves the current account by stable GitHub ID and preserves starred API errors', async () => {
     const connector = new GitHubConnector(async (path) => {
       expect(path).toBe('/user/123');

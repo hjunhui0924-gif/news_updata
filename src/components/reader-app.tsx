@@ -448,6 +448,7 @@ export function ReaderApp({
       <AddSubscription
         open={addOpen}
         onOpenChange={setAddOpen}
+        authorSubscriptionCount={data.subscriptions.filter((subscription) => subscription.kind === 'author').length}
         onAdded={async () => {
           await refresh();
           notify('订阅已添加，正在获取更新');

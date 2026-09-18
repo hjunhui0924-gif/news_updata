@@ -1990,6 +1990,60 @@ svg {
   border-bottom: 1px solid var(--border);
   font-size: 12px;
 }
+.following-selection-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 15px;
+  color: #8492a5;
+  font-size: 11px;
+}
+.following-candidates {
+  max-height: 220px;
+}
+.following-limit-note {
+  color: #768aa8;
+}
+.following-candidate {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.following-candidate:last-child {
+  border-bottom: 0;
+}
+.following-candidate label {
+  min-width: 0;
+  flex: 1;
+  border-bottom: 0;
+}
+.following-candidate label > span {
+  min-width: 0;
+}
+.following-candidate strong,
+.following-candidate small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.following-candidate strong {
+  color: #526a89;
+  font-size: 12px;
+  font-weight: 600;
+}
+.following-candidate small {
+  margin-top: 3px;
+  color: #98a5b5;
+  font-size: 10px;
+}
+.following-candidate .icon-button {
+  flex-shrink: 0;
+  margin-right: 4px;
+}
 .starred-import form > .button {
   margin-top: 14px;
 }

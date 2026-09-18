@@ -76,6 +76,14 @@ export type StarredPreview = {
   repositories: StarredRepository[];
   nextPage: number | null;
 };
+export type GitHubFollowingUser = { login: string; id: string; subscribed: boolean };
+export type GitHubFollowingPreview = {
+  username: string;
+  users: GitHubFollowingUser[];
+  page: number;
+  nextPage: number | null;
+  truncated: boolean;
+};
 export type RepositorySearchResult = {
   query: string;
   page: number;

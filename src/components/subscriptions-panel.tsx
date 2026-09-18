@@ -16,6 +16,7 @@ import type { Job, Subscription, StarSyncStatus } from '@/shared/types';
 import { Button } from './ui/button';
 import { requestJson } from './reader-app';
 import { StarredImport } from './starred-import';
+import { FollowingImport } from './following-import';
 import { StarSyncPanel } from './star-sync-panel';
 import { RepositorySearch } from './repository-search';
 
@@ -207,57 +208,30 @@ export function SubscriptionsPanel({
   );
 }
 
-type Candidate = { login: string; id: string };
 export function AddSubscription({
   open,
   onOpenChange,
   onAdded,
+  authorSubscriptionCount,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   onAdded: () => Promise<void>;
+  authorSubscriptionCount: number;
 }) {
   const [kind, setKind] = useState<'repo' | 'author' | 'following' | 'starred' | 'search'>('repo');
   const [value, setValue] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [candidates, setCandidates] = useState<Candidate[]>([]);
-  const [checked, setChecked] = useState<string[]>([]);
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError('');
     try {
-      if (kind === 'following' && !candidates.length) {
-        const result = await requestJson<{ users: Candidate[]; truncated: boolean }>(
-          '/api/github/following/preview',
-          'POST',
-          { username: value },
-        );
-        setCandidates(result.users);
-        setChecked(result.users.map((x) => x.login));
-        if (!result.users.length) setError('这个账号还没有公开关注任何人。');
-        else if (result.truncated) setError('当前展示前 50 位关注对象，其他开发者可手动添加。');
-      } else {
-        if (kind === 'following') {
-          const result = await requestJson<{ failed: string[] }>(
-            '/api/github/following/import',
-            'POST',
-            { usernames: checked },
-          );
-          if (result.failed.length) {
-            setError(
-              `部分账号未能导入：${result.failed.join('、')}。已导入的账号会保留，请稍后重试。`,
-            );
-            setChecked(result.failed);
-            return;
-          }
-        } else await requestJson('/api/subscriptions', 'POST', { kind, input: value });
-        await onAdded();
-        onOpenChange(false);
-        setValue('');
-        setCandidates([]);
-      }
+      await requestJson('/api/subscriptions', 'POST', { kind, input: value });
+      await onAdded();
+      onOpenChange(false);
+      setValue('');
     } catch (error) {
       setError((error as Error).message);
     } finally {
@@ -300,7 +274,6 @@ export function AddSubscription({
                 className={kind === key ? 'selected' : ''}
                 onClick={() => {
                   setKind(key as typeof kind);
-                  setCandidates([]);
                   setError('');
                 }}
               >
@@ -316,6 +289,13 @@ export function AddSubscription({
               onClose={() => onOpenChange(false)}
               onBusyChange={setBusy}
             />
+          ) : kind === 'following' ? (
+            <FollowingImport
+              onAdded={onAdded}
+              onClose={() => onOpenChange(false)}
+              onBusyChange={setBusy}
+              authorSubscriptionCount={authorSubscriptionCount}
+            />
           ) : (
             <form onSubmit={submit}>
               <label className="field-label" htmlFor="source-input">
@@ -327,7 +307,6 @@ export function AddSubscription({
                 value={value}
                 onChange={(e) => {
                   setValue(e.target.value);
-                  setCandidates([]);
                 }}
                 placeholder={kind === 'repo' ? '例如 vercel/next.js' : '例如 torvalds'}
                 required
@@ -338,29 +317,8 @@ export function AddSubscription({
                   ? '跟踪正式版本发布，首次导入的历史版本不会作为新提醒。'
                   : kind === 'author'
                     ? '跟踪新建公开项目和本人发布的正式版本；版本动态受 GitHub 近期公开活动窗口限制。'
-                    : '读取该账号公开的关注列表，勾选后导入。'}
+                    : ''}
               </p>
-              {candidates.length > 0 && (
-                <div className="candidate-list">
-                  {candidates.map((candidate) => (
-                    <label key={candidate.id}>
-                      <input
-                        type="checkbox"
-                        checked={checked.includes(candidate.login)}
-                        onChange={(e) =>
-                          setChecked(
-                            e.target.checked
-                              ? [...checked, candidate.login]
-                              : checked.filter((x) => x !== candidate.login),
-                          )
-                        }
-                      />
-                      <Github size={16} />
-                      {candidate.login}
-                    </label>
-                  ))}
-                </div>
-              )}
               {error && (
                 <p className="form-error" role="alert">
                   {error}
@@ -374,14 +332,10 @@ export function AddSubscription({
                 <Button
                   type="submit"
                   variant="primary"
-                  disabled={busy || (candidates.length > 0 && !checked.length)}
+                  disabled={busy}
                 >
                   {busy ? <Loader2 size={15} className="spin" /> : <Check size={15} />}{' '}
-                  {kind === 'following' && !candidates.length
-                    ? '查看关注列表'
-                    : kind === 'following'
-                      ? `导入 ${checked.length} 人`
-                      : '添加订阅'}
+                  添加订阅
                 </Button>
               </div>
             </form>

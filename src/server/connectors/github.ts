@@ -388,15 +388,20 @@ export class GitHubConnector {
       throw error;
     }
   }
-  async following(input: string) {
+  async following(input: string, page = 1) {
     const name = parseSourceInput(input, 'author');
-    const response = await this.request(`/users/${name}/following?per_page=50&page=1`);
+    if (!Number.isSafeInteger(page) || page < 1 || page > 10000)
+      throw new GitHubError('分页参数无效', 400);
+    const response = await this.request(`/users/${name}/following?per_page=50&page=${page}`);
+    const nextPage = response.hasNext && page < 10000 ? page + 1 : null;
     return {
       users: z
         .array(userSchema)
         .parse(response.data)
         .map((x) => ({ login: x.login, id: x.id })),
-      truncated: response.hasNext,
+      page,
+      nextPage,
+      truncated: nextPage !== null,
     };
   }
   async usernameById(accountId: string) {
