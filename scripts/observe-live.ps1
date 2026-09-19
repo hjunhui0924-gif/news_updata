@@ -1,5 +1,5 @@
 param(
-  [double]$DurationHours = 6,
+  [double]$DurationHours = 2,
   [int]$IntervalSeconds = 300,
   [string]$BaseUrl = 'http://127.0.0.1:3000',
   [string]$DatabaseContainer = 'news_updata-db-1',

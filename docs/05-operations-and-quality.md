@@ -1,6 +1,6 @@
 # 运行与质量指南
 
-更新日期：2026-09-18。
+更新日期：2026-09-19。
 
 ## 本地运行：Docker 可选
 
@@ -114,11 +114,11 @@ pnpm build
 
 ## 本地长期运行观察
 
-可以使用 PowerShell 监测脚本进行本机几小时观察；默认时长为 6 小时：
+可以使用 PowerShell 监测脚本进行本机几小时观察；默认时长为 2 小时：
 
 ```powershell
 pwsh -NoProfile -ExecutionPolicy Bypass -File .\scripts\observe-live.ps1 `
-  -DurationHours 6 `
+  -DurationHours 2 `
   -IntervalSeconds 300 `
   -LogPath .\work\live-observation.jsonl
 ```
