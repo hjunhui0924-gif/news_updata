@@ -81,16 +81,154 @@ flowchart LR
 
 Next.js 16 / React 19 / TypeScript 5.9、Tailwind 4、Radix Dialog、PostgreSQL 17、Drizzle + pg、pg-boss、Better Auth、Octokit、Vitest 和 Playwright。精确版本以 `package.json` 与 `pnpm-lock.yaml` 为准；不需要 Redis 或向量数据库。
 
+## 目录结构
+
+源码与脚本按文件列出；同类测试和配置用通配符合并，文档用途见下方「文档导航」。
+
 ```text
-src/app/api/       Web 接口
-src/components/    阅读、搜索、订阅和设置界面
-src/server/        GitHub、授权、数据库、任务和 AI 服务
-src/shared/        类型、筛选与对照翻译排版
-src/worker/        后台调度与任务消费
-scripts/          本地启动、迁移和演示种子
-drizzle/          数据库迁移
-tests/            单元、真实数据库集成和浏览器测试
-docs/             产品、架构、运行与验证记录
+news_updata/
+├─ src/
+│  ├─ app/                                  # 页面入口与 HTTP 接口
+│  │  ├─ layout.tsx                         # 根布局、页面元信息与全局样式入口
+│  │  ├─ globals.css                        # 全局主题、组件样式与响应式布局
+│  │  ├─ icon.svg                           # 应用图标
+│  │  ├─ [[...path]]/page.tsx                # 路由分发、登录校验与首屏数据加载
+│  │  └─ api/
+│  │     ├─ auth/[...all]/route.ts          # 登录、会话与 GitHub OAuth 回调
+│  │     ├─ bootstrap/route.ts              # 获取阅读器数据与任务、授权状态
+│  │     ├─ health/live/route.ts            # Web 进程存活检查
+│  │     ├─ settings/route.ts               # 读取、保存时区与紧凑布局偏好
+│  │     ├─ github/
+│  │     │  ├─ connection/route.ts          # 检查 GitHub 连接并更新授权状态
+│  │     │  ├─ repositories/search/route.ts # 搜索公开仓库
+│  │     │  ├─ following/preview/route.ts   # 分页预览关注列表与订阅状态
+│  │     │  ├─ following/import/route.ts    # 将选中开发者导入本地订阅
+│  │     │  ├─ starred/preview/route.ts     # 预览公开 Star 与订阅状态
+│  │     │  ├─ starred/import/route.ts      # 将选中 Star 项目导入本地订阅
+│  │     │  └─ starred/auto/route.ts        # 开关自动跟踪、触发 Star 同步
+│  │     ├─ subscriptions/
+│  │     │  ├─ route.ts                     # 查询、添加项目或博主订阅
+│  │     │  ├─ [id]/route.ts                # 修改订阅偏好、删除订阅
+│  │     │  └─ [id]/sync/route.ts           # 将手动同步请求加入队列
+│  │     ├─ items/[id]/
+│  │     │  ├─ state/route.ts               # 更新已读、收藏与静音状态
+│  │     │  ├─ summary/retry/route.ts       # 重新提交摘要任务
+│  │     │  └─ translation/route.ts         # 提交全文翻译任务
+│  │     ├─ trending/
+│  │     │  ├─ route.ts                     # 获取语言榜单与已有中文简介
+│  │     │  └─ translation/route.ts         # 按需翻译榜单项目简介
+│  │     ├─ skills/
+│  │     │  ├─ local/route.ts               # 获取本机 Skill 目录
+│  │     │  ├─ starred/route.ts             # 分页获取 Star 项目中的 Skill
+│  │     │  ├─ detail/route.ts              # 获取 Skill 正文与 AI 状态
+│  │     │  └─ ai/route.ts                  # 提交 Skill 摘要或翻译任务
+│  │     └─ notifications/preview/route.ts  # 生成并保存站内简报预览
+│  ├─ components/                          # 页面交互与可复用界面
+│  │  ├─ reader-app.tsx                     # 阅读器主界面、视图切换与数据刷新
+│  │  ├─ sidebar.tsx                        # 导航、订阅入口与未读计数
+│  │  ├─ feed-list.tsx                      # 更新列表、选中状态与阅读标记
+│  │  ├─ item-detail.tsx                    # 更新详情、摘要、原文与阅读操作
+│  │  ├─ item-sources.tsx                   # 展示同一更新的多个订阅来源
+│  │  ├─ markdown.tsx                       # 渲染 Markdown、处理链接与图片回退
+│  │  ├─ bilingual-translation.tsx          # 展示原文与中文译文对照
+│  │  ├─ subscriptions-panel.tsx            # 添加、管理订阅并展示同步状态
+│  │  ├─ repository-search.tsx              # 搜索、排序、翻页与订阅公开项目
+│  │  ├─ starred-import.tsx                 # 选择 Star 项目、批量导入与失败重试
+│  │  ├─ following-import.tsx               # 跨页选择关注者、导入与失败重试
+│  │  ├─ star-sync-panel.tsx                # 控制自动跟踪并展示 Star 同步结果
+│  │  ├─ trending-panel.tsx                 # 热门榜单、语言筛选与中文简介
+│  │  ├─ skills-panel.tsx                   # Skill 筛选、详情、AI 摘要与双语阅读
+│  │  ├─ settings-panel.tsx                 # 阅读偏好、任务状态与简报预览
+│  │  ├─ github-connection.tsx              # 授权状态、连接检查与重新授权入口
+│  │  ├─ login.tsx                          # GitHub 登录与配置提示
+│  │  └─ ui/button.tsx                      # 统一按钮样式与交互状态
+│  ├─ server/                              # 服务端业务、外部连接与持久化
+│  │  ├─ config.ts                         # 校验环境变量与运行模式约束
+│  │  ├─ http.ts                           # 统一接口鉴权、来源校验与错误响应
+│  │  ├─ auth/index.ts                     # OAuth、会话、允许名单与写请求校验
+│  │  ├─ db/
+│  │  │  ├─ client.ts                      # PostgreSQL 连接池、Drizzle 与事务
+│  │  │  ├─ schema.ts                      # 定义核心业务表的 Drizzle 映射
+│  │  │  └─ store.ts                       # 按用户读写更新、订阅、偏好等数据
+│  │  ├─ connectors/
+│  │  │  ├─ github.ts                      # GitHub 请求、数据校验与更新提取
+│  │  │  ├─ github-auth.ts                 # 令牌解密、自动续期与失效状态管理
+│  │  │  ├─ github-user.ts                 # 为当前用户创建授权 GitHub 连接
+│  │  │  └─ trending.ts                    # 抓取、解析 GitHub Trending 页面
+│  │  ├─ subscriptions/
+│  │  │  ├─ service.ts                     # 订阅增删改、同步与失败处理
+│  │  │  ├─ ingest.ts                      # 更新入库、跨来源去重与内容合并
+│  │  │  ├─ search.ts                      # 搜索仓库并标注本地订阅状态
+│  │  │  ├─ starred.ts                     # Star 预览、导入校验与逐项结果
+│  │  │  ├─ following.ts                   # 关注列表分页、校验与订阅导入
+│  │  │  └─ star-sync.ts                   # 自动发现新 Star、调度与排除管理
+│  │  ├─ feed/bootstrap.ts                 # 汇总首屏数据、同步与授权状态
+│  │  ├─ ai/
+│  │  │  ├─ enqueue.ts                     # 检查内容权限并提交摘要、翻译任务
+│  │  │  ├─ service.ts                     # 模型调用、结果校验、缓存与预算控制
+│  │  │  └─ translation.ts                 # Markdown 分块翻译、结构校验与重组
+│  │  ├─ discovery/
+│  │  │  ├─ service.ts                     # 榜单缓存、刷新与过期数据回退
+│  │  │  └─ translation.ts                 # 项目简介翻译、缓存与费用控制
+│  │  ├─ skills/
+│  │  │  ├─ service.ts                     # 统一 Skill 查询、权限与 AI 任务入口
+│  │  │  ├─ local.ts                       # 扫描本机 Skill、读取正文与附属文件信息
+│  │  │  ├─ github.ts                      # 发现 Star 仓库中的 Skill 并读取正文
+│  │  │  ├─ metadata.ts                    # 解析 SKILL.md 的名称与简介
+│  │  │  └─ ai.ts                          # Skill 摘要、翻译、依据校验与缓存
+│  │  ├─ jobs/queue.ts                     # 任务去重入队、发布与队列状态对账
+│  │  ├─ notifications/digest.ts           # 筛选近期未读更新并保存站内简报
+│  │  └─ demo/fixtures.ts                  # 构造演示订阅、更新、摘要与译文
+│  ├─ shared/                              # 前后端共用的数据契约与纯函数
+│  │  ├─ types.ts                          # 更新、订阅、任务与首屏数据类型
+│  │  ├─ feed.ts                           # 来源匹配、信息流筛选与相对时间
+│  │  ├─ sync-status.ts                    # 将订阅和任务数据转换为同步状态
+│  │  ├─ markdown.ts                       # 解析相对链接并限制 URL 协议
+│  │  ├─ bilingual.ts                      # 按 Markdown 结构交错排列原文与译文
+│  │  ├─ trending.ts                       # 榜单语言选项与数据类型
+│  │  ├─ skills.ts                         # Skill 目录、详情与 AI 状态类型
+│  │  └─ skill-taxonomy.ts                 # Skill 分类、标签与自动归类规则
+│  └─ worker/main.ts                       # 消费后台任务、周期调度与心跳上报
+├─ scripts/
+│  ├─ demo.ts                              # 准备演示环境并启动数据库、Web 与 Worker
+│  ├─ migrate.ts                           # 按序执行 SQL 迁移并记录版本
+│  ├─ seed.ts                              # 向演示数据库写入样本数据
+│  ├─ start-worker.mjs                     # 加载运行配置并启动生产 Worker
+│  └─ observe-live.ps1                     # 定时记录 Web、数据库、Worker 与任务状态
+├─ drizzle/
+│  ├─ 0001_initial.sql                     # 初始化业务、认证、任务与用量表
+│  ├─ 0002_ai_cache.sql                    # 创建 AI 结果缓存表
+│  └─ 0003_star_sync.sql                   # 创建 Star 同步状态与排除表
+├─ tests/
+│  ├─ *.test.ts                            # 业务规则、解析、校验与状态转换测试
+│  ├─ *.unit.test.ts                       # Skill 相关单元测试，可独立于数据库运行
+│  ├─ setup-db.ts                          # 准备独立测试数据库并执行迁移
+│  ├─ integration/*.test.ts                # 验证真实数据库下的业务与持久化流程
+│  └─ e2e/*.spec.ts                        # 验证浏览器阅读、订阅、授权与 AI 交互
+├─ docs/                                   # 产品、架构、路线、运行与验收文档
+│  └─ assets/reader-demo.png               # README 使用的演示界面截图
+├─ .env.example                            # 本地环境配置模板，不含真实凭据
+├─ compose.yaml                            # PostgreSQL 容器、数据卷与健康检查
+├─ package.json                            # 项目依赖、运行要求与开发命令
+├─ pnpm-lock.yaml                          # 锁定依赖版本，保证安装一致性
+├─ pnpm-workspace.yaml                     # 依赖版本覆盖、构建许可与安装策略
+├─ next.config.ts                          # Next.js 构建、服务端依赖与安全响应头
+├─ next-env.d.ts                           # Next.js 自动生成的类型声明入口
+├─ tsconfig.json                           # TypeScript 检查、编译范围与路径别名
+├─ postcss.config.mjs                      # 接入 Tailwind CSS 的 PostCSS 插件
+├─ eslint.config.mjs                       # Next.js、TypeScript 代码检查规则
+├─ drizzle.config.ts                       # 数据库连接、表定义与迁移生成配置
+├─ vitest.config.ts                        # 单元与集成测试、数据库初始化配置
+├─ vitest.unit.config.ts                   # 无数据库单元测试配置
+├─ playwright.config.ts                    # 通用浏览器测试与开发服务启动配置
+├─ playwright.*.config.ts                  # 按 Star、AI、搜索、Skill 等场景配置测试
+├─ AGENTS.md                               # 编码代理须遵循的 Next.js 版本约定
+├─ CLAUDE.md                               # 引用 AGENTS.md，复用编码代理约定
+├─ CONTEXT.md                              # 领域术语与业务边界
+├─ CONTRIBUTING.md                         # 开发流程、验证要求与贡献约定
+├─ SECURITY.md                             # 授权、数据流与部署安全边界
+├─ CHANGELOG.md                            # 已完成变更与验证记录
+└─ README.md                               # 项目介绍、启动方法与目录导航
 ```
 
 ## 开发与验证
