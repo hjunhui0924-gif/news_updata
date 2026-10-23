@@ -44,7 +44,24 @@ test('searches public projects, paginates, retries and subscribes locally on mob
   await page.goto('/subscriptions');
   await page.getByRole('button', { name: '添加订阅', exact: true }).first().click();
   const dialog = page.getByRole('dialog');
-  await dialog.getByRole('button', { name: '搜索项目', exact: true }).click();
+  await dialog.getByRole('tab', { name: '搜索项目', exact: true }).click();
+  const methodTabs = dialog.getByRole('tablist', { name: '订阅方式' });
+  const searchMethod = methodTabs.getByRole('tab', { name: '搜索项目', exact: true });
+  await expect(searchMethod).toHaveAttribute('aria-selected', 'true');
+  await expect(dialog.getByRole('tabpanel')).toHaveAttribute(
+    'aria-labelledby',
+    'subscription-method-search',
+  );
+  await searchMethod.press('ArrowRight');
+  await expect(methodTabs.getByRole('tab', { name: '导入 Star' })).toBeFocused();
+  await expect(methodTabs.getByRole('tab', { name: '导入 Star' })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+  await methodTabs.getByRole('tab', { name: '导入 Star' }).press('Home');
+  await expect(methodTabs.getByRole('tab', { name: '项目仓库' })).toBeFocused();
+  await methodTabs.getByRole('tab', { name: '项目仓库' }).press('ArrowRight');
+  await expect(methodTabs.getByRole('tab', { name: '搜索项目' })).toBeFocused();
   await dialog.getByLabel('搜索 GitHub 公开项目').fill('AI agent');
   await dialog.getByLabel('项目搜索排序').selectOption('stars');
   await dialog.getByRole('button', { name: '搜索', exact: true }).click();

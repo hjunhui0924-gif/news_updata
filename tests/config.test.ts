@@ -24,4 +24,15 @@ describe('local demo boundary', () => {
       }),
     ).toThrow('登录密钥');
   });
+  it('requires HTTPS for a public production URL', () => {
+    expect(() =>
+      getConfig({
+        APP_MODE: 'live',
+        NODE_ENV: 'production',
+        APP_URL: 'http://news.example.com',
+        BETTER_AUTH_SECRET: 'a'.repeat(32),
+        ALLOWED_GITHUB_USER_IDS: '1',
+      }),
+    ).toThrow('HTTPS');
+  });
 });

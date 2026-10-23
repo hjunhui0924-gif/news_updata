@@ -1,6 +1,6 @@
 # MVP 验收记录
 
-更新日期：2026-09-19。验证环境：Windows / PowerShell、Node 24.15.0、pnpm 11.19.0、PostgreSQL 17、系统 Chrome。
+更新日期：2026-10-23。验证环境：Windows / PowerShell、Node 24.15.0、pnpm 11.19.0、PostgreSQL 17、系统 Chrome。
 
 ## 最新功能版本
 
@@ -17,6 +17,22 @@
 | 真实 AI | Qwen3.8 Flash 摘要与全文译文样本已生成，详见 09 文档 |
 
 `pnpm test` 使用独立 `news_test` 数据库。增量浏览器测试使用 3002 端口的 demo Web 与模拟接口，验证 UI 和错误处理，不代表真实 GitHub/模型端到端验收。未清空真实用户数据库。真实服务联调与自动化记录分开提供，不宣称摘要准确率。
+
+## 2026-10-23 前端优化阶段 0–7
+
+在保留下方历史验收记录的基础上，前端优化已完成阶段 0 到阶段 7。详细范围、每阶段状态矩阵和人工 QA 记录见 [前端优化方案](frontend-optimization-plan.md) 及 [阶段 7 收尾记录](frontend-optimization-stage7.md)。
+
+| 检查 | 实际结果 |
+| --- | --- |
+| `pnpm typecheck` | 通过 |
+| `pnpm lint` | 通过 |
+| `pnpm test` | 29 个测试文件，159 项通过 |
+| `pnpm test:e2e` | 37 项 demo 浏览器测试通过 |
+| `pnpm build` | Next.js Web 与 tsup Worker 构建通过 |
+| Docker PostgreSQL | `news_updata-db-1` healthy，映射 `127.0.0.1:54329` |
+| 浏览器/响应式检查 | 覆盖 390px、768px 和桌面关键页面；未发现阻塞级错误或横向溢出 |
+
+上述浏览器测试使用 demo 数据和路由夹具。真实 OAuth、GitHub 限流、模型输出质量、长期运行、备份恢复和公开部署仍按项目边界单独验证。
 
 ## 2026-09-18 Skill 与连续对照增量
 

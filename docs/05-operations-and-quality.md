@@ -1,6 +1,6 @@
 # 运行与质量指南
 
-更新日期：2026-09-19。
+更新日期：2026-10-23。
 
 ## 本地运行：Docker 可选
 
@@ -85,7 +85,18 @@ pnpm start
 pnpm worker:start
 ```
 
-Next.js start 与 worker:start 均强制使用生产模式，启用生产配置校验，拒绝演示登录绕过。默认启动地址为 loopback，对外服务需自行配置 HTTPS 反向代理。构建成功不代表已公开部署或完成 OAuth/模型联调。
+`pnpm start` 使用 Next.js standalone 产物 `.next/standalone/server.js`，`pnpm worker:start` 使用 `dist/worker/main.js`；两者均强制使用生产模式，启用生产配置校验，拒绝演示登录绕过。默认启动地址为 loopback，对外服务需自行配置 HTTPS 反向代理。构建时不会把 `.env*` 带入 standalone 产物，生产环境应通过进程管理器或系统环境注入配置。构建成功不代表已公开部署或完成 OAuth/模型联调。
+
+### 阿里云自托管上线条件
+
+阿里云 ECS、轻量应用服务器或同类 Linux 主机都可以运行这套 Node.js 服务。上线前需要完成以下配置：
+
+1. 安装 Node.js 24+、pnpm 11、PostgreSQL 17；Web 和 Worker 使用同一个生产数据库，数据库端口只允许本机或私网访问。
+2. 复制 `.env.example` 为服务器上的 `.env.local`，设置 `APP_MODE=live`、公网 `APP_URL=https://你的域名`、至少 32 字符随机 `BETTER_AUTH_SECRET`、GitHub OAuth 凭据和逗号分隔的 `ALLOWED_GITHUB_USER_IDS`。公网生产地址使用 HTTP 会被启动配置拒绝。
+3. 执行 `pnpm install --frozen-lockfile`、`pnpm db:migrate`、`pnpm build`，然后用 systemd/PM2 等守护 `pnpm start` 与 `pnpm worker:start` 两个进程。Web 默认只监听 `127.0.0.1:3000`；只有容器内需要对外监听时才显式设置 `APP_HOSTNAME=0.0.0.0`。反向代理只把 HTTPS 流量转发到 `127.0.0.1:3000`，不要对公网暴露 Web 或 PostgreSQL 端口。
+4. GitHub OAuth 回调必须填写 `https://你的域名/api/auth/callback/github`；反向代理不要缓存 HTML、`/api/*` 或带会话的响应。应用页面和业务 API 已返回用户私有数据禁止缓存的响应头。
+5. `GITHUB_READ_TOKEN` 如果配置，必须使用只读公开数据凭据；多人部署建议留空，让每个登录用户使用自己的 OAuth 凭据。服务器的本地 Skill 目录属于运行账号的共享文件，不是按登录用户隔离的私人目录。
+6. 为 PostgreSQL 制定备份、恢复和密钥轮换方案。`BETTER_AUTH_SECRET` 变化会使已保存的 OAuth 凭据无法解密，必须和数据库备份一起管理。
 
 当前只提供本地运行与构建产物。生产进程守护、域名、备份计划和恢复演练未部署。数据库结构变化通过新增有序 SQL 迁移完成；手工检查迁移，特别是 Auth 和 pg-boss 管理的表。
 
@@ -105,6 +116,21 @@ pnpm build
 浏览器测试使用本地 demo 数据，会修改示例的已读、收藏和偏好。启动 Web 与 Worker 后执行；默认使用 Windows 已安装的 Chrome，可设置 CHROME_PATH。其他环境安装 Playwright Chromium：`pnpm exec playwright install chromium`。
 
 `/api/health/live` 用于存活检查；Worker 心跳和费用出现在设置页。Web 在运行不代表 Worker 正在同步，应检查设置中的后台状态。
+
+## 2026-10-23 当前验证快照
+
+前端优化阶段 0–7 已完成，相关基线、状态矩阵和阶段记录见 [前端优化方案](frontend-optimization-plan.md)。本次交付前重新核对以下门禁：
+
+| 检查 | 实际结果 |
+| --- | --- |
+| `pnpm typecheck` | 通过 |
+| `pnpm lint` | 通过 |
+| `pnpm test` | 29 个测试文件，159 项通过 |
+| `pnpm test:e2e` | 37 项 demo 浏览器测试通过 |
+| `pnpm build` | Next.js Web 与 tsup Worker 构建通过 |
+| Docker PostgreSQL | `news_updata-db-1` healthy，映射 `127.0.0.1:54329` |
+
+浏览器回归覆盖桌面与窄屏阅读、订阅导入、GitHub 连接、Trending、Skill、设置和同步状态；真实 GitHub OAuth、外部 API 限流、模型服务、公开部署和长期观察仍不在 demo 门禁内。
 
 升级自动 Star 跟踪后先运行 `pnpm db:migrate` 应用 `0003_star_sync.sql`，再启动 Web 和 Worker。真实模式下 Worker 默认为允许名单中的已登录 GitHub 账号开启自动发现，用户关闭后不会被调度器重新打开。在「订阅管理 → Star 自动跟踪」查看上次结果、错误及下一轮时间，或点击「立即检查」。需保持数据库和 Worker 运行，浏览器可以关闭；这不是即时 webhook 推送。新 Star 先加入订阅，正式 Release 抓取随后执行；已有仓库的 Release 检查默认每 15 分钟。限流、排队和服务离线会延长等待，不能保证严格 5 分钟内完成。
 

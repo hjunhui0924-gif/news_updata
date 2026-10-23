@@ -59,6 +59,104 @@ test('AI disabled, enabled on historical items, quota failures and cached artifa
   expect(errors).toEqual([]);
 });
 
+test('summary and translation job failures show separate errors and can be retried', async ({
+  page,
+}) => {
+  let summaryFailed = true;
+  let translationFailed = true;
+  await page.route('**/api/bootstrap', async (route) => {
+    const data = await (await route.fetch()).json();
+    await route.fulfill({
+      json: {
+        ...data,
+        services: { ...data.services, ai: true },
+        jobs: [
+          ...(summaryFailed
+            ? [{
+                id: 'summary-job',
+                kind: 'summary',
+                targetId: 'demo-item-0',
+                status: 'failed',
+                error: '摘要服务暂时不可用',
+                createdAt: new Date().toISOString(),
+              }]
+            : []),
+          ...(translationFailed
+            ? [{
+                id: 'translation-job',
+                kind: 'translation',
+                targetId: 'demo-item-0',
+                status: 'failed',
+                error: '翻译服务暂时不可用',
+                createdAt: new Date().toISOString(),
+              }]
+            : []),
+        ],
+        items: data.items.map((item: FeedItem) => ({
+          ...item,
+          demo: false,
+          summary: null,
+          translation: null,
+        })),
+      },
+    });
+  });
+  await page.route('**/api/items/demo-item-0/summary/retry', async (route) => {
+    summaryFailed = false;
+    await route.fulfill({ status: 202, json: { accepted: true } });
+  });
+  await page.route('**/api/items/demo-item-0/translation', async (route) => {
+    translationFailed = false;
+    await route.fulfill({ status: 202, json: { accepted: true } });
+  });
+  await page.goto('/feed');
+  await page.getByRole('button', { name: '刷新内容' }).click();
+  await page.getByTestId('item-demo-item-0').click();
+  const detail = page.getByRole('region', { name: '更新详情' });
+  await expect(detail.getByRole('alert')).toHaveText('摘要服务暂时不可用');
+  await detail.getByRole('button', { name: '重试摘要' }).click();
+  await expect(detail.getByRole('button', { name: '生成摘要' })).toBeVisible();
+  await detail.getByRole('tab', { name: '对照翻译' }).click();
+  await expect(detail.getByRole('alert')).toHaveText('翻译服务暂时不可用');
+  await detail.getByRole('button', { name: '重试翻译' }).click();
+  await expect(detail.getByRole('button', { name: '生成中文翻译' })).toBeVisible();
+});
+
+test('summary and translation pending states stay attached to their own tabs', async ({ page }) => {
+  await page.route('**/api/bootstrap', async (route) => {
+    const data = await (await route.fetch()).json();
+    await route.fulfill({
+      json: {
+        ...data,
+        services: { ...data.services, ai: true },
+        jobs: ['summary', 'translation'].map((kind) => ({
+          id: `${kind}-job`,
+          kind,
+          targetId: 'demo-item-0',
+          status: 'pending',
+          error: null,
+          createdAt: new Date().toISOString(),
+        })),
+        items: data.items.map((item: FeedItem) => ({
+          ...item,
+          demo: false,
+          summary: null,
+          translation: null,
+        })),
+      },
+    });
+  });
+  await page.goto('/feed');
+  await page.getByRole('button', { name: '刷新内容' }).click();
+  await page.getByTestId('item-demo-item-0').click();
+  const detail = page.getByRole('region', { name: '更新详情' });
+  await expect(detail.getByRole('heading', { name: '该条目的 AI 任务正在处理…' })).toBeVisible();
+  await expect(detail.getByRole('button', { name: '生成摘要' })).toBeDisabled();
+  await detail.getByRole('tab', { name: '对照翻译' }).click();
+  await expect(detail.getByRole('heading', { name: '翻译任务正在处理…' })).toBeVisible();
+  await expect(detail.getByRole('button', { name: '生成中文翻译' })).toBeDisabled();
+});
+
 test('bilingual paragraphs keep original above Chinese on desktop and mobile', async ({ page }) => {
   await page.route('**/api/bootstrap', async (route) => {
     const data = await (await route.fetch()).json();

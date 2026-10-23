@@ -11,7 +11,17 @@ export function Button({
   variant,
   size,
   className,
+  loading = false,
+  disabled,
   ...props
-}: React.ButtonHTMLAttributes<HTMLButtonElement> & VariantProps<typeof variants>) {
-  return <button className={clsx(variants({ variant, size }), className)} {...props} />;
+}: React.ButtonHTMLAttributes<HTMLButtonElement> &
+  VariantProps<typeof variants> & { loading?: boolean }) {
+  return (
+    <button
+      className={clsx(variants({ variant, size }), className)}
+      aria-busy={loading || undefined}
+      disabled={disabled || loading}
+      {...props}
+    />
+  );
 }

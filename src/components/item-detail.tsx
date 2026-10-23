@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, type KeyboardEvent } from 'react';
 import {
   ArrowLeft,
   ArrowUpRight,
@@ -25,10 +25,11 @@ export function ItemDetail({
   toggleSaved,
   translate,
   summarize,
-  busy,
+  summaryBusy,
+  translationBusy,
   back,
   timezone,
-  error,
+  errors,
   aiEnabled,
   projectSubscribed,
   projectSubscribeBusy,
@@ -38,10 +39,11 @@ export function ItemDetail({
   toggleSaved: () => void;
   translate: () => void;
   summarize: () => void;
-  busy: boolean;
+  summaryBusy: boolean;
+  translationBusy: boolean;
   back: () => void;
   timezone: string;
-  error?: string | null;
+  errors?: { summary?: string | null; translation?: string | null };
   aiEnabled: boolean;
   projectSubscribed?: boolean;
   projectSubscribeBusy?: boolean;
@@ -65,6 +67,31 @@ export function ItemDetail({
       </section>
     );
   const translationTooLong = item.body.length > 16000 && !item.translation;
+  const tabs = [
+    { key: 'summary' as const, label: '中文摘要', icon: Sparkles },
+    { key: 'translation' as const, label: '对照翻译', icon: Languages },
+    { key: 'original' as const, label: '原文', icon: Code2 },
+  ];
+  function handleTabKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
+    const currentIndex = tabs.findIndex(({ key }) => key === tab);
+    const nextIndex =
+      event.key === 'ArrowRight'
+        ? (currentIndex + 1) % tabs.length
+        : event.key === 'ArrowLeft'
+          ? (currentIndex - 1 + tabs.length) % tabs.length
+          : event.key === 'Home'
+            ? 0
+            : event.key === 'End'
+              ? tabs.length - 1
+              : -1;
+    if (nextIndex < 0) return;
+    event.preventDefault();
+    const nextTab = tabs[nextIndex].key;
+    setTab(nextTab);
+    event.currentTarget.parentElement
+      ?.querySelectorAll<HTMLButtonElement>('[role="tab"]')
+      [nextIndex]?.focus();
+  }
   return (
     <section className="detail-panel" aria-label="更新详情">
       <div className="detail-toolbar">
@@ -158,16 +185,16 @@ export function ItemDetail({
           </div>
         )}
         <div className="detail-tabs" role="tablist" aria-label="内容视图">
-          {[
-            { key: 'summary', label: '中文摘要', icon: Sparkles },
-            { key: 'translation', label: '对照翻译', icon: Languages },
-            { key: 'original', label: '原文', icon: Code2 },
-          ].map(({ key, label, icon: Icon }) => (
+          {tabs.map(({ key, label, icon: Icon }) => (
             <button
               key={key}
+              id={`reader-detail-tab-${key}`}
               role="tab"
               aria-selected={tab === key}
+              aria-controls="reader-detail-panel"
+              tabIndex={tab === key ? 0 : -1}
               onClick={() => setTab(key as typeof tab)}
+              onKeyDown={handleTabKeyDown}
               className={tab === key ? 'active' : ''}
             >
               <Icon size={15} />
@@ -175,12 +202,13 @@ export function ItemDetail({
             </button>
           ))}
         </div>
-        <div role="tabpanel" className="tab-content">
-          {error && (
-            <p className="form-error" role="alert">
-              {error}
-            </p>
-          )}
+        <div
+          id="reader-detail-panel"
+          role="tabpanel"
+          aria-labelledby={`reader-detail-tab-${tab}`}
+          tabIndex={0}
+          className="tab-content"
+        >
           {tab === 'summary' &&
             (item.summary ? (
               <>
@@ -257,12 +285,12 @@ export function ItemDetail({
             ) : (
               <div className="ai-empty">
                 <Sparkles size={28} />
-                <h3>
+                <h3 aria-live={summaryBusy ? 'polite' : undefined}>
                   {!item.body
                     ? '暂无可供总结的正文'
                     : !item.demo && !aiEnabled
                       ? 'AI 摘要尚未启用'
-                      : busy
+                      : summaryBusy
                         ? '该条目的 AI 任务正在处理…'
                         : '这条更新还没有中文摘要'}
                 </h3>
@@ -270,15 +298,21 @@ export function ItemDetail({
                   {!item.demo && !aiEnabled
                     ? 'AI 服务当前关闭，暂时无法生成摘要。你可以切换到「原文」阅读更新。'
                     : item.aiError ||
-                      (busy
+                      (summaryBusy
                         ? '任务正在排队或生成中，完成后会自动显示。'
                         : '生成中文概览、关键变化和原文依据。')}
                 </p>
+                {errors?.summary && <p className="form-error" role="alert">{errors.summary}</p>}
                 <Button
                   onClick={summarize}
-                  disabled={busy || !item.body || (!item.demo && !aiEnabled)}
+                  disabled={summaryBusy || !item.body || (!item.demo && !aiEnabled)}
                 >
-                  {busy ? <Loader2 className="spin" size={16} /> : <Sparkles size={16} />}生成摘要
+                  {summaryBusy ? (
+                    <Loader2 className="spin" size={16} />
+                  ) : (
+                    <Sparkles size={16} />
+                  )}
+                  {errors?.summary ? '重试摘要' : '生成摘要'}
                 </Button>
               </div>
             ))}
@@ -306,7 +340,9 @@ export function ItemDetail({
             ) : (
               <div className="ai-empty">
                 <Languages size={30} />
-                <h3>用熟悉的语言，读懂细节</h3>
+                <h3 aria-live={translationBusy ? 'polite' : undefined}>
+                  {translationBusy ? '翻译任务正在处理…' : '用熟悉的语言，读懂细节'}
+                </h3>
                 <p>
                   {item.demo
                     ? '体验按需翻译流程，演示译文已预先编写，不消耗模型额度。'
@@ -314,13 +350,20 @@ export function ItemDetail({
                       ? 'AI 服务当前关闭，暂时无法翻译。你可以切换到「原文」阅读更新。'
                       : '点击下方按钮生成中文译文，完成后会保存，后续打开可直接阅读。'}
                 </p>
+                {errors?.translation && (
+                  <p className="form-error" role="alert">{errors.translation}</p>
+                )}
                 <Button
                   variant="primary"
                   onClick={translate}
-                  disabled={busy || !item.body || (!item.demo && !aiEnabled)}
+                  disabled={translationBusy || !item.body || (!item.demo && !aiEnabled)}
                 >
-                  {busy ? <Loader2 size={16} className="spin" /> : <Languages size={16} />}
-                  生成中文翻译
+                  {translationBusy ? (
+                    <Loader2 size={16} className="spin" />
+                  ) : (
+                    <Languages size={16} />
+                  )}
+                  {errors?.translation ? '重试翻译' : '生成中文翻译'}
                 </Button>
               </div>
             ))}

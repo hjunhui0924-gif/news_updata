@@ -1,6 +1,14 @@
 # 变更记录
 
-## Unreleased — 2026-09-19
+## Unreleased — 2026-10-23
+
+- 完成前端优化阶段 0–7：统一设计 token、应用壳层、移动导航、阅读流、订阅/引导、Trending/Skill、设置/登录/异常状态和全局收尾。
+- 补齐 loading、empty、filtered-empty、pending、success、error/retry、disabled/permission 等状态，以及键盘焦点、语义标签、live region、触控尺寸和 reduced-motion 处理。
+- 增加主要前端流程的 Playwright 回归，当前全量验证为 29 个测试文件、159 项单元/集成测试和 37 项 demo 浏览器测试。
+- 更新前端优化方案、阶段记录、基线审计、运行质量和 MVP 验收文档；当前验证同时包含 `pnpm typecheck`、`pnpm lint`、`pnpm build` 和 Docker PostgreSQL 健康检查。
+- 真实 GitHub OAuth、GitHub API 限流和模型服务仍依赖外部凭据，相关边界未被 demo 回归替代。
+
+## 2026-09-19
 
 - 完善 Skill 目录详情：保留来源简介，增加项目主页与 Skill 源文件链接。
 - 优化 Skill AI 摘要为教程式阅读结构，并将原文对照改为连续的“英文后接中文”阅读流。

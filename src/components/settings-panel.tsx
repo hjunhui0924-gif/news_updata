@@ -31,6 +31,9 @@ export function SettingsPanel({
 }) {
   const [preferences, setPreferences] = useState(data.preferences);
   const workerOnline = data.services.workerOnline;
+  const dirty =
+    preferences.compact !== data.preferences.compact ||
+    preferences.timezone !== data.preferences.timezone;
   return (
     <section className="management-page settings-page">
       <div className="management-heading">
@@ -87,6 +90,9 @@ export function SettingsPanel({
             {busy === 'settings' ? <Loader2 size={15} className="spin" /> : <Save size={15} />}
             保存偏好
           </Button>
+          <span className={dirty ? 'warning-text' : 'helper'} role="status" aria-live="polite">
+            {dirty ? '有未保存修改' : '偏好已同步'}
+          </span>
         </div>
       </section>
       <section className="settings-card">

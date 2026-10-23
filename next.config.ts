@@ -3,6 +3,11 @@ import type { NextConfig } from 'next';
 const config: NextConfig = {
   distDir: process.env.STARRED_E2E === 'true' ? '.next-e2e' : '.next',
   output: 'standalone',
+  // Environment files must be supplied at runtime and must not be copied into
+  // the standalone artifact (a local .env may contain unrelated credentials).
+  outputFileTracingExcludes: {
+    '/*': ['.env*'],
+  },
   poweredByHeader: false,
   devIndicators: false,
   serverExternalPackages: ['pg', 'pg-boss', 'pino'],

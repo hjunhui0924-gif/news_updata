@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Bell,
   Check,
@@ -48,6 +48,28 @@ const titles: Record<string, string> = {
   onboarding: '添加你的第一份关注',
   items: '更新详情',
 };
+type FeedView = 'feed' | 'saved';
+type FeedContext = {
+  type: string;
+  search: string;
+  unread: boolean;
+  source: string;
+  scrollTop: number;
+};
+const emptyFeedContext = (): FeedContext => ({
+  type: 'all',
+  search: '',
+  unread: false,
+  source: '',
+  scrollTop: 0,
+});
+function normalizeView(path: string) {
+  if (path === 'items' || path === 'onboarding') return path === 'items' ? 'feed' : 'subscriptions';
+  return path || 'today';
+}
+function isFeedView(view: string): view is FeedView {
+  return view === 'feed' || view === 'saved';
+}
 export function ReaderApp({
   initial,
   initialView,
@@ -71,17 +93,51 @@ export function ReaderApp({
   const [busy, setBusy] = useState('');
   const [noticeOpen, setNoticeOpen] = useState(false);
   const [discoveryRefresh, setDiscoveryRefresh] = useState(0);
+  const routeTitleRef = useRef<HTMLElement | null>(null);
+  const hasMountedRouteRef = useRef(false);
+  const feedPanelRef = useRef<HTMLElement | null>(null);
+  const feedContexts = useRef<Record<FeedView, FeedContext>>({
+    feed: emptyFeedContext(),
+    saved: emptyFeedContext(),
+  });
   const refresh = useCallback(async () => {
     const next = await requestJson<Bootstrap>('/api/bootstrap');
     setData(next);
     return next;
   }, []);
   const notify = useCallback((message: string) => setToast(message), []);
+  function captureFeedContext() {
+    if (!isFeedView(view)) return;
+    feedContexts.current[view] = {
+      type,
+      search,
+      unread,
+      source,
+      scrollTop: feedPanelRef.current?.scrollTop ?? feedContexts.current[view].scrollTop,
+    };
+  }
+  function restoreFeedContext(nextView: FeedView) {
+    const context = feedContexts.current[nextView];
+    setType(context.type);
+    setSearch(context.search);
+    setUnread(context.unread);
+    setSource(context.source);
+    requestAnimationFrame(() => {
+      if (feedPanelRef.current) feedPanelRef.current.scrollTop = context.scrollTop;
+    });
+  }
   useEffect(() => {
     if (!toast) return;
     const timer = setTimeout(() => setToast(''), 4500);
     return () => clearTimeout(timer);
   }, [toast]);
+  useEffect(() => {
+    if (!hasMountedRouteRef.current) {
+      hasMountedRouteRef.current = true;
+      return;
+    }
+    requestAnimationFrame(() => routeTitleRef.current?.focus());
+  }, [view, selectedId]);
   useEffect(() => {
     const timer = setInterval(
       () => {
@@ -107,8 +163,12 @@ export function ReaderApp({
   useEffect(() => {
     const pop = () => {
       const parts = location.pathname.split('/').filter(Boolean);
-      setView(parts[0] === 'items' ? 'feed' : parts[0] || 'today');
+      const route = parts[0] || 'today';
+      const nextView = normalizeView(route);
+      setView(nextView);
       setSelectedId(parts[0] === 'items' ? parts[1] : null);
+      setAddOpen(route === 'onboarding');
+      if (isFeedView(nextView) && route !== 'items') restoreFeedContext(nextView);
     };
     window.addEventListener('popstate', pop);
     return () => window.removeEventListener('popstate', pop);
@@ -118,13 +178,21 @@ export function ReaderApp({
     [data.items, view, type, search, unread, source],
   );
   const selected = data.items.find((item) => item.id === selectedId) ?? null;
+  const selectedJobs = data.jobs.filter((job) => job.targetId === selectedId);
   function navigate(next: string) {
-    setView(next);
+    captureFeedContext();
+    const nextView = normalizeView(next);
+    setView(nextView);
     setSelectedId(null);
-    setType('all');
-    setSearch('');
-    setSource('');
-    setUnread(false);
+    setAddOpen(next === 'onboarding');
+    if (isFeedView(nextView)) {
+      restoreFeedContext(nextView);
+    } else {
+      setType('all');
+      setSearch('');
+      setSource('');
+      setUnread(false);
+    }
     setNoticeOpen(false);
     history.pushState({}, '', `/${next}`);
   }
@@ -146,6 +214,7 @@ export function ReaderApp({
     }
   }
   function selectItem(id: string) {
+    captureFeedContext();
     setSelectedId(id);
     history.pushState({}, '', `/items/${id}`);
   }
@@ -173,11 +242,17 @@ export function ReaderApp({
       '当前结果已标为已读',
     );
   }
-  const busyAi =
+  const summaryBusy =
     !!selected &&
-    (busy === selected.id ||
-      data.jobs.some(
-        (x) => x.targetId === selected.id && ['pending', 'running'].includes(x.status),
+    (busy === `${selected.id}:summary` ||
+      selectedJobs.some(
+        (job) => job.kind === 'summary' && ['pending', 'running'].includes(job.status),
+      ));
+  const translationBusy =
+    !!selected &&
+    (busy === `${selected.id}:translation` ||
+      selectedJobs.some(
+        (job) => job.kind === 'translation' && ['pending', 'running'].includes(job.status),
       ));
   const navigation = [
     { id: 'today', label: '精选', icon: Sparkles },
@@ -208,7 +283,14 @@ export function ReaderApp({
             </span>
             <span className="desktop-workspace">我的工作空间</span>
             <ChevronRight size={13} />
-            <strong>{titles[view]}</strong>
+            <strong
+              ref={routeTitleRef}
+              tabIndex={-1}
+              aria-live="polite"
+              aria-atomic="true"
+            >
+              {selectedId ? titles.items : titles[view]}
+            </strong>
           </div>
           <div className="top-actions">
             {data.mode === 'demo' && (
@@ -221,6 +303,8 @@ export function ReaderApp({
               {new Date().toLocaleDateString('zh-CN', { month: 'long', day: 'numeric' })}
             </span>
             <button
+              aria-expanded={noticeOpen}
+              aria-controls="notice-popover"
               className="icon-button"
               aria-label="通知中心"
               onClick={() => setNoticeOpen(!noticeOpen)}
@@ -244,7 +328,7 @@ export function ReaderApp({
           </div>
         </header>
         {noticeOpen && (
-          <div className="notice-popover">
+          <div id="notice-popover" className="notice-popover" role="dialog" aria-label="通知中心">
             <h3>通知中心</h3>
             {data.notifications.length ? (
               data.notifications.slice(0, 5).map((n) => (
@@ -293,11 +377,19 @@ export function ReaderApp({
               setUnread={setUnread}
               select={selectItem}
               markAll={markAll}
+              hasUnderlyingItems={data.items.some(
+                (item) => !item.muted && (view !== 'saved' || item.saved),
+              )}
               sourceName={data.subscriptions.find((x) => x.id === source)?.name}
-              clearSource={() => {
+              panelRef={feedPanelRef}
+              onScroll={(event) => {
+                if (isFeedView(view)) feedContexts.current[view].scrollTop = event.currentTarget.scrollTop;
+              }}
+              clearFilters={() => {
                 setSource('');
                 setSearch('');
                 setType('all');
+                setUnread(false);
               }}
             />
             <ItemDetail
@@ -334,7 +426,7 @@ export function ReaderApp({
               translate={() =>
                 selected &&
                 void execute(
-                  selected.id,
+                  `${selected.id}:translation`,
                   () => requestJson(`/api/items/${selected.id}/translation`, 'POST', {}),
                   '翻译任务已提交',
                 )
@@ -342,27 +434,25 @@ export function ReaderApp({
               summarize={() =>
                 selected &&
                 void execute(
-                  selected.id,
+                  `${selected.id}:summary`,
                   () => requestJson(`/api/items/${selected.id}/summary/retry`, 'POST', {}),
                   '摘要任务已提交',
                 )
               }
-              busy={busyAi}
-              error={
-                data.jobs.find(
-                  (job) =>
-                    job.targetId === selected?.id &&
-                    (job.kind === 'summary' || job.kind === 'translation'),
-                )?.status === 'failed'
-                  ? data.jobs.find(
-                      (job) =>
-                        job.targetId === selected?.id &&
-                        (job.kind === 'summary' || job.kind === 'translation'),
-                    )?.error
-                  : null
-              }
+              summaryBusy={summaryBusy}
+              translationBusy={translationBusy}
+              errors={{
+                summary:
+                  selectedJobs.find((job) => job.kind === 'summary' && job.status === 'failed')
+                    ?.error,
+                translation:
+                  selectedJobs.find(
+                    (job) => job.kind === 'translation' && job.status === 'failed',
+                  )?.error,
+              }}
               back={() => {
                 setSelectedId(null);
+                if (isFeedView(view)) restoreFeedContext(view);
                 history.pushState({}, '', `/${view}`);
               }}
             />
@@ -455,14 +545,22 @@ export function ReaderApp({
       </main>
       <nav className="mobile-nav" aria-label="移动导航">
         {navigation.map(({ id, label, icon: Icon }) => (
-          <button key={id} onClick={() => navigate(id)} className={view === id ? 'active' : ''}>
+          <button
+            key={id}
+            type="button"
+            onClick={() => navigate(id)}
+            className={view === id ? 'active' : ''}
+            aria-current={view === id ? 'page' : undefined}
+          >
             <Icon size={19} />
             <span>{label}</span>
           </button>
         ))}
         <button
+          type="button"
           onClick={() => navigate('settings')}
           className={view === 'settings' ? 'active' : ''}
+          aria-current={view === 'settings' ? 'page' : undefined}
         >
           <Settings2 size={19} />
           <span>设置</span>

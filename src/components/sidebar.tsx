@@ -53,6 +53,7 @@ export function Sidebar({
           <button
             key={id}
             className={`nav-item ${view === id ? 'active' : ''}`}
+            aria-current={view === id ? 'page' : undefined}
             onClick={() => navigate(id)}
           >
             <Icon size={18} />
@@ -71,6 +72,7 @@ export function Sidebar({
         ))}
         <button
           className={`nav-item ${view === 'subscriptions' ? 'active' : ''}`}
+          aria-current={view === 'subscriptions' ? 'page' : undefined}
           onClick={() => navigate('subscriptions')}
         >
           <PanelsTopLeft size={18} />
@@ -113,6 +115,7 @@ export function Sidebar({
         </div>
         <button
           className={`nav-item ${view === 'settings' ? 'active' : ''}`}
+          aria-current={view === 'settings' ? 'page' : undefined}
           onClick={() => navigate('settings')}
         >
           <Settings2 size={18} />

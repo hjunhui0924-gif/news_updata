@@ -131,7 +131,7 @@ test('star selection, pagination and partial failure preserve successful imports
   });
   await page.goto('/subscriptions');
   await page.getByRole('button', { name: '添加订阅', exact: true }).first().click();
-  await page.getByRole('button', { name: '导入 Star', exact: true }).click();
+  await page.getByRole('tab', { name: '导入 Star', exact: true }).click();
   await page.getByRole('button', { name: '读取 Star 列表' }).click();
   await expect(
     page.getByRole('checkbox', { name: '订阅 example/repo-1', exact: true }),
@@ -147,7 +147,7 @@ test('star selection, pagination and partial failure preserve successful imports
   await expect(page.getByRole('button', { name: '导入 0 个仓库' })).toBeDisabled();
   await page.getByRole('button', { name: '全选可导入仓库' }).click();
   await page.getByRole('button', { name: '导入 2 个仓库' }).click();
-  await expect(page.getByRole('button', { name: '项目仓库', exact: true })).toBeDisabled();
+  await expect(page.getByRole('tab', { name: '项目仓库', exact: true })).toBeDisabled();
   await expect(page.getByRole('button', { name: '关闭添加订阅' })).toBeDisabled();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).toBeVisible();
@@ -178,7 +178,7 @@ test('empty stars explain the state, and long repository names fit a phone', asy
   );
   await page.goto('/subscriptions');
   await page.getByRole('button', { name: '添加订阅', exact: true }).first().click();
-  await page.getByRole('button', { name: '导入 Star', exact: true }).click();
+  await page.getByRole('tab', { name: '导入 Star', exact: true }).click();
   await page.getByRole('button', { name: '读取 Star 列表' }).click();
   await expect(page.getByText('这个账号还没有公开 Star 仓库。')).toBeVisible();
   populated = true;

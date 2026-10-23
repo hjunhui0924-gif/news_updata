@@ -133,3 +133,34 @@ test('stale snapshots, loading, first-load failure and retries remain explicit',
     page.getByRole('region', { name: 'Trending 项目发现' }).getByRole('alert'),
   ).toHaveCount(0);
 });
+
+test('trending translation failure offers a retry without losing the repository card', async ({
+  page,
+}) => {
+  let failed = true;
+  await page.route('**/api/trending?*', (route) =>
+    route.fulfill({ json: { ...snapshot, language: '', repositories: [snapshot.repositories[0]] } }),
+  );
+  await page.route('**/api/bootstrap', async (route) => {
+    const data = await (await route.fetch()).json();
+    await route.fulfill({ json: { ...data, services: { ...data.services, ai: true } } });
+  });
+  await page.route('**/api/trending/translation', async (route) => {
+    if (failed) {
+      await route.fulfill({ status: 503, json: { error: '翻译服务暂时不可用。' } });
+      return;
+    }
+    await route.fulfill({
+      json: { description: snapshot.repositories[0].description, translation: '构建实用的开发工具。' },
+    });
+  });
+  await page.goto('/today');
+  await page.getByRole('button', { name: '刷新内容' }).click();
+  const card = page.getByRole('article', { name: 'example/fast-tools', exact: true });
+  await card.getByRole('button', { name: '翻译简介' }).click();
+  await expect(card.getByRole('alert')).toHaveText('翻译服务暂时不可用。');
+  await expect(card.getByRole('button', { name: '重试翻译' })).toBeVisible();
+  failed = false;
+  await card.getByRole('button', { name: '重试翻译' }).click();
+  await expect(card.getByText('构建实用的开发工具。')).toBeVisible();
+});

@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, type KeyboardEvent } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import {
   ArrowUpRight,
@@ -96,6 +96,7 @@ export function SubscriptionsPanel({
           <button
             key={value}
             className={kind === value ? 'selected' : ''}
+            aria-pressed={kind === value}
             onClick={() => setKind(value)}
           >
             {label}
@@ -201,9 +202,13 @@ export function SubscriptionsPanel({
       {!subscriptions.filter((x) => kind === 'all' || x.kind === kind).length && (
         <div className="empty-state">
           <Github size={30} />
-          <h3>从一个喜欢的项目开始</h3>
-          <p>添加仓库、导入 Star 项目，或关注开发者。</p>
-          <Button onClick={onAdd}>添加第一个订阅</Button>
+          <h3>{subscriptions.length ? '这个分类还没有订阅' : '从一个喜欢的项目开始'}</h3>
+          <p>
+            {subscriptions.length
+              ? '切换分类查看其他来源，或添加新的订阅。'
+              : '添加仓库、导入 Star 项目，或关注开发者。'}
+          </p>
+          <Button onClick={onAdd}>{subscriptions.length ? '添加订阅' : '添加第一个订阅'}</Button>
         </div>
       )}
       <div className="sub-explainer">
@@ -238,6 +243,34 @@ export function AddSubscription({
   const [value, setValue] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const addMethods = [
+    ['repo', '项目仓库'],
+    ['search', '搜索项目'],
+    ['starred', '导入 Star'],
+    ['author', '开发者'],
+    ['following', '导入关注'],
+  ] as const;
+  function handleMethodKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
+    const index = addMethods.findIndex(([key]) => key === kind);
+    const nextIndex =
+      event.key === 'ArrowRight'
+        ? (index + 1) % addMethods.length
+        : event.key === 'ArrowLeft'
+          ? (index - 1 + addMethods.length) % addMethods.length
+          : event.key === 'Home'
+            ? 0
+            : event.key === 'End'
+              ? addMethods.length - 1
+              : -1;
+    if (nextIndex < 0) return;
+    event.preventDefault();
+    const nextKind = addMethods[nextIndex][0];
+    setKind(nextKind);
+    setError('');
+    event.currentTarget.parentElement
+      ?.querySelectorAll<HTMLButtonElement>('[role="tab"]')
+      [nextIndex]?.focus();
+  }
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
@@ -262,7 +295,7 @@ export function AddSubscription({
     >
       <Dialog.Portal>
         <Dialog.Overlay className="dialog-overlay" />
-        <Dialog.Content className="dialog-content">
+        <Dialog.Content className="dialog-content" aria-busy={busy}>
           <Dialog.Close asChild>
             <button className="dialog-close icon-button" aria-label="关闭添加订阅" disabled={busy}>
               <X size={19} />
@@ -275,20 +308,21 @@ export function AddSubscription({
           <Dialog.Description>
             从 GitHub 公开仓库或开发者开始，建立自己的信息源。
           </Dialog.Description>
-          <div className="segmented dialog-tabs">
-            {[
-              ['repo', '项目仓库'],
-              ['search', '搜索项目'],
-              ['starred', '导入 Star'],
-              ['author', '开发者'],
-              ['following', '导入关注'],
-            ].map(([key, label]) => (
+          <div className="segmented dialog-tabs" role="tablist" aria-label="订阅方式">
+            {addMethods.map(([key, label]) => (
               <button
                 key={key}
+                type="button"
+                id={`subscription-method-${key}`}
+                role="tab"
+                aria-selected={kind === key}
+                aria-controls="subscription-method-panel"
+                tabIndex={kind === key ? 0 : -1}
                 disabled={busy}
                 className={kind === key ? 'selected' : ''}
+                onKeyDown={handleMethodKeyDown}
                 onClick={() => {
-                  setKind(key as typeof kind);
+                  setKind(key);
                   setError('');
                 }}
               >
@@ -296,6 +330,12 @@ export function AddSubscription({
               </button>
             ))}
           </div>
+          <div
+            id="subscription-method-panel"
+            role="tabpanel"
+            aria-labelledby={`subscription-method-${kind}`}
+            tabIndex={0}
+          >
           {kind === 'search' ? (
             <RepositorySearch onAdded={onAdded} onBusyChange={setBusy} />
           ) : kind === 'starred' ? (
@@ -312,7 +352,7 @@ export function AddSubscription({
               authorSubscriptionCount={authorSubscriptionCount}
             />
           ) : (
-            <form onSubmit={submit}>
+            <form onSubmit={submit} aria-busy={busy}>
               <label className="field-label" htmlFor="source-input">
                 {kind === 'repo' ? '仓库地址或 owner/repo' : 'GitHub 用户名'}
               </label>
@@ -324,10 +364,11 @@ export function AddSubscription({
                   setValue(e.target.value);
                 }}
                 placeholder={kind === 'repo' ? '例如 vercel/next.js' : '例如 torvalds'}
+                aria-describedby={`source-input-help${error ? ' source-input-error' : ''}`}
                 required
                 maxLength={200}
               />
-              <p className="helper">
+              <p className="helper" id="source-input-help">
                 {kind === 'repo'
                   ? '跟踪正式版本发布，首次导入的历史版本不会作为新提醒。'
                   : kind === 'author'
@@ -335,11 +376,11 @@ export function AddSubscription({
                     : ''}
               </p>
               {error && (
-                <p className="form-error" role="alert">
+                  <p className="form-error" id="source-input-error" role="alert">
                   {error}
                 </p>
               )}
-              <div className="dialog-footer">
+              <div className="dialog-footer" aria-live="polite">
                 <span>
                   <Github size={14} />
                   仅访问公开信息
@@ -355,6 +396,7 @@ export function AddSubscription({
               </div>
             </form>
           )}
+          </div>
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>

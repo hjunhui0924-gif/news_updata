@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type RefObject, type UIEventHandler } from 'react';
 import {
   ArrowUpRight,
   Bookmark,
@@ -24,8 +24,11 @@ export function FeedList({
   setUnread,
   select,
   markAll,
-  clearSource,
+  clearFilters,
   sourceName,
+  hasUnderlyingItems,
+  panelRef,
+  onScroll,
 }: {
   items: FeedItem[];
   selectedId: string | null;
@@ -38,12 +41,15 @@ export function FeedList({
   setUnread: (v: boolean) => void;
   select: (id: string) => void;
   markAll: () => void;
-  clearSource: () => void;
+  clearFilters: () => void;
   sourceName?: string;
+  hasUnderlyingItems: boolean;
+  panelRef?: RefObject<HTMLElement | null>;
+  onScroll?: UIEventHandler<HTMLElement>;
 }) {
   const [limit, setLimit] = useState(20);
   return (
-    <section className="feed-panel" aria-label="更新列表">
+    <section ref={panelRef} onScroll={onScroll} className="feed-panel" aria-label="更新列表">
       <div className="feed-heading">
         <div className="eyebrow">{view === 'saved' ? 'WORTH KEEPING' : 'THE UPDATE STREAM'}</div>
         <div className="title-row">
@@ -91,7 +97,7 @@ export function FeedList({
         </button>
       </div>
       {sourceName && (
-        <button className="source-filter" onClick={clearSource}>
+        <button className="source-filter" onClick={clearFilters}>
           {sourceName} <span>× 清除</span>
         </button>
       )}
@@ -108,6 +114,7 @@ export function FeedList({
             key={item.id}
             data-testid={`item-${item.id}`}
             className={`update-card ${selectedId === item.id ? 'selected' : ''} ${item.read ? 'read' : ''}`}
+            aria-pressed={selectedId === item.id}
             onClick={() => select(item.id)}
           >
             <div className="card-meta">
@@ -151,8 +158,25 @@ export function FeedList({
       {items.length === 0 && (
         <div className="empty-state">
           <Search size={30} />
-          <h3>暂时没有匹配的更新</h3>
-          <p>试试其他关键词，或切换到全部更新。</p>
+          <h3>
+            {hasUnderlyingItems
+              ? '暂时没有匹配的更新'
+              : view === 'saved'
+                ? '还没有收藏的更新'
+                : '还没有更新'}
+          </h3>
+          <p>
+            {hasUnderlyingItems
+              ? '调整关键词或筛选条件，查看其他更新。'
+              : view === 'saved'
+                ? '收藏的更新会显示在这里。'
+                : '添加订阅后，项目发布的更新会显示在这里。'}
+          </p>
+          {hasUnderlyingItems && (
+            <Button variant="secondary" size="small" onClick={clearFilters}>
+              清除筛选
+            </Button>
+          )}
         </div>
       )}
       {items.length > limit && (
@@ -169,9 +193,6 @@ export function FeedList({
           <span />
         </div>
       )}
-      <Button className="mobile-subscribe" size="small" onClick={clearSource}>
-        查看所有来源
-      </Button>
     </section>
   );
 }

@@ -3,15 +3,27 @@ import { useState } from 'react';
 import { Radio, ArrowRight, CodeXml as Github } from 'lucide-react';
 export function Login({ configured }: { configured: boolean }) {
   const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
   async function login() {
-    const response = await fetch('/api/auth/sign-in/social', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ provider: 'github', callbackURL: '/today' }),
-    });
-    const data = await response.json();
-    if (response.ok && data.url) window.location.href = data.url;
-    else setError('登录未完成，请检查账号权限和服务配置。');
+    setBusy(true);
+    setError('');
+    try {
+      const response = await fetch('/api/auth/sign-in/social', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider: 'github', callbackURL: '/today' }),
+      });
+      const data = await response.json();
+      if (response.ok && data.url) {
+        window.location.href = data.url;
+        return;
+      }
+      setError('登录未完成，请检查账号权限和服务配置。');
+    } catch {
+      setError('暂时无法连接登录服务，请稍后重试。');
+    } finally {
+      setBusy(false);
+    }
   }
   return (
     <main className="login-page">
@@ -30,13 +42,13 @@ export function Login({ configured }: { configured: boolean }) {
           <br />
           把每次变化，读成一份清楚的中文摘要。
         </p>
-        <button className="button primary" disabled={!configured} onClick={login}>
+        <button className="button primary" disabled={!configured || busy} onClick={login}>
           <Github size={18} />
-          使用 GitHub 登录
+          {busy ? '正在连接 GitHub…' : '使用 GitHub 登录'}
           <ArrowRight size={16} />
         </button>
         {!configured && <p className="helper">登录尚未配置。本地体验请按 README 启动演示模式。</p>}
-        {error && <p role="alert">{error}</p>}
+        {error && <p role="alert" aria-live="assertive">{error}</p>}
         <span className="login-footnote">你的关注，你来决定。</span>
       </div>
     </main>

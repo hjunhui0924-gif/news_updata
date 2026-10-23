@@ -103,7 +103,7 @@ test('subscription management announces an offline worker while keeping content 
   await mockBootstrap(page, false);
   await page.goto('/subscriptions');
   await page.getByRole('button', { name: '刷新内容' }).click();
-  await expect(page.getByRole('status')).toContainText('后台同步服务未连接');
+  await expect(page.locator('.sync-service-banner')).toContainText('后台同步服务未连接');
   await expect(page.getByText('已有内容仍可阅读')).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

@@ -243,7 +243,7 @@ pnpm build              # Web + Worker 构建
 
 浏览器测试优先使用 Windows 已安装的 Chrome；其他环境可先运行 `pnpm exec playwright install chromium`。测试与开发约定见 [贡献指南](CONTRIBUTING.md)。
 
-2026-09-19 最新功能验证：**29 个测试文件、158 项单元/集成测试通过；本轮相关 Playwright 浏览器组合 20 项通过**，类型检查、Lint 和 Web/Worker 构建通过。真实 GitHub 登录、读取、令牌续期、项目搜索，以及 Qwen 摘要/翻译样本已联调。模拟浏览器测试不等同于真实模型端到端测试，不据此宣称内容准确率或长期稳定性。[完整验收记录](docs/07-mvp-validation.md)
+2026-10-23 最新验证：**29 个测试文件、159 项单元/集成测试通过；完整 Playwright demo 回归 37 项通过**，类型检查、Lint 和 Web/Worker 构建通过，Docker PostgreSQL 健康。真实 GitHub 登录、读取、令牌续期、项目搜索，以及 Qwen 摘要/翻译样本已联调。模拟浏览器测试不等同于真实模型端到端测试，不据此宣称内容准确率或长期稳定性。[完整验收记录](docs/07-mvp-validation.md) · [前端优化路线](docs/frontend-optimization-plan.md)
 
 ## 当前边界与后续
 
@@ -264,4 +264,6 @@ G3 当前约定的站内阅读闭环已完成：作者发现的新项目可直�
 - [Trending 与对照翻译](docs/10-discovery-and-bilingual.md) · [博主与项目规则](docs/11-github-following-scope.md)
 - [授权自动续期](docs/12-github-auth-renewal.md) · [公开项目搜索](docs/13-github-project-search.md)
 - [跨平台扩展预研](docs/14-platform-expansion.md) · [领域词汇](CONTEXT.md)
+- [前端优化方案](docs/frontend-optimization-plan.md) · [基线审计](docs/frontend-optimization-baseline.md)
+- [前端阶段 1–3](docs/frontend-optimization-stage1.md) · [阶段 4–7](docs/frontend-optimization-stage4.md) · [阶段 7 收尾](docs/frontend-optimization-stage7.md)
 - [变更记录](CHANGELOG.md) · [安全说明](SECURITY.md) · [开发贡献](CONTRIBUTING.md)

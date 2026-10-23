@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from 'react';
 import {
   AlertCircle,
   ArrowRight,
@@ -410,6 +410,29 @@ function SkillDetail({
 }) {
   const [tab, setTab] = useState<'summary' | 'original'>('summary');
   const ai = detail.ai ?? emptyAi;
+  const tabs = [
+    { key: 'summary' as const, label: 'AI 摘要', icon: Sparkles },
+    { key: 'original' as const, label: '原文', icon: Code2 },
+  ];
+  function handleTabKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
+    const index = tabs.findIndex(({ key }) => key === tab);
+    const nextIndex =
+      event.key === 'ArrowRight'
+        ? (index + 1) % tabs.length
+        : event.key === 'ArrowLeft'
+          ? (index - 1 + tabs.length) % tabs.length
+          : event.key === 'Home'
+            ? 0
+            : event.key === 'End'
+              ? tabs.length - 1
+              : -1;
+    if (nextIndex < 0) return;
+    event.preventDefault();
+    setTab(tabs[nextIndex].key);
+    event.currentTarget.parentElement
+      ?.querySelectorAll<HTMLButtonElement>('[role="tab"]')
+      [nextIndex]?.focus();
+  }
   return (
     <section className="skill-detail-view" aria-label={`${detail.name} Skill 详情`}>
       <button type="button" className="skill-back" onClick={onBack}>
@@ -448,23 +471,30 @@ function SkillDetail({
         {detail.files.interface && <span>包含界面配置</span>}
       </div>
       <div className="skill-detail-tabs" role="tablist" aria-label="Skill 内容视图">
-        {[
-          { key: 'summary', label: 'AI 摘要', icon: Sparkles },
-          { key: 'original', label: '原文', icon: Code2 },
-        ].map(({ key, label, icon: Icon }) => (
+        {tabs.map(({ key, label, icon: Icon }) => (
           <button
             key={key}
             type="button"
             role="tab"
+            id={`skill-detail-tab-${key}`}
             aria-selected={tab === key}
+            aria-controls="skill-detail-panel"
+            tabIndex={tab === key ? 0 : -1}
             className={tab === key ? 'active' : ''}
             onClick={() => setTab(key as typeof tab)}
+            onKeyDown={handleTabKeyDown}
           >
             <Icon size={15} /> {label}
           </button>
         ))}
       </div>
-      <article className="skill-detail-content">
+      <article
+        id="skill-detail-panel"
+        className="skill-detail-content"
+        role="tabpanel"
+        tabIndex={0}
+        aria-labelledby={`skill-detail-tab-${tab}`}
+      >
         {tab === 'summary' && (
           <SkillAiSummary
             detail={detail}
@@ -504,6 +534,7 @@ export function SkillsPanel() {
   const [error, setError] = useState('');
   const [busyKind, setBusyKind] = useState<'summary' | 'translation' | ''>('');
   const [revealTranslation, setRevealTranslation] = useState(false);
+  const [detailError, setDetailError] = useState('');
 
   const load = useCallback(async (nextSource: SkillSource, page = 1, append = false) => {
     setLoading(true);
@@ -569,6 +600,7 @@ export function SkillsPanel() {
   async function selectSkill(skill: SkillSummary) {
     setSelected(skill);
     setDetail(null);
+    setDetailError('');
     setRevealTranslation(false);
     setLoading(true);
     setError('');
@@ -577,7 +609,7 @@ export function SkillsPanel() {
     try {
       setDetail(await requestSkills<SkillDetails>(`/api/skills/detail?${params}`));
     } catch (requestError) {
-      setError((requestError as Error).message);
+      setDetailError((requestError as Error).message);
     } finally {
       setLoading(false);
     }
@@ -616,6 +648,10 @@ export function SkillsPanel() {
     history.pushState({}, '', '/skills');
   }
 
+  async function retryDetail() {
+    if (selected) await selectSkill(selected);
+  }
+
   function changeSource(nextSource: SkillSource) {
     setSource(nextSource);
     setSelected(null);
@@ -630,12 +666,33 @@ export function SkillsPanel() {
   if (selected && detail)
     return (
       <SkillDetail
+        key={detail.id}
         detail={detail}
         onBack={backToList}
         generate={generateAi}
         busyKind={busyKind}
         revealTranslation={revealTranslation}
       />
+    );
+
+  if (selected)
+    return (
+      <section className="skill-detail-view" aria-label={`${selected.name} Skill 详情`}>
+        <button type="button" className="skill-back" onClick={backToList}>
+          <ChevronLeft size={16} /> 返回 Skill 列表
+        </button>
+        {loading ? (
+          <div className="skill-detail-loading" role="status">
+            <Loader2 className="spin" size={18} /> 正在读取 Skill 说明…
+          </div>
+        ) : (
+          <div className="skills-error" role="alert">
+            <AlertCircle size={16} />
+            <span>{detailError || 'Skill 详情暂时无法读取。'}</span>
+            <button type="button" onClick={() => void retryDetail()}>重试</button>
+          </div>
+        )}
+      </section>
     );
 
   return (
@@ -666,8 +723,21 @@ export function SkillsPanel() {
             key={value}
             type="button"
             role="tab"
+            id={`skills-source-${value}`}
             aria-selected={source === value}
+            aria-controls="skills-source-panel"
+            tabIndex={source === value ? 0 : -1}
             className={source === value ? 'selected' : ''}
+            onKeyDown={(event) => {
+              if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+              event.preventDefault();
+              const nextSource = value === 'local' ? 'github' : 'local';
+              changeSource(nextSource);
+              event.currentTarget.parentElement
+                ?.querySelector<HTMLButtonElement>(`[data-source="${nextSource}"]`)
+                ?.focus();
+            }}
+            data-source={value}
             onClick={() => changeSource(value)}
           >
             {value === 'local' ? <BookOpen size={14} /> : <Star size={14} />}
@@ -675,7 +745,7 @@ export function SkillsPanel() {
           </button>
         ))}
       </div>
-      <div className="skills-toolbar">
+      <div id="skills-source-panel" className="skills-toolbar" role="tabpanel" tabIndex={0} aria-labelledby={`skills-source-${source}`}>
         <label className="search-box" htmlFor="skill-search">
           <Search size={15} />
           <input

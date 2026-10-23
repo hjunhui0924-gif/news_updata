@@ -17,7 +17,15 @@ test('local Skill directory searches, opens details, and fits a phone', async ({
   await localCard.click();
   await expect(page.getByRole('region', { name: /codebase-design Skill 详情/ })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'codebase-design', exact: true })).toBeVisible();
-  await expect(page.getByRole('tab', { name: 'AI 摘要', exact: true })).toBeVisible();
+  const summaryTab = page.getByRole('tab', { name: 'AI 摘要', exact: true });
+  await expect(summaryTab).toBeVisible();
+  await expect(summaryTab).toHaveAttribute('aria-controls', 'skill-detail-panel');
+  await summaryTab.press('ArrowRight');
+  await expect(page.getByRole('tab', { name: '原文', exact: true })).toBeFocused();
+  await expect(page.getByRole('tabpanel')).toHaveAttribute(
+    'aria-labelledby',
+    'skill-detail-tab-original',
+  );
   await expect(page.getByRole('tab', { name: '原文', exact: true })).toBeVisible();
   await page.getByRole('tab', { name: '原文', exact: true }).click();
   await expect(page.getByText('在原文下生成中文对照', { exact: true })).toBeVisible();
@@ -30,6 +38,24 @@ test('local Skill directory searches, opens details, and fits a phone', async ({
   );
   await page.screenshot({ path: 'work/skills-mobile.png', fullPage: true });
   expect(errors).toEqual([]);
+});
+
+test('Skill detail loading failures can be retried in place', async ({ page }) => {
+  let fail = true;
+  await page.route('**/api/skills/detail*', async (route) => {
+    if (fail) {
+      await route.fulfill({ status: 503, json: { error: 'Skill 详情暂时无法读取。' } });
+      return;
+    }
+    await route.continue();
+  });
+  await page.goto('/skills');
+  await page.getByLabel('搜索 Skill').fill('codebase-design');
+  await page.getByRole('button', { name: /codebase-design/ }).first().click();
+  await expect(page.locator('.skills-error[role="alert"]')).toContainText('Skill 详情暂时无法读取。');
+  fail = false;
+  await page.getByRole('button', { name: '重试' }).click();
+  await expect(page.getByRole('heading', { name: 'codebase-design', exact: true })).toBeVisible();
 });
 
 test('GitHub Star source renders mocked Skill results and details', async ({ page }) => {

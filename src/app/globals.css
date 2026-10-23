@@ -348,16 +348,34 @@
 :root {
   --background: #f6f7f9;
   --surface: #fff;
+  --surface-subtle: #fbfcfe;
+  --surface-muted: #eef1f6;
   --foreground: #17212f;
+  --foreground-strong: #253246;
   --muted: #617084;
+  --muted-soft: #8b98ab;
   --primary: #1d4ed8;
   --primary-soft: #eef3ff;
   --border: #e4e8ef;
+  --border-strong: #cbd5e1;
+  --focus-ring: #1d4ed8;
   --success: #166534;
+  --success-soft: #eaf4ed;
   --warning: #92400e;
+  --warning-soft: #faf1e2;
   --danger: #b91c1c;
+  --danger-soft: #fef2f2;
   --sidebar: #f8f9fb;
+  --shadow-sm: 0 1px 3px #17212f0d;
   --shadow: 0 12px 45px #17212f10;
+  --shadow-md: 0 8px 24px #17212f14;
+  --radius-sm: 4px;
+  --radius-md: 7px;
+  --radius-lg: 10px;
+  --control-height: 42px;
+  --control-height-sm: 34px;
+  --motion-fast: 150ms;
+  --motion-normal: 220ms;
   --blue-tint: #eaf0ff;
   --green-tint: #eaf4ed;
   --cyan-tint: #e8f5f7;
@@ -415,11 +433,12 @@ select {
 }
 button:focus-visible,
 a:focus-visible {
-  outline: 2px solid var(--primary);
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 3px;
 }
 input:focus,
 select:focus {
-  outline: 2px solid var(--primary);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 1px;
 }
 h1,
@@ -430,9 +449,11 @@ p {
 }
 button {
   transition:
-    background 0.15s,
-    color 0.15s,
-    border-color 0.15s;
+    background var(--motion-fast),
+    color var(--motion-fast),
+    border-color var(--motion-fast),
+    box-shadow var(--motion-fast),
+    opacity var(--motion-fast);
 }
 p {
   text-wrap: pretty;
@@ -727,9 +748,9 @@ svg {
   align-items: center;
   justify-content: center;
   position: relative;
-  width: 36px;
-  height: 36px;
-  border-radius: 7px;
+  width: var(--control-height-sm);
+  height: var(--control-height-sm);
+  border-radius: var(--radius-md);
   color: var(--muted);
   flex-shrink: 0;
 }
@@ -745,9 +766,9 @@ svg {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  min-height: 42px;
+  min-height: var(--control-height);
   padding: 10px 15px;
-  border-radius: 7px;
+  border-radius: var(--radius-md);
   font-size: 13px;
   font-weight: 550;
   border: 1px solid var(--border);
@@ -763,12 +784,22 @@ svg {
   color: white;
   box-shadow: 0 2px 3px #1d4ed810;
 }
+.button[aria-busy='true'] {
+  cursor: wait;
+}
+.button:focus-visible,
+.icon-button:focus-visible,
+.segmented button:focus-visible,
+.filter-button:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
 .button.primary:hover {
   background: #1e40af;
 }
 .button.small {
   font-size: 12px;
-  min-height: 34px;
+  min-height: var(--control-height-sm);
   padding: 7px 11px;
 }
 .button.ghost {
@@ -777,6 +808,8 @@ svg {
 }
 .button.danger {
   color: var(--danger);
+  background: var(--danger-soft);
+  border-color: #fecaca;
 }
 .mobile-brand,
 .mobile-nav {
@@ -1103,9 +1136,6 @@ svg {
 }
 .source-filter span {
   white-space: nowrap;
-}
-.mobile-subscribe {
-  display: none !important;
 }
 .detail-panel {
   background: white;

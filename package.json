@@ -9,9 +9,9 @@
   "scripts": {
     "dev": "next dev --hostname 127.0.0.1",
     "worker:dev": "tsx watch --env-file=.env.local src/worker/main.ts",
-    "build": "next build && tsup src/worker/main.ts --format esm --platform node --out-dir dist/worker --external pg-native",
-    "start": "next start --hostname 127.0.0.1",
-    "worker:start": "node --env-file=.env.local scripts/start-worker.mjs",
+    "build": "next build && node scripts/clean-standalone-env.mjs && tsup src/worker/main.ts --format esm --platform node --out-dir dist/worker --external pg-native",
+    "start": "node scripts/start-web.mjs",
+    "worker:start": "node scripts/start-worker.mjs",
     "db:migrate": "tsx --env-file=.env.local scripts/migrate.ts",
     "db:seed": "tsx --env-file=.env.local scripts/seed.ts",
     "db:generate": "drizzle-kit generate",

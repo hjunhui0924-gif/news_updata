@@ -1,6 +1,6 @@
 # 分模块开发路线
 
-更新日期：2026-09-19。按用户要求逐模块完成并测试，再进入下一模块。以下是本次实际交付顺序，完整验证命令和结果见 07 文档。
+更新日期：2026-10-23。按用户要求逐模块完成并测试，再进入下一模块。GitHub 业务路线的历史状态保留在下文；前端优化路线已单独完成，完整验证命令和结果见 07 文档及前端阶段记录。
 
 | 模块        | 已交付                                                  | 阶段测试                                          |
 | ----------- | ------------------------------------------------------- | ------------------------------------------------- |
@@ -99,6 +99,12 @@ G3 当前约定的功能已完成；后续可选增强包括超大正文的进�
 - 依据实际试用结果判断 GitHub 日常阅读是否足够可用，再评估下一平台的内容覆盖、接入成本与限制。当前 X 只做官方资料和最小读取验证，RSS/Atom 可作为较低风险的抽象验证平台。
 
 每个后续模块仍执行实现、测试、审查的闭环。公开部署按用户选定的主机另行处理；暂不实现邮件、公开注册或收费体系。
+
+## 前端优化路线交付
+
+阶段 0 到阶段 7 已完成并形成独立记录，范围覆盖设计 token、应用壳层与移动导航、更新列表与详情、订阅与引导、Trending 与 Skill、设置/登录/异常状态，以及全局收尾和发布前审查。入口文档为 [前端优化方案](frontend-optimization-plan.md)，阶段证据见 [基线审计](frontend-optimization-baseline.md)、[阶段 1](frontend-optimization-stage1.md)、[阶段 2](frontend-optimization-stage2.md)、[阶段 3](frontend-optimization-stage3.md)、[阶段 4](frontend-optimization-stage4.md)、[阶段 5](frontend-optimization-stage5.md)、[阶段 6](frontend-optimization-stage6.md) 和 [阶段 7](frontend-optimization-stage7.md)。
+
+2026-10-23 门禁结果：`pnpm typecheck`、`pnpm lint`、`pnpm test`（29 个文件、159 项）、`pnpm test:e2e`（37 项）和 `pnpm build` 均通过；Docker PostgreSQL 容器 healthy。真实 OAuth、外部 GitHub/模型服务和长期运行仍按当前边界单独验证，不因前端阶段完成而宣称已交付。
 
 ### 本轮交付：区分项目更新与博主更新
 

@@ -34,13 +34,16 @@ export function getConfig(input: Record<string, string | undefined> = process.en
     ) {
       throw new Error('演示模式仅允许在本地开发环境运行');
     }
-  } else if (
-    env.NODE_ENV === 'production' &&
-    (env.BETTER_AUTH_SECRET.length < 32 ||
+  } else if (env.NODE_ENV === 'production') {
+    const appUrl = new URL(env.APP_URL);
+    if (!isLocalHost(appUrl.hostname) && appUrl.protocol !== 'https:')
+      throw new Error('生产环境对外 APP_URL 必须使用 HTTPS');
+    if (
+      env.BETTER_AUTH_SECRET.length < 32 ||
       env.BETTER_AUTH_SECRET.startsWith('replace-with-') ||
-      !env.ALLOWED_GITHUB_USER_IDS.trim())
-  ) {
-    throw new Error('生产环境必须配置登录密钥与用户允许名单');
+      !env.ALLOWED_GITHUB_USER_IDS.trim()
+    )
+      throw new Error('生产环境必须配置登录密钥与用户允许名单');
   }
   if (
     env.LLM_ENABLED === 'true' &&

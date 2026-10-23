@@ -152,7 +152,7 @@ test('following import pages preserve selections and mark existing authors', asy
   await page.goto('/subscriptions');
   await page.getByRole('button', { name: '刷新内容' }).click();
   await page.getByRole('button', { name: '添加订阅', exact: true }).first().click();
-  await page.getByRole('button', { name: '导入关注', exact: true }).click();
+  await page.getByRole('tab', { name: '导入关注', exact: true }).click();
   await page.getByLabel('GitHub 用户名（可选）', { exact: true }).fill('alice-owner');
   await page.getByRole('button', { name: '查看关注列表', exact: true }).click();
   await expect(page.getByRole('checkbox', { name: '订阅 alice', exact: true })).toBeChecked();
@@ -197,7 +197,7 @@ test('following import explains the author subscription limit before selection',
   await page.goto('/subscriptions');
   await page.getByRole('button', { name: '刷新内容' }).click();
   await page.getByRole('button', { name: '添加订阅', exact: true }).first().click();
-  await page.getByRole('button', { name: '导入关注', exact: true }).click();
+  await page.getByRole('tab', { name: '导入关注', exact: true }).click();
   await expect(page.getByText('作者订阅上限：50 个，当前还可添加 0 个。', { exact: true })).toBeVisible();
   await page.getByLabel('GitHub 用户名（可选）', { exact: true }).fill('alice-owner');
   await page.getByRole('button', { name: '查看关注列表', exact: true }).click();
@@ -235,7 +235,7 @@ test('following import keeps the dialog open for failed accounts after partial s
   });
   await page.goto('/subscriptions');
   await page.getByRole('button', { name: '添加订阅', exact: true }).first().click();
-  await page.getByRole('button', { name: '导入关注', exact: true }).click();
+  await page.getByRole('tab', { name: '导入关注', exact: true }).click();
   await page.getByLabel('GitHub 用户名（可选）', { exact: true }).fill('alice-owner');
   await page.getByRole('button', { name: '查看关注列表', exact: true }).click();
   await page.getByRole('button', { name: '导入 2 人', exact: true }).click();

@@ -206,10 +206,12 @@ function TrendingCard({
   const [translation, setTranslation] = useState<string | null>(null);
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
+  const [translationError, setTranslationError] = useState('');
   const chinese = translation || repo.chineseDescription;
   async function act(kind: 'subscribe' | 'translate') {
     setBusy(kind);
     setError('');
+    if (kind === 'translate') setTranslationError('');
     try {
       if (kind === 'subscribe') {
         await request('/api/subscriptions', { kind: 'repo', input: repo.name });
@@ -224,7 +226,9 @@ function TrendingCard({
         setTranslation(result.translation);
       }
     } catch (error) {
-      setError((error as Error).message);
+      const message = (error as Error).message;
+      setError(message);
+      if (kind === 'translate') setTranslationError(message);
     } finally {
       setBusy('');
     }
@@ -298,7 +302,7 @@ function TrendingCard({
             ) : (
               <Languages size={14} />
             )}
-            {aiEnabled ? '翻译简介' : 'AI 未启用'}
+            {translationError ? '重试翻译' : aiEnabled ? '翻译简介' : 'AI 未启用'}
           </Button>
         )}
       </div>
