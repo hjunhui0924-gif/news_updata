@@ -3,6 +3,7 @@ import { getPool } from '../server/db/client';
 import { createBoss, publishPending, reconcileJobs } from '../server/jobs/queue';
 import { workTaskLanes } from '../server/jobs/workers';
 import { scheduleSubscriptions } from '../server/jobs/scheduler';
+import { cleanupEphemeralState } from '../server/db/ephemeral-cleanup';
 import { finishTask } from '../server/jobs/completion';
 import { syncSubscription } from '../server/subscriptions/service';
 import pino from 'pino';
@@ -71,6 +72,7 @@ await workTaskLanes(boss, async (jobs) => {
   }
 });
 let ticking = false;
+let lastCleanupCheck = 0;
 async function tick() {
   if (ticking) return;
   ticking = true;
@@ -83,6 +85,16 @@ async function tick() {
     await reconcileJobs(boss);
     await scheduleStarSync();
     await publishPending(boss);
+    if (Date.now() - lastCleanupCheck >= 60000) {
+      try {
+        const deleted = await cleanupEphemeralState();
+        if (deleted < 1000) lastCleanupCheck = Date.now();
+      } catch {
+        // Maintenance failures must not stop scheduling or expose sensitive state keys.
+        lastCleanupCheck = Date.now();
+        logger.warn('Ephemeral cleanup deferred');
+      }
+    }
   } finally {
     ticking = false;
   }
