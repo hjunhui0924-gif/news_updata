@@ -181,6 +181,12 @@ pnpm build
 
 ## 2026-11-04 最新验证
 
+更新至 2026-11-05 聚合优化：50 文件 / 267 项单元与数据库测试、完整 77 项 Demo E2E 通过；最后手机反馈调整后两平台 16 项再验通过。最终类型生成/检查、全量 Lint、Web/Worker 构建及 plain Node Worker 加载通过。新生产产物在本机启动，登录页/JS/CSS 200、受保护接口未登录 401、六迁移 ready、Worker online；旧 Worker 停止后实际观测 Web degraded，恢复后 ready。没有做公开部署或再次尝试真实 Google 授权。
+
+`pnpm bench:feed` 使用隔离万条数据、三轮各 30 次：预览 25,671 字节，首屏 SQL p95 7.47 ms、下一页 8.28 ms、搜索 33.79 ms；完整 E2E 九个压力场景均达预设 25 ms 门槛。是本地假接口/隔离数据库证据，不是生产 SLA。`pnpm db:drill` 的快照恢复一致、资源清理完成；规则和正式 YouTube 限制见 [生命周期与恢复](22-data-lifecycle-and-recovery.md)，逐项证据见 [聚合优化记录](21-aggregation-optimization-progress.md)。
+
+以下账号关注版本为历史快照：
+
 2026-11-04 账号关注版本：42 文件 / 245 项单元与数据库测试、完整 58 项 Demo 浏览器回归、类型、Lint 与 Web/Worker 构建通过；逐阶段 review 无剩余阻断。日常库 0006 已在备份后升级并完成隔离恢复，36 订阅 / 159 更新及阅读状态指纹不变；生产登录页/JS 200、新接口鉴权 401、坏回调 303、六迁移 ready，未启动真实 Worker。没有配置自己的 Google OAuth 客户端，真实登录/关注与 G4 尚待人工验证，不能以模拟接口替代。详见 [账号与关注](19-youtube-account-following.md)。
 
 以下为此前适配器初版的历史快照：

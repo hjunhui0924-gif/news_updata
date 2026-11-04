@@ -297,6 +297,12 @@ test('own following supports cross-page selection, partial retry and responsive 
   await dialog.getByRole('button', { name: '导入 1 个频道', exact: true }).click();
   await expect(dialog.getByRole('alert')).toHaveCount(0);
   await expect(dialog.getByText('本次新增 1 个频道，已存在 0 个，失败 0 个。')).toBeVisible();
+  await expect(dialog.getByText('本次新增 1 个频道，已存在 0 个，失败 0 个。')).toBeInViewport({
+    ratio: 1,
+  });
+  await expect(dialog.getByRole('button', { name: '导入 0 个频道', exact: true })).toBeInViewport({
+    ratio: 1,
+  });
   await expect(dialog.getByText(/当前还可添加 48 个/)).toBeVisible();
   const titleBox = await dialog.getByRole('heading').boundingBox();
   const closeBox = await dialog.getByRole('button', { name: '关闭添加订阅' }).boundingBox();

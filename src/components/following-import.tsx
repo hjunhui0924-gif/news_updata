@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ArrowUpRight, Check, CodeXml as Github, Loader2 } from 'lucide-react';
 import type { GitHubFollowingPreview, GitHubFollowingUser, Subscription } from '@/shared/types';
 import { requestJson } from './request-json';
@@ -34,6 +34,10 @@ export function FollowingImport({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const footer = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (notice || error) footer.current?.scrollIntoView({ block: 'nearest' });
+  }, [notice, error]);
   const [initialCount] = useState(authorSubscriptionCount);
   const [confirmedIds, setConfirmedIds] = useState<string[]>([]);
   const remainingSlots = Math.max(
@@ -248,12 +252,17 @@ export function FollowingImport({
           )}
         </>
       )}
+      {notice && (
+        <p className="helper" role="status">
+          {notice}
+        </p>
+      )}
       {error && (
         <p className="form-error" role="alert">
           {error}
         </p>
       )}
-      <div className="dialog-footer">
+      <div className="dialog-footer" ref={footer}>
         <span>仅访问公开信息</span>
         {notice && (
           <Button disabled={busy} onClick={onClose}>
@@ -269,11 +278,6 @@ export function FollowingImport({
           人
         </Button>
       </div>
-      {notice && (
-        <p className="helper" role="status">
-          {notice}
-        </p>
-      )}
     </div>
   );
 }

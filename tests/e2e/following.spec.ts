@@ -300,6 +300,7 @@ test('following import explains the author subscription limit before selection',
 test('following import keeps the dialog open for failed accounts after partial success', async ({
   page,
 }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
   let importCount = 0;
   await page.route('**/api/github/following/preview', async (route) =>
     route.fulfill({
@@ -339,6 +340,10 @@ test('following import keeps the dialog open for failed accounts after partial s
   await expect(page.getByRole('checkbox', { name: '订阅 bob', exact: true })).toBeChecked();
   await page.getByRole('button', { name: '导入 1 人', exact: true }).click();
   await expect(page.getByRole('dialog').getByRole('status')).toContainText('本次新增 1 位作者');
+  await expect(page.getByRole('dialog').getByRole('status')).toBeInViewport({ ratio: 1 });
+  await expect(page.getByRole('button', { name: '完成', exact: true })).toBeInViewport({
+    ratio: 1,
+  });
   await page.getByRole('button', { name: '完成', exact: true }).click();
   await expect(page.getByRole('dialog')).not.toBeVisible();
 });

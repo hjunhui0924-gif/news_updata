@@ -41,4 +41,8 @@ it('hides stale and unversioned real artifacts consistently without mutating sto
   expect(withCurrentArtifacts({ ...item, aiVersions: versions }, versions).translation).toBe(
     '旧译文',
   );
+  expect(
+    withCurrentArtifacts({ ...item, translation: null, translationBlocks: undefined }, versions)
+      .translationBlocks,
+  ).toBeUndefined();
 });

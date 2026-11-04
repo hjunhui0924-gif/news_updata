@@ -46,6 +46,7 @@ export function withCurrentArtifacts<T extends FeedItem | FeedPreview>(
   }
   if (
     'translation' in next &&
+    (next.translation || next.translationBlocks?.length) &&
     item.language !== 'zh' &&
     item.aiVersions?.translation !== versions.translation
   ) {

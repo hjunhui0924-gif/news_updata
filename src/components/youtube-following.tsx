@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ArrowUpRight, Check, Loader2, Play } from 'lucide-react';
 import type {
   Subscription,
@@ -42,6 +42,10 @@ export function YouTubeFollowing({
   const [imported, setImported] = useState(0);
   const [initialCount] = useState(subscriptionCount);
   const [localConnection, setLocalConnection] = useState<YouTubeConnectionStatus>();
+  const footer = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (notice || error) footer.current?.scrollIntoView({ block: 'nearest' });
+  }, [notice, error]);
   const status = localConnection ?? connection;
   const connected =
     status && ['connected', 'refresh_pending', 'temporary_error'].includes(status.state);
@@ -204,6 +208,20 @@ export function YouTubeFollowing({
       working(false);
     }
   }
+  const feedback = (
+    <>
+      {notice && (
+        <p className="helper" role="status">
+          {notice}
+        </p>
+      )}
+      {error && (
+        <p className="form-error" role="alert">
+          {error}
+        </p>
+      )}
+    </>
+  );
   return (
     <div className="following-import youtube-following">
       <div className="youtube-connection">
@@ -331,7 +349,8 @@ export function YouTubeFollowing({
               )}
             </>
           )}
-          <div className="dialog-footer">
+          {feedback}
+          <div className="dialog-footer" ref={footer}>
             <span>只读授权 · 不修改源站关注</span>
             <Button
               variant="primary"
@@ -344,16 +363,7 @@ export function YouTubeFollowing({
           </div>
         </>
       )}
-      {notice && (
-        <p className="helper" role="status">
-          {notice}
-        </p>
-      )}
-      {error && (
-        <p className="form-error" role="alert">
-          {error}
-        </p>
-      )}
+      {!connected && feedback}
     </div>
   );
 }

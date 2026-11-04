@@ -18,6 +18,12 @@ flowchart LR
 
 Web 和 Worker 是两个进程，共享 TypeScript 类型、数据库访问及服务配置。pg-boss 使用同一个 PostgreSQL 的独立 schema，不引入 Redis。Docker Compose 只负责本地 PostgreSQL，已有数据库时可完全不用 Docker。
 
+2026-11-05 聚合优化增量：同一持久队列按精确优先级为 AI、GitHub、YouTube 各保留一个消费者，总并发 3，outbox 每类最多发布 16 个。调度使用一次订阅/检查点 join；YouTube 项目配额冷却持久化并按配置身份隔离，不将账号 401 泛化为全局冷却。
+
+正文内容版本交接通过持久 follow-up 意图和行锁串行，付费任务中断不自动免费重试。摘要/译文按模型、提示词等版本读取；不匹配的真实结果等待手动重新生成，原文、已读和收藏独立可用。详情证据不进入列表载荷。
+
+列表采用每 30 条原生 content-visibility 分组，所有卡片仍在 DOM，分组边界更新保持焦点；不是虚拟列表。Worker 对短期 OAuth、关注预览和配额状态实施有界过期清理，历史内容和费用记录不在清理范围。规则与正式平台验收边界见 [生命周期](22-data-lifecycle-and-recovery.md)，实际证据见 [实施记录](21-aggregation-optimization-progress.md)。
+
 ## 技术选择
 
 | 层   | 当前实现                                                  |

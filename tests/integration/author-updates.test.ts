@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { migrate } from '../../scripts/migrate';
 import { getPool } from '../../src/server/db/client';
 import { GitHubConnector, GitHubError } from '../../src/server/connectors/github';
+import { artifactVersions } from '../../src/server/ai/artifact-version';
 import {
   persistSubscription,
   syncSubscription,
@@ -183,6 +184,7 @@ it('adding a second source preserves AI, translation, read and saved state; edit
     first.id,
     JSON.stringify({
       translation: '已有译文',
+      aiVersions: artifactVersions(),
       translationBlocks: [{ original: state.body, translation: '已有译文' }],
     }),
   ]);
