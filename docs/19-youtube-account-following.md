@@ -58,3 +58,15 @@
 - 日常库先备份 684,335 字节（5 迁移），应用 0006 后备份 686,341 字节（6 迁移）并恢复到隔离临时库；`restored: true`、`cleanup: complete`。平台连接表为 0 行，36 订阅 / 159 更新、已读 25 / 收藏 3 / 静音 0 及指纹 `ed5cc0f228fd77c5fe5e14cd5fb93b5d` 不变，孤儿条目 0。
 - 生产 standalone 登录页/JavaScript 200；数据库和六个迁移 ready，Worker 离线为 degraded。新接口鉴权 401、坏回调 303、构建不携带 `.env` 的检查通过。冒烟进程已退出，没有启动真实采集 Worker。
 - 脱敏诊断确认当前没有 `YOUTUBE_CLIENT_ID` / `YOUTUBE_CLIENT_SECRET` / `YOUTUBE_API_KEY`。因此交付的是代码与本地自动化流程，真实 Google 登录和关注结果尚未验收，G4 继续暂缓。
+
+## 后续实际授权准备（2026-11-04）
+
+用户随后已把自己的 OAuth 客户端配置到 `.env.local`。仅做存在性/格式检查，未输出凭据；Web/Worker 使用的配置已能识别客户端 ID 与密钥，回调基址为本机 `http://127.0.0.1:3000`。这不代表 Google 已接受该客户端或用户已完成授权，仍需浏览器登录验证。
+
+后台 Node 直连 Google 超时，使用本机已有 `127.0.0.1:7897` HTTP 代理及 Node `--use-env-proxy` 后连通。生产 Worker 启动又实际暴露 `ERR_MODULE_NOT_FOUND: next/headers`：Skill 服务仅为错误类型导入网页认证模块，使 Worker 静态依赖了 Next 请求 API。修复为独立共享 `auth/errors.ts`，原认证入口重导出同一类，保留 HTTP 错误语义。
+
+新增 `pnpm worker:check` 使用纯 Node 加载实际生产 bundle，在无效配置处主动停止，不运行数据库、采集或模型任务。修复前该检查稳定报模块解析错误，拆分并重建后通过；`pnpm build` 末尾也执行此检查，避免把编译成功误当作 Worker 运行成功。独立代码 review 通过，实际启动与回归结果如下。
+
+本次修复后重新通过类型检查、Lint、42 文件 / 245 项单元与数据库测试，以及 GitHub 授权 / Skill / AI 状态 / YouTube 的 14 项相关浏览器回归；生产 Web/Worker 构建及新增 plain Node 预检通过。本次增量没有重新运行此前完整 58 项浏览器集合，不能把历史全量结果当作本次增量结果。
+
+2026-11-04T11:26Z 起使用当前真实配置与本机代理启动 Web/Worker，页面与健康接口均 200、数据库/迁移 ready、Worker online，且实际同步任务完成。自动打开浏览器被运行环境审批策略拒绝，已请用户手动进入订阅页完成 Google 登录；在看到实际连接和自己的关注结果前，真实 Google 授权仍保留待验收状态。配置密钥未进入代码、文档或 Git。

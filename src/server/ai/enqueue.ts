@@ -1,5 +1,5 @@
 import { getItem } from '../db/store';
-import { AccessError } from '../auth';
+import { AccessError } from '../auth/errors';
 import { getConfig } from '../config';
 import { enqueue } from '../jobs/queue';
 export async function enqueueAi(userId: string, id: string, kind: 'summary' | 'translation') {

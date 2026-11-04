@@ -33,6 +33,18 @@ pnpm worker:dev
 
 ## 演示与真实模式
 
+生产构建使用 `pnpm build`，随后分别执行 `pnpm start` 和 `pnpm worker:start`。构建末尾的 `worker:check` 会用纯 Node 加载实际 Worker bundle，并在配置校验处停止，检查静态依赖兼容性；不启动数据库连接、采集或模型任务。它不能替代真实 Worker 启动、心跳和任务验收。
+
+若浏览器可访问 Google、但后台 Node 请求超时，需要给后台进程配置网络。当前本机验证可使用已运行的 HTTP 代理 `127.0.0.1:7897`，代理端口须按自己的软件设置；两个终端先各自执行：
+
+```powershell
+$env:HTTP_PROXY='http://127.0.0.1:7897'
+$env:HTTPS_PROXY='http://127.0.0.1:7897'
+$env:NO_PROXY='localhost,127.0.0.1,::1'
+```
+
+然后 Web 终端执行 `node --use-env-proxy scripts/start-web.mjs`，Worker 终端执行 `node --use-env-proxy scripts/start-worker.mjs`。该示例已在本机 Node 24.15 验证；先运行 `node --help` 确认当前 Node 支持 `--use-env-proxy`。这些变量只作用于当前终端及子进程，不修改全局代理；重启后仍须设置，且代理程序需要保持运行。
+
 | 配置                                    | 用途                                             |
 | --------------------------------------- | ------------------------------------------------ |
 | APP_MODE=demo                           | 本地免登录演示，生产环境拒绝运行                 |

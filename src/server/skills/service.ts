@@ -3,7 +3,7 @@ import { getConfig } from '../config';
 import { getPool } from '../db/client';
 import { GitHubError } from '../connectors/github';
 import { createUserGitHubConnector } from '../connectors/github-user';
-import { AccessError } from '../auth';
+import { AccessError } from '../auth/errors';
 import { enqueue } from '../jobs/queue';
 import { getSkillAiState, skillContentHash } from './ai';
 import type {

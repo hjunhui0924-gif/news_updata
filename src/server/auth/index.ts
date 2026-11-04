@@ -2,15 +2,9 @@ import { betterAuth } from 'better-auth';
 import { headers } from 'next/headers';
 import { getConfig, isLocalHost } from '../config';
 import { getPool } from '../db/client';
+import { AccessError } from './errors';
+export { AccessError } from './errors';
 
-export class AccessError extends Error {
-  constructor(
-    message: string,
-    public status = 401,
-  ) {
-    super(message);
-  }
-}
 function createAuth() {
   const config = getConfig();
   const allowed = config.ALLOWED_GITHUB_USER_IDS.split(',').map((x) => x.trim());

@@ -281,13 +281,16 @@ pnpm lint
 pnpm test                # 需要 PostgreSQL，使用独立 news_test 数据库
 pnpm test:e2e            # 完整回归：独立 Demo Web/Worker + news_e2e_test
 pnpm test:e2e:search     # 相同隔离配置下的增量组合
-pnpm test:e2e:youtube    # 缺密钥、频道添加、混合信息流与手机阅读
-pnpm build              # Web + Worker 构建
+pnpm test:e2e:youtube    # 账号连接、关注导入、混合信息流与手机阅读
+pnpm build              # Web + Worker 构建，并验证生产 Worker 可由纯 Node 加载
+pnpm worker:check       # 检查已有 Worker 构建；不启动数据库、采集或模型任务
 ```
 
 浏览器测试每轮重建专用 `news_e2e_test`、迁移并写入示例，关闭真实服务凭据，不复用日常库；勿将有价值的数据放入该库。自定义 E2E_DATABASE_URL 必须是无查询参数的本机 `*_e2e_test`，已有连接会阻止重建。优先使用 Windows Chrome；其他环境可先安装 Chromium。测试与开发约定见 [运行指南](docs/05-operations-and-quality.md)。
 
-2026-11-04 账号关注版本验证：**42 文件、245 项单元/集成测试通过，完整 Playwright Demo 回归 58 项通过，类型、Lint 与 Web/Worker 构建通过**；逐阶段 review、手机弹窗检查、日常库 0006 升级与隔离恢复、生产路由鉴权/回调冒烟均通过。自己的 Google OAuth 配置及人工授权仍待完成，真实关注和 G4 未验收。[账号与关注记录](docs/19-youtube-account-following.md)
+2026-11-04 生产启动增量：修复共享错误类型把 Next 请求模块带入 Worker 的问题，新增纯 Node 生产 bundle 加载门禁。本次重新通过 245 项单元/集成测试、14 项相关浏览器回归、类型、Lint 与构建；真实配置下 Web/Worker 已启动、健康 ready，实际同步任务完成。自己的 Google OAuth 客户端已在本机配置，Google 人工授权与真实关注结果仍待验证。[启动与授权记录](docs/19-youtube-account-following.md)
+
+此前账号关注版本验证：**42 文件、245 项单元/集成测试通过，完整 Playwright Demo 回归 58 项通过，类型、Lint 与 Web/Worker 构建通过**；逐阶段 review、手机弹窗检查、日常库 0006 升级与隔离恢复、生产路由鉴权/回调冒烟均通过。当轮验收时未配置自己的 Google OAuth 客户端，真实关注和 G4 未验收。[账号与关注记录](docs/19-youtube-account-following.md)
 
 此前适配层初版的历史快照：**40 文件、226 项单元/集成测试通过，完整 Playwright Demo 回归 56 项通过，类型、Lint 与 Web/Worker 构建通过**。逐阶段 review、手机/桌面检查、日常库 0005 升级与隔离恢复、生产登录页/静态资源/ready 冒烟均完成。YouTube 真实 API Key 和后台网络尚未联调；G4 继续暂缓，自动化不替代真实使用验收。[本轮记录](docs/18-platform-adapters.md) · [历史验收](docs/07-mvp-validation.md)
 
