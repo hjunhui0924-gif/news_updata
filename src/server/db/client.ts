@@ -2,10 +2,11 @@ import { Pool, type PoolClient } from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { getConfig } from '../config';
 import * as schema from './schema';
+import { createDatabasePool } from './pool';
 
 const state = globalThis as unknown as { newsPool?: Pool };
 export function getPool() {
-  return (state.newsPool ??= new Pool({
+  return (state.newsPool ??= createDatabasePool({
     connectionString: getConfig().DATABASE_URL,
     max: 8,
     connectionTimeoutMillis: 5000,

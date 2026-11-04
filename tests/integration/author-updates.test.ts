@@ -9,7 +9,14 @@ import {
   deleteSubscription,
   updateSubscription,
 } from '../../src/server/subscriptions/service';
-import { getItems, getItem, getSubscription, patchItemState } from '../../src/server/db/store';
+import {
+  getItems,
+  getItem,
+  getSubscription,
+  patchItemState,
+  getFeedPage,
+  saveItem,
+} from '../../src/server/db/store';
 import { bootstrap } from '../../src/server/feed/bootstrap';
 import { filterItems } from '../../src/shared/feed';
 
@@ -345,4 +352,52 @@ it('rolls back items and checkpoint when cancelled during a blocked checkpoint w
     blocker.release();
     await running;
   }
+});
+
+it('pages the feed with stable boundaries and applies filters before pagination', async () => {
+  const { project, connector } = await setup();
+  await syncSubscription(userId, project.id, connector);
+  const base = (await getItems(userId))[0];
+  for (let index = 0; index < 35; index++) {
+    await saveItem(userId, {
+      ...base,
+      id: `page-item-${index}`,
+      externalId: `page-${index}`,
+      title: index % 2 ? `match item ${index}` : `other item ${index}`,
+      publishedAt: new Date(Date.parse(now) - index * 1000).toISOString(),
+      read: index % 3 === 0,
+      saved: index % 4 === 0,
+    });
+  }
+  const first = await getFeedPage(userId, {
+    view: 'feed',
+    type: 'all',
+    search: 'match',
+    unread: true,
+    source: project.id,
+  });
+  expect(first.total).toBe(11);
+  expect(first.items).toHaveLength(11);
+  expect(first.items.every((item) => item.title.includes('match') && !item.read)).toBe(true);
+  expect(first.nextCursor).toBeNull();
+
+  const unfiltered = await getFeedPage(userId, {
+    view: 'feed',
+    type: 'all',
+    search: '',
+    unread: false,
+    source: project.id,
+  });
+  expect(unfiltered.items).toHaveLength(30);
+  expect(unfiltered.nextCursor).toBeTruthy();
+  const second = await getFeedPage(userId, {
+    view: 'feed',
+    type: 'all',
+    search: '',
+    unread: false,
+    source: project.id,
+    cursor: unfiltered.nextCursor,
+  });
+  expect(second.items).toHaveLength(6);
+  expect(new Set([...unfiltered.items, ...second.items].map((item) => item.id)).size).toBe(36);
 });

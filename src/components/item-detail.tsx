@@ -34,6 +34,10 @@ export function ItemDetail({
   projectSubscribed,
   projectSubscribeBusy,
   subscribeProject,
+  loading = false,
+  error = '',
+  retry,
+  stateBusy = false,
 }: {
   item: FeedItem | null;
   toggleSaved: () => void;
@@ -48,9 +52,29 @@ export function ItemDetail({
   projectSubscribed?: boolean;
   projectSubscribeBusy?: boolean;
   subscribeProject?: () => void;
+  loading?: boolean;
+  error?: string;
+  retry?: () => void;
+  stateBusy?: boolean;
 }) {
   const [tab, setTab] = useState<'summary' | 'translation' | 'original'>('summary');
   const [evidence, setEvidence] = useState(false);
+  if (!item && (loading || error))
+    return (
+      <section className="detail-panel blank-detail detail-load-state" aria-label="更新详情">
+        <Button className="mobile-back" variant="secondary" size="small" onClick={back}>
+          返回列表
+        </Button>
+        {error ? (
+          <div role="alert">
+            <p>{error}</p>
+            <Button onClick={retry}>重试加载详情</Button>
+          </div>
+        ) : (
+          <p role="status">正在加载更新详情…</p>
+        )}
+      </section>
+    );
   if (!item)
     return (
       <section className="detail-panel blank-detail">
@@ -107,6 +131,8 @@ export function ItemDetail({
           <button
             className={`icon-button ${item.saved ? 'is-saved' : ''}`}
             onClick={toggleSaved}
+            disabled={stateBusy}
+            aria-busy={stateBusy || undefined}
             title={item.saved ? '取消收藏' : '收藏更新'}
             aria-label={item.saved ? '取消收藏' : '收藏更新'}
           >
@@ -123,6 +149,19 @@ export function ItemDetail({
           </a>
         </div>
       </div>
+      {item && error && (
+        <div className="detail-feedback" role="alert">
+          <span>{error}</span>
+          <Button size="small" onClick={retry}>
+            重试加载详情
+          </Button>
+        </div>
+      )}
+      {item && loading && (
+        <p className="detail-feedback" role="status">
+          正在更新详情，已有内容仍可阅读。
+        </p>
+      )}
       <article className="detail-content">
         <div className="detail-source">
           <span className={`repo-avatar large ${item.color}`}>
@@ -179,7 +218,8 @@ export function ItemDetail({
             <div>
               <strong>正文较长</strong>
               <span>
-                约 {item.body.length.toLocaleString('zh-CN')} 字符，切换到原文后可按 Markdown 结构阅读。
+                约 {item.body.length.toLocaleString('zh-CN')} 字符，切换到原文后可按 Markdown
+                结构阅读。
               </span>
             </div>
           </div>
@@ -302,16 +342,16 @@ export function ItemDetail({
                         ? '任务正在排队或生成中，完成后会自动显示。'
                         : '生成中文概览、关键变化和原文依据。')}
                 </p>
-                {errors?.summary && <p className="form-error" role="alert">{errors.summary}</p>}
+                {errors?.summary && (
+                  <p className="form-error" role="alert">
+                    {errors.summary}
+                  </p>
+                )}
                 <Button
                   onClick={summarize}
                   disabled={summaryBusy || !item.body || (!item.demo && !aiEnabled)}
                 >
-                  {summaryBusy ? (
-                    <Loader2 className="spin" size={16} />
-                  ) : (
-                    <Sparkles size={16} />
-                  )}
+                  {summaryBusy ? <Loader2 className="spin" size={16} /> : <Sparkles size={16} />}
                   {errors?.summary ? '重试摘要' : '生成摘要'}
                 </Button>
               </div>
@@ -351,7 +391,9 @@ export function ItemDetail({
                       : '点击下方按钮生成中文译文，完成后会保存，后续打开可直接阅读。'}
                 </p>
                 {errors?.translation && (
-                  <p className="form-error" role="alert">{errors.translation}</p>
+                  <p className="form-error" role="alert">
+                    {errors.translation}
+                  </p>
                 )}
                 <Button
                   variant="primary"

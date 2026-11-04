@@ -92,11 +92,15 @@ news_updata/
 │  │  ├─ layout.tsx                         # 根布局、页面元信息与全局样式入口
 │  │  ├─ globals.css                        # 全局主题、组件样式与响应式布局
 │  │  ├─ icon.svg                           # 应用图标
+│  │  ├─ error.tsx                          # 页面错误边界与重试
 │  │  ├─ [[...path]]/page.tsx                # 路由分发、登录校验与首屏数据加载
 │  │  └─ api/
 │  │     ├─ auth/[...all]/route.ts          # 登录、会话与 GitHub OAuth 回调
 │  │     ├─ bootstrap/route.ts              # 获取阅读器数据与任务、授权状态
 │  │     ├─ health/live/route.ts            # Web 进程存活检查
+│  │     ├─ health/ready/route.ts           # 数据库、迁移与 Worker 就绪
+│  │     ├─ feed/route.ts                   # 预览分页、筛选计数与轻量状态
+│  │     ├─ feed/read/route.ts              # 按当前筛选批量已读
 │  │     ├─ settings/route.ts               # 读取、保存时区与紧凑布局偏好
 │  │     ├─ github/
 │  │     │  ├─ connection/route.ts          # 检查 GitHub 连接并更新授权状态
@@ -111,6 +115,7 @@ news_updata/
 │  │     │  ├─ [id]/route.ts                # 修改订阅偏好、删除订阅
 │  │     │  └─ [id]/sync/route.ts           # 将手动同步请求加入队列
 │  │     ├─ items/[id]/
+│  │     │  ├─ route.ts                     # 按用户读取完整详情
 │  │     │  ├─ state/route.ts               # 更新已读、收藏与静音状态
 │  │     │  ├─ summary/retry/route.ts       # 重新提交摘要任务
 │  │     │  └─ translation/route.ts         # 提交全文翻译任务
@@ -127,6 +132,9 @@ news_updata/
 │  │  ├─ reader-app.tsx                     # 阅读器主界面、视图切换与数据刷新
 │  │  ├─ sidebar.tsx                        # 导航、订阅入口与未读计数
 │  │  ├─ feed-list.tsx                      # 更新列表、选中状态与阅读标记
+│  │  ├─ use-feed.ts                        # 分页缓存、状态差量与请求竞态保护
+│  │  ├─ polling.ts                        # 轮询去重、后台暂停与失败退避
+│  │  ├─ request-json.ts                   # 请求超时、取消与中文错误
 │  │  ├─ item-detail.tsx                    # 更新详情、摘要、原文与阅读操作
 │  │  ├─ item-sources.tsx                   # 展示同一更新的多个订阅来源
 │  │  ├─ markdown.tsx                       # 渲染 Markdown、处理链接与图片回退
@@ -145,10 +153,14 @@ news_updata/
 │  ├─ server/                              # 服务端业务、外部连接与持久化
 │  │  ├─ config.ts                         # 校验环境变量与运行模式约束
 │  │  ├─ http.ts                           # 统一接口鉴权、来源校验与错误响应
+│  │  ├─ health.ts                         # 数据库、迁移与 Worker 健康派生
+│  │  ├─ feed/query.ts                     # 统一读取/批量写入的筛选校验
 │  │  ├─ auth/index.ts                     # OAuth、会话、允许名单与写请求校验
 │  │  ├─ db/
 │  │  │  ├─ client.ts                      # PostgreSQL 连接池、Drizzle 与事务
 │  │  │  ├─ schema.ts                      # 定义核心业务表的 Drizzle 映射
+│  │  │  ├─ pool.ts                        # 连接池的闲置错误保护
+│  │  │  ├─ migration-manifest.ts          # 就绪检查要求的迁移清单
 │  │  │  └─ store.ts                       # 按用户读写更新、订阅、偏好等数据
 │  │  ├─ connectors/
 │  │  │  ├─ github.ts                      # GitHub 请求、数据校验与更新提取
@@ -182,6 +194,7 @@ news_updata/
 │  ├─ shared/                              # 前后端共用的数据契约与纯函数
 │  │  ├─ types.ts                          # 更新、订阅、任务与首屏数据类型
 │  │  ├─ feed.ts                           # 来源匹配、信息流筛选与相对时间
+│  │  ├─ health.ts                         # Worker 心跳有效性
 │  │  ├─ sync-status.ts                    # 将订阅和任务数据转换为同步状态
 │  │  ├─ markdown.ts                       # 解析相对链接并限制 URL 协议
 │  │  ├─ bilingual.ts                      # 按 Markdown 结构交错排列原文与译文
@@ -193,12 +206,18 @@ news_updata/
 │  ├─ demo.ts                              # 准备演示环境并启动数据库、Web 与 Worker
 │  ├─ migrate.ts                           # 按序执行 SQL 迁移并记录版本
 │  ├─ seed.ts                              # 向演示数据库写入样本数据
+│  ├─ e2e-web.ts                           # 独立 E2E 数据库与测试进程管理
+│  ├─ bench-feed.ts                        # 万条数据查询/载荷基准
+│  ├─ database-maintenance.ts              # 一致性备份与隔离恢复演练
+│  ├─ diagnose.ts                          # 脱敏本地运行诊断
+│  ├─ lib/                                 # 就绪等待、维护与测试安全边界
 │  ├─ start-worker.mjs                     # 加载运行配置并启动生产 Worker
 │  └─ observe-live.ps1                     # 定时记录 Web、数据库、Worker 与任务状态
 ├─ drizzle/
 │  ├─ 0001_initial.sql                     # 初始化业务、认证、任务与用量表
 │  ├─ 0002_ai_cache.sql                    # 创建 AI 结果缓存表
-│  └─ 0003_star_sync.sql                   # 创建 Star 同步状态与排除表
+│  ├─ 0003_star_sync.sql                   # 创建 Star 同步状态与排除表
+│  └─ 0004_feed_performance.sql            # 元数据搜索列、trigram 与列表索引
 ├─ tests/
 │  ├─ *.test.ts                            # 业务规则、解析、校验与状态转换测试
 │  ├─ *.unit.test.ts                       # Skill 相关单元测试，可独立于数据库运行
@@ -237,24 +256,25 @@ news_updata/
 pnpm typecheck
 pnpm lint
 pnpm test                # 需要 PostgreSQL，使用独立 news_test 数据库
-pnpm test:e2e:search     # 自动启动 3002 端口实例，覆盖最新搜索及其他增量流程
+pnpm test:e2e            # 完整回归：独立 Demo Web/Worker + news_e2e_test
+pnpm test:e2e:search     # 相同隔离配置下的增量组合
 pnpm build              # Web + Worker 构建
 ```
 
-浏览器测试优先使用 Windows 已安装的 Chrome；其他环境可先运行 `pnpm exec playwright install chromium`。测试与开发约定见 [贡献指南](CONTRIBUTING.md)。
+浏览器测试每轮重建专用 `news_e2e_test`、迁移并写入示例，关闭真实服务凭据，不复用日常库；勿将有价值的数据放入该库。自定义 E2E_DATABASE_URL 必须是无查询参数的本机 `*_e2e_test`，已有连接会阻止重建。优先使用 Windows Chrome；其他环境可先安装 Chromium。测试与开发约定见 [运行指南](docs/05-operations-and-quality.md)。
 
-2026-10-23 最新验证：**29 个测试文件、159 项单元/集成测试通过；完整 Playwright demo 回归 37 项通过**，类型检查、Lint 和 Web/Worker 构建通过，Docker PostgreSQL 健康。真实 GitHub 登录、读取、令牌续期、项目搜索，以及 Qwen 摘要/翻译样本已联调。模拟浏览器测试不等同于真实模型端到端测试，不据此宣称内容准确率或长期稳定性。[完整验收记录](docs/07-mvp-validation.md) · [前端优化路线](docs/frontend-optimization-plan.md)
+2026-11-04 验证：**36 文件、195 项单元/集成测试通过，完整 Playwright Demo 回归 52 项通过，Web/Worker 构建通过**。生产构建本机启动的登录页、静态脚本和 ready 接口也已验证；最终类型、Lint 与逐项 review 见 [八项收尾](docs/16-demo-hardening.md)。模拟测试不等同于真实模型内容质量或长期稳定性验收。[完整验收记录](docs/07-mvp-validation.md)
 
 ## 当前边界与后续
 
 - 仓库默认每 15 分钟、博主每 30 分钟检查；Star 发现每 5 分钟。需要数据库与 Worker 持续运行，不是实时推送。
 - 博主版本事件最多覆盖 GitHub 最近 30 天、300 条公开活动；事件接口还可能延迟 30 秒至 6 小时，无法保证窗口外补查。
-- 每用户最多 100 个项目、50 个博主；following 每页读取 50 人并支持继续加载，后端信息流分页仍待实现。项目搜索最多浏览前 1000 个匹配。
-- 全文翻译上限 16000 字符，超限时页面会明确提示并保留原文阅读；Markdown 正文已支持安全图片、相对链接、README 正文来源直达和图片失败回退。超大正文的进一步性能优化和后端信息流分页仍待完善。
+- 每用户最多 100 个项目、50 个博主；following 每页读取 50 人并支持继续加载，信息流服务端每页返回 30 条。项目搜索最多浏览前 1000 个匹配。
+- 全文翻译上限 16000 字符，超限时页面会明确提示并保留原文阅读；Markdown 正文已支持安全图片、相对链接、README 正文来源直达和图片失败回退。超大正文的进一步性能优化仍待完善。
 - X/Twitter 和 RSS 目前只完成路线预研说明，尚未接入；也不包含 PR/Issue/提交动态、私有仓库、邮件、浏览器通知或公开注册。
-- 没有完成公开部署、长期连续试用、备份恢复演练或正式安全审计。
+- 没有完成公开部署、长期连续试用、自动备份计划或正式安全审计；本机隔离恢复演练已验证，步骤见运行指南。
 
-G3 当前约定的站内阅读闭环已完成：作者发现的新项目可直接订阅，正文来源路径、图片/相对链接、长正文和超长译文边界均有实现与回归测试。下一步进入 G4 持续使用验证；G2 更细的重试反馈暂缓。完成 GitHub 持续试用后，再按准入条件评估 X，必要时先用 RSS 验证跨平台阅读模型。[开发路线](docs/04-development-plan.md) · [跨平台预研](docs/14-platform-expansion.md)
+G3 当前约定的站内阅读闭环已完成。项目目前是 Demo，尚无真实用户持续试用，因此 G4（至少 7 天真实使用及源站抽样）继续暂缓。启动就绪、分页与计数、请求轮询、长列表/搜索性能、同步续传、失败恢复和本机备份已补齐；本轮逐项 review 见 [八项收尾](docs/16-demo-hardening.md)。本机 10,000 条数据实测中，30 条预览载荷比完整条目减少约 92.5%，索引后元数据搜索 p95 从约 808 ms 降到 13.5 ms；该结果不是生产 SLA。后续在有真实试用条件后完成 G4，再决定 RSS/X。[开发路线](docs/04-development-plan.md)
 
 ## 文档导航
 
@@ -264,6 +284,7 @@ G3 当前约定的站内阅读闭环已完成：作者发现的新项目可直�
 - [Trending 与对照翻译](docs/10-discovery-and-bilingual.md) · [博主与项目规则](docs/11-github-following-scope.md)
 - [授权自动续期](docs/12-github-auth-renewal.md) · [公开项目搜索](docs/13-github-project-search.md)
 - [跨平台扩展预研](docs/14-platform-expansion.md) · [领域词汇](CONTEXT.md)
+- [Demo 八项收尾](docs/16-demo-hardening.md) · [本地备份恢复与诊断](docs/17-database-maintenance.md)
 - [前端优化方案](docs/frontend-optimization-plan.md) · [基线审计](docs/frontend-optimization-baseline.md)
 - [前端阶段 1–3](docs/frontend-optimization-stage1.md) · [阶段 4–7](docs/frontend-optimization-stage4.md) · [阶段 7 收尾](docs/frontend-optimization-stage7.md)
 - [变更记录](CHANGELOG.md) · [安全说明](SECURITY.md) · [开发贡献](CONTRIBUTING.md)

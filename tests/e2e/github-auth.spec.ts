@@ -12,7 +12,7 @@ test('connection states recover, show inline errors and reconnect through GitHub
   let checkFails = false;
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
-  await page.route('**/api/bootstrap', async (route) => {
+  await page.route('**/api/bootstrap*', async (route) => {
     const data: Bootstrap = await (await route.fetch()).json();
     data.mode = 'live';
     data.services.githubAuth = state;

@@ -1,9 +1,19 @@
-import type { FeedItem } from './types';
+import type { FeedItem, FeedPreview } from './types';
+export function toFeedPreview(item: FeedItem | FeedPreview): FeedPreview {
+  const rest = { ...item };
+  for (const key of ['body', 'contentHash', 'translation', 'translationBlocks', 'aiError'] as const)
+    delete (rest as Partial<FeedItem>)[key];
+  const summary = item.summary;
+  return {
+    ...rest,
+    summary: summary ? { overview: summary.overview.slice(0, 400) } : null,
+  };
+}
 export function itemSourceIds(item: Pick<FeedItem, 'sourceId' | 'sourceIds'>): string[] {
   return [...new Set([item.sourceId, ...(item.sourceIds ?? [])])];
 }
-export function filterItems(
-  items: FeedItem[],
+export function filterItems<T extends FeedPreview>(
+  items: T[],
   filters: {
     view: string;
     type: string;

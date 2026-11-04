@@ -1,6 +1,6 @@
 import type { FeedItem } from '@/shared/types';
 
-export function ItemSources({ item }: { item: FeedItem }) {
+export function ItemSources({ item }: { item: Pick<FeedItem, 'matchedSources'> }) {
   if (!item.matchedSources?.length) return null;
   return (
     <div className="item-sources" aria-label="关注来源">

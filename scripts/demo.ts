@@ -5,10 +5,12 @@ import { loadEnvFile } from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { createServer } from 'node:net';
 import { getConfig } from '../src/server/config';
+import { waitForReady } from './lib/wait-ready';
 
 process.chdir(fileURLToPath(new URL('../', import.meta.url)));
 const children = new Set<ChildProcess>();
 let stopping = false;
+let ready = false;
 
 function launch(command: string, args: string[]) {
   const child = spawn(command, args, { stdio: 'inherit', windowsHide: true });
@@ -94,21 +96,31 @@ try {
   for (const script of ['scripts/migrate.ts', 'scripts/seed.ts']) {
     await run(process.execPath, ['--import', 'tsx', '--env-file=.env.local', script]);
   }
+  const startedAt = Date.now();
   for (const args of [
     ['node_modules/next/dist/bin/next', 'dev', '--hostname', '127.0.0.1', '--port', String(port)],
     ['--import', 'tsx', '--env-file=.env.local', 'src/worker/main.ts'],
   ]) {
+    const worker = args.includes('src/worker/main.ts');
     const child = launch(process.execPath, args);
     child.once('error', (error) => {
       console.error(error.message);
       void stop(1);
     });
     child.once('exit', (code) => {
-      if (!stopping) void stop(code || 1);
+      if (stopping) return;
+      if (worker && ready)
+        console.warn(
+          'Worker stopped. Web remains available for reading; restart the Worker to resume background tasks.',
+        );
+      else void stop(code || 1);
     });
   }
+  console.log('Waiting for Web, database migrations and Worker...');
+  await waitForReady(config.APP_URL, { startedAt });
+  ready = true;
   console.log(
-    `\nDemo starting: ${config.APP_URL}\nPress Ctrl+C to stop Web + Worker. PostgreSQL data is retained.\n`,
+    `\nDemo ready: ${config.APP_URL}\nPress Ctrl+C to stop Web + Worker. PostgreSQL data is retained.\n`,
   );
 } catch (error) {
   console.error(

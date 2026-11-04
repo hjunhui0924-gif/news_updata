@@ -60,7 +60,16 @@ export type Subscription = {
   retryAt?: string | null;
   autoFromStar?: boolean;
   authorEventWindowCapped?: boolean;
+  syncProgress?: {
+    stream: 'repositories' | 'author-releases';
+    page: number;
+    nextPage: number | null;
+  };
 };
+export type FeedPreview = Omit<
+  FeedItem,
+  'body' | 'contentHash' | 'translation' | 'translationBlocks' | 'summary' | 'aiError'
+> & { summary: Pick<Summary, 'overview'> | null };
 export type Preferences = {
   timezone: string;
   compact: boolean;
@@ -108,13 +117,7 @@ export type StarSyncStatus = {
   intervalMinutes: number;
 };
 export type JobKind =
-  | 'sync'
-  | 'stars'
-  | 'summary'
-  | 'translation'
-  | 'skill-summary'
-  | 'skill-translation'
-  | 'digest';
+  'sync' | 'stars' | 'summary' | 'translation' | 'skill-summary' | 'skill-translation' | 'digest';
 export type JobStatus = 'pending' | 'running' | 'completed' | 'failed';
 export type Job = {
   id: string;
@@ -149,7 +152,8 @@ export type GitHubAuthStatus = {
 export type Bootstrap = {
   mode: 'demo' | 'live';
   user: { name: string; image?: string | null };
-  items: FeedItem[];
+  items: FeedPreview[];
+  selectedItem?: FeedItem;
   subscriptions: Subscription[];
   preferences: Preferences;
   notifications: Notification[];
@@ -163,4 +167,14 @@ export type Bootstrap = {
     workerOnline: boolean;
     costToday: number;
   };
+  feed?: Omit<FeedPage, 'items'>;
+};
+export type FeedPage = {
+  matchingUnread?: number;
+  all?: number;
+  items: FeedPreview[];
+  total: number;
+  unread: number;
+  saved: number;
+  nextCursor: string | null;
 };

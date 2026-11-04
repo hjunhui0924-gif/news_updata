@@ -8,6 +8,7 @@ dist/
 work/
 test-results/
 playwright-report/
+.playwright-cli/
 coverage/
 .data/
 *.log

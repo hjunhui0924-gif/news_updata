@@ -144,12 +144,23 @@ export function SubscriptionsPanel({
                     )}
                     {syncStatus.state === 'partial' && <span>还有内容待补查</span>}
                     {syncStatus.state === 'rate_limited' && syncStatus.retryAt && (
-                      <span>可在 {new Date(syncStatus.retryAt).toLocaleString('zh-CN')} 后重试</span>
+                      <span>
+                        可在 {new Date(syncStatus.retryAt).toLocaleString('zh-CN')} 后重试
+                      </span>
                     )}
                     {syncStatus.state === 'waiting' && sub.lastSyncAt && (
-                      <span>等待下一次检查 · 上次 {new Date(sub.lastSyncAt).toLocaleString('zh-CN')}</span>
+                      <span>
+                        等待下一次检查 · 上次 {new Date(sub.lastSyncAt).toLocaleString('zh-CN')}
+                      </span>
                     )}
                   </div>
+                  {sub.syncProgress?.nextPage && (
+                    <p className="subscription-scope">
+                      {sub.syncProgress.stream === 'author-releases' ? '作者版本' : '来源更新'}
+                      已检查第 {sub.syncProgress.page} 页，下次从第 {sub.syncProgress.nextPage}{' '}
+                      页继续。
+                    </p>
+                  )}
                   {sub.error && <p className="error-text">{sub.error}</p>}
                   {sub.kind === 'author' && sub.authorEventWindowCapped && (
                     <p className="warning-text">
@@ -336,66 +347,61 @@ export function AddSubscription({
             aria-labelledby={`subscription-method-${kind}`}
             tabIndex={0}
           >
-          {kind === 'search' ? (
-            <RepositorySearch onAdded={onAdded} onBusyChange={setBusy} />
-          ) : kind === 'starred' ? (
-            <StarredImport
-              onAdded={onAdded}
-              onClose={() => onOpenChange(false)}
-              onBusyChange={setBusy}
-            />
-          ) : kind === 'following' ? (
-            <FollowingImport
-              onAdded={onAdded}
-              onClose={() => onOpenChange(false)}
-              onBusyChange={setBusy}
-              authorSubscriptionCount={authorSubscriptionCount}
-            />
-          ) : (
-            <form onSubmit={submit} aria-busy={busy}>
-              <label className="field-label" htmlFor="source-input">
-                {kind === 'repo' ? '仓库地址或 owner/repo' : 'GitHub 用户名'}
-              </label>
-              <input
-                id="source-input"
-                className="text-input"
-                value={value}
-                onChange={(e) => {
-                  setValue(e.target.value);
-                }}
-                placeholder={kind === 'repo' ? '例如 vercel/next.js' : '例如 torvalds'}
-                aria-describedby={`source-input-help${error ? ' source-input-error' : ''}`}
-                required
-                maxLength={200}
+            {kind === 'search' ? (
+              <RepositorySearch onAdded={onAdded} onBusyChange={setBusy} />
+            ) : kind === 'starred' ? (
+              <StarredImport
+                onAdded={onAdded}
+                onClose={() => onOpenChange(false)}
+                onBusyChange={setBusy}
               />
-              <p className="helper" id="source-input-help">
-                {kind === 'repo'
-                  ? '跟踪正式版本发布，首次导入的历史版本不会作为新提醒。'
-                  : kind === 'author'
-                    ? '跟踪新建公开项目和本人发布的正式版本；版本动态受 GitHub 近期公开活动窗口限制。'
-                    : ''}
-              </p>
-              {error && (
-                  <p className="form-error" id="source-input-error" role="alert">
-                  {error}
+            ) : kind === 'following' ? (
+              <FollowingImport
+                onAdded={onAdded}
+                onClose={() => onOpenChange(false)}
+                onBusyChange={setBusy}
+                authorSubscriptionCount={authorSubscriptionCount}
+              />
+            ) : (
+              <form onSubmit={submit} aria-busy={busy}>
+                <label className="field-label" htmlFor="source-input">
+                  {kind === 'repo' ? '仓库地址或 owner/repo' : 'GitHub 用户名'}
+                </label>
+                <input
+                  id="source-input"
+                  className="text-input"
+                  value={value}
+                  onChange={(e) => {
+                    setValue(e.target.value);
+                  }}
+                  placeholder={kind === 'repo' ? '例如 vercel/next.js' : '例如 torvalds'}
+                  aria-describedby={`source-input-help${error ? ' source-input-error' : ''}`}
+                  required
+                  maxLength={200}
+                />
+                <p className="helper" id="source-input-help">
+                  {kind === 'repo'
+                    ? '跟踪正式版本发布，首次导入的历史版本不会作为新提醒。'
+                    : kind === 'author'
+                      ? '跟踪新建公开项目和本人发布的正式版本；版本动态受 GitHub 近期公开活动窗口限制。'
+                      : ''}
                 </p>
-              )}
-              <div className="dialog-footer" aria-live="polite">
-                <span>
-                  <Github size={14} />
-                  仅访问公开信息
-                </span>
-                <Button
-                  type="submit"
-                  variant="primary"
-                  disabled={busy}
-                >
-                  {busy ? <Loader2 size={15} className="spin" /> : <Check size={15} />}{' '}
-                  添加订阅
-                </Button>
-              </div>
-            </form>
-          )}
+                {error && (
+                  <p className="form-error" id="source-input-error" role="alert">
+                    {error}
+                  </p>
+                )}
+                <div className="dialog-footer" aria-live="polite">
+                  <span>
+                    <Github size={14} />
+                    仅访问公开信息
+                  </span>
+                  <Button type="submit" variant="primary" disabled={busy}>
+                    {busy ? <Loader2 size={15} className="spin" /> : <Check size={15} />} 添加订阅
+                  </Button>
+                </div>
+              </form>
+            )}
           </div>
         </Dialog.Content>
       </Dialog.Portal>

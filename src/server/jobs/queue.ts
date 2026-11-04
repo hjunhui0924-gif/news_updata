@@ -7,7 +7,7 @@ import { randomUUID } from 'node:crypto';
 export const QUEUE = 'news-tasks';
 export async function createBoss() {
   const boss = new PgBoss({ connectionString: getConfig().DATABASE_URL, schema: 'pgboss' });
-  boss.on('error', (error) => console.error('Queue error:', error.message));
+  boss.on('error', () => console.error('Queue error: database operation unavailable'));
   await boss.start();
   await boss.createQueue(QUEUE, {
     retryLimit: 2,
@@ -77,7 +77,8 @@ export async function reconcileJobs(boss: PgBoss) {
   for (const row of rows) {
     const delivery = await boss.getJobById(QUEUE, row.id);
     const missing = !delivery && Date.now() - new Date(row.enqueued_at).getTime() > 600000;
-    const interrupted = missing || (delivery && ['failed', 'cancelled', 'completed'].includes(delivery.state));
+    const interrupted =
+      missing || (delivery && ['failed', 'cancelled', 'completed'].includes(delivery.state));
     if (interrupted && ['sync', 'stars'].includes(row.kind)) {
       if (delivery) await boss.deleteJob(QUEUE, row.id);
       await getPool().query(

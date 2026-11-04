@@ -27,7 +27,7 @@ test('automatic Star tracking shows check progress, completion, toggle failures 
   let failToggle = true;
   let online = true;
   let checks = 0;
-  await page.route('**/api/bootstrap', async (route) => {
+  await page.route('**/api/bootstrap*', async (route) => {
     const original = await (await route.fetch()).json();
     await route.fulfill({
       json: {

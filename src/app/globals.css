@@ -965,6 +965,8 @@ svg {
   gap: 10px;
 }
 .update-card {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 210px;
   width: 100%;
   text-align: left;
   border: 1px solid var(--border);
@@ -1143,6 +1145,32 @@ svg {
   scrollbar-width: thin;
   scrollbar-color: #dce2eb transparent;
   min-width: 0;
+}
+.detail-feedback {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 12px 20px;
+  padding: 12px;
+  background: var(--surface-subtle);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.detail-load-state {
+  padding: 48px 20px;
+  text-align: center;
+}
+.detail-load-state p {
+  margin: 20px 0 12px;
+}
+.detail-load-state .button {
+  min-height: 44px;
 }
 .detail-toolbar {
   height: 56px;
@@ -2915,7 +2943,10 @@ svg {
   border: 1px solid var(--border);
   border-radius: 10px;
   background: white;
-  transition: border-color 160ms ease, background-color 160ms ease, transform 160ms ease;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    transform 160ms ease;
 }
 .skill-card:hover {
   border-color: #b9c9e5;
@@ -3681,9 +3712,20 @@ svg {
   border-radius: 50%;
   background: #d5e1f4;
 }
-.skill-guide-empty-art > span:nth-of-type(1) { top: 2px; left: 20px; }
-.skill-guide-empty-art > span:nth-of-type(2) { right: 4px; bottom: 8px; width: 10px; height: 10px; }
-.skill-guide-empty-art > span:nth-of-type(3) { bottom: 0; left: 4px; }
+.skill-guide-empty-art > span:nth-of-type(1) {
+  top: 2px;
+  left: 20px;
+}
+.skill-guide-empty-art > span:nth-of-type(2) {
+  right: 4px;
+  bottom: 8px;
+  width: 10px;
+  height: 10px;
+}
+.skill-guide-empty-art > span:nth-of-type(3) {
+  bottom: 0;
+  left: 4px;
+}
 .skill-guide-empty-kicker {
   color: #8497b2;
   font-size: 10px;

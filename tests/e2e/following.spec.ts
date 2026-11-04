@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import type { Bootstrap } from '../../src/shared/types';
+import { mockReaderBootstrap } from './reader-fixtures';
 
 test('one release appears under both project and followed author with explicit coverage and mobile layout', async ({
   page,
@@ -7,8 +8,7 @@ test('one release appears under both project and followed author with explicit c
   const errors: string[] = [];
   let subscribedRepository = '';
   page.on('pageerror', (error) => errors.push(error.message));
-  await page.route('**/api/bootstrap', async (route) => {
-    const data: Bootstrap = await (await route.fetch()).json();
+  await mockReaderBootstrap(page, (data) => {
     const project = {
       ...data.subscriptions[0],
       id: 'source-project',
@@ -48,9 +48,7 @@ test('one release appears under both project and followed author with explicit c
       contentUrl: 'https://github.com/alice/new/blob/HEAD/README.md',
       matchedSources: [{ id: author.id, kind: author.kind, name: author.name }],
     };
-    await route.fulfill({
-      json: { ...data, jobs: [], subscriptions: [project, author], items: [shared, authorOnly] },
-    });
+    return { ...data, jobs: [], subscriptions: [project, author], items: [shared, authorOnly] };
   });
   await page.route('**/api/subscriptions', async (route) => {
     if (route.request().method() === 'POST') {
@@ -170,8 +168,10 @@ test('following import pages preserve selections and mark existing authors', asy
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
-test('following import explains the author subscription limit before selection', async ({ page }) => {
-  await page.route('**/api/bootstrap', async (route) => {
+test('following import explains the author subscription limit before selection', async ({
+  page,
+}) => {
+  await page.route('**/api/bootstrap*', async (route) => {
     const data: Bootstrap = await (await route.fetch()).json();
     const template = data.subscriptions[0];
     const authors = Array.from({ length: 50 }, (_, index) => ({
@@ -198,14 +198,18 @@ test('following import explains the author subscription limit before selection',
   await page.getByRole('button', { name: '刷新内容' }).click();
   await page.getByRole('button', { name: '添加订阅', exact: true }).first().click();
   await page.getByRole('tab', { name: '导入关注', exact: true }).click();
-  await expect(page.getByText('作者订阅上限：50 个，当前还可添加 0 个。', { exact: true })).toBeVisible();
+  await expect(
+    page.getByText('作者订阅上限：50 个，当前还可添加 0 个。', { exact: true }),
+  ).toBeVisible();
   await page.getByLabel('GitHub 用户名（可选）', { exact: true }).fill('alice-owner');
   await page.getByRole('button', { name: '查看关注列表', exact: true }).click();
   await expect(page.getByRole('checkbox', { name: '订阅 new-author', exact: true })).toBeDisabled();
   await expect(page.getByRole('button', { name: '导入 0 人', exact: true })).toBeDisabled();
 });
 
-test('following import keeps the dialog open for failed accounts after partial success', async ({ page }) => {
+test('following import keeps the dialog open for failed accounts after partial success', async ({
+  page,
+}) => {
   let importCount = 0;
   await page.route('**/api/github/following/preview', async (route) =>
     route.fulfill({

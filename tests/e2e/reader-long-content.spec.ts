@@ -1,11 +1,10 @@
 import { expect, test } from '@playwright/test';
-import type { Bootstrap } from '../../src/shared/types';
+import { mockReaderBootstrap } from './reader-fixtures';
 
 test('long update bodies remain readable on a phone', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
-  await page.route('**/api/bootstrap', async (route) => {
-    const data: Bootstrap = await (await route.fetch()).json();
+  await mockReaderBootstrap(page, (data) => {
     const body = `# Long release notes\n\n${'This paragraph remains readable on a narrow screen. '.repeat(140)}\n\n| Name | Value |\n| --- | --- |\n| mode | mobile |\n\n\`\`\`bash\nnpm run verify -- --very-long-flag\n\`\`\``;
     const item = {
       ...data.items[0],
@@ -19,7 +18,7 @@ test('long update bodies remain readable on a phone', async ({ page }) => {
       language: 'en' as const,
       demo: false,
     };
-    await route.fulfill({ json: { ...data, items: [item], jobs: [] } });
+    return { ...data, items: [item], jobs: [] };
   });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/feed');
@@ -28,7 +27,9 @@ test('long update bodies remain readable on a phone', async ({ page }) => {
   await expect(page.getByRole('region', { name: '更新详情' })).toBeVisible();
   await expect(page.getByText('正文较长', { exact: false })).toBeVisible();
   await page.getByRole('tab', { name: '原文', exact: true }).click();
-  await expect(page.locator('.markdown').getByRole('heading', { name: 'Long release notes', exact: true })).toBeVisible();
+  await expect(
+    page.locator('.markdown').getByRole('heading', { name: 'Long release notes', exact: true }),
+  ).toBeVisible();
   await expect(page.getByText('npm run verify', { exact: false })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: 'work/reader-long-mobile.png', fullPage: true });
@@ -36,8 +37,7 @@ test('long update bodies remain readable on a phone', async ({ page }) => {
 });
 
 test('translation explains when a long body exceeds the full-text limit', async ({ page }) => {
-  await page.route('**/api/bootstrap', async (route) => {
-    const data: Bootstrap = await (await route.fetch()).json();
+  await mockReaderBootstrap(page, (data) => {
     const item = {
       ...data.items[0],
       id: 'translation-limit-item',
@@ -50,7 +50,7 @@ test('translation explains when a long body exceeds the full-text limit', async 
       language: 'en' as const,
       demo: false,
     };
-    await route.fulfill({ json: { ...data, items: [item], jobs: [] } });
+    return { ...data, items: [item], jobs: [] };
   });
   await page.goto('/feed');
   await page.getByRole('button', { name: '刷新内容' }).click();

@@ -1,5 +1,6 @@
 import { pgTable, text, timestamp, boolean, jsonb, uniqueIndex } from 'drizzle-orm/pg-core';
 import type { FeedItem, Subscription, Preferences } from '@/shared/types';
+import { sql } from 'drizzle-orm';
 
 export const users = pgTable('app_users', { id: text().primaryKey(), name: text().notNull() });
 export const subscriptions = pgTable(
@@ -25,6 +26,7 @@ export const items = pgTable(
     sourceId: text('source_id').notNull(),
     externalKey: text('external_key').notNull(),
     data: jsonb().$type<FeedItem>().notNull(),
+    searchText: text('search_text').generatedAlwaysAs(sql`feed_search_text(data)`),
     publishedAt: timestamp('published_at', { withTimezone: true }).notNull(),
     read: boolean().notNull().default(false),
     saved: boolean().notNull().default(false),

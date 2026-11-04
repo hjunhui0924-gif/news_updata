@@ -3,9 +3,10 @@ import { test, expect } from '@playwright/test';
 test('direct detail links persist read state and missing items show 404', async ({
   page,
   request,
+  baseURL,
 }) => {
   await request.patch('/api/items/demo-item-1/state', {
-    headers: { Origin: 'http://127.0.0.1:3000' },
+    headers: { Origin: new URL(baseURL!).origin },
     data: { read: false },
   });
   await page.goto('/items/demo-item-1');
@@ -40,7 +41,10 @@ test('read, inspect source, save and reload a demo update', async ({ page }) => 
   );
   await originalTab.press('ArrowLeft');
   await expect(page.getByRole('tab', { name: '对照翻译' })).toBeFocused();
-  await expect(page.getByRole('tab', { name: '对照翻译' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tab', { name: '对照翻译' })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
   await page.getByRole('tab', { name: '对照翻译' }).press('Home');
   await expect(page.getByRole('tab', { name: '中文摘要' })).toBeFocused();
   await page.getByRole('tab', { name: '中文摘要' }).click();
@@ -48,7 +52,12 @@ test('read, inspect source, save and reload a demo update', async ({ page }) => 
     await page.getByRole('button', { name: '取消收藏', exact: true }).click();
   await page.getByRole('button', { name: '收藏更新', exact: true }).click();
   await expect(page.getByRole('button', { name: '取消收藏', exact: true })).toBeVisible();
+  const hydratedDetail = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'GET' && response.url().endsWith('/api/items/demo-item-0'),
+  );
   await page.reload();
+  await hydratedDetail;
   await expect(page.getByRole('button', { name: '取消收藏', exact: true })).toBeVisible();
   await page.screenshot({ path: 'work/reader-desktop.png', fullPage: true });
   expect(errors).toEqual([]);
@@ -67,10 +76,13 @@ test('filters and empty state work, and subscription dialog is accessible', asyn
   await expect(page.getByRole('dialog')).not.toBeVisible();
 });
 
-test('feed and saved views distinguish a true empty state from filtered results', async ({ page }) => {
-  await page.route('**/api/bootstrap', async (route) => {
-    const data = await (await route.fetch()).json();
-    await route.fulfill({ json: { ...data, items: [] } });
+test('feed and saved views distinguish a true empty state from filtered results', async ({
+  page,
+}) => {
+  await page.route('**/api/feed?**', async (route) => {
+    await route.fulfill({
+      json: { items: [], total: 0, unread: 0, saved: 0, all: 0, nextCursor: null },
+    });
   });
   await page.goto('/feed');
   await page.getByRole('button', { name: '刷新内容' }).click();
@@ -78,6 +90,50 @@ test('feed and saved views distinguish a true empty state from filtered results'
   await expect(page.getByRole('button', { name: '清除筛选' })).toHaveCount(0);
   await page.locator('.main-nav button').filter({ hasText: '已收藏' }).click();
   await expect(page.getByRole('heading', { name: '还没有收藏的更新' })).toBeVisible();
+});
+
+test('feed loads the next server page without replacing the first page', async ({ page }) => {
+  await page.route('**/api/feed?**', async (route) => {
+    const params = new URL(route.request().url()).searchParams;
+    if (params.has('cursor')) {
+      const actual = await (
+        await route.fetch({ url: new URL('/api/feed', route.request().url()).toString() })
+      ).json();
+      await route.fulfill({
+        json: {
+          ...actual,
+          items: [{ ...actual.items[0], id: 'next-page-item', title: 'Unique next page item' }],
+          total: 2,
+          nextCursor: null,
+        },
+      });
+      return;
+    }
+    const response = await route.fetch();
+    const pageData = await response.json();
+    await route.fulfill({
+      json: {
+        ...pageData,
+        items: [pageData.items[0]],
+        total: 2,
+        nextCursor: 'next-page',
+      },
+    });
+  });
+  await page.goto('/feed');
+  const firstItem = page.locator('[data-testid^="item-"]').first();
+  await expect(firstItem).toBeVisible();
+  const firstItemId = await firstItem.getAttribute('data-testid');
+  const nextPageRequest = page.waitForRequest(
+    (request) =>
+      request.url().includes('/api/feed?') && new URL(request.url()).searchParams.has('cursor'),
+  );
+  await page.getByRole('button', { name: '加载更多更新' }).click();
+  await nextPageRequest;
+  await expect(page.getByTestId(firstItemId!)).toBeVisible();
+  await expect(page.locator('.update-card')).toHaveCount(2);
+  await expect(page.getByTestId('item-next-page-item')).toBeVisible();
+  await expect(page.getByRole('button', { name: '加载更多更新' })).toHaveCount(0);
 });
 
 test('subscription category filters expose their selected state and empty categories can add a source', async ({
@@ -126,7 +182,9 @@ test('failed subscription submission retains the input and keeps the dialog reco
   await expect(dialog).not.toBeVisible();
 });
 
-test('detail return preserves feed context and onboarding stays on subscriptions', async ({ page }) => {
+test('detail return preserves feed context and onboarding stays on subscriptions', async ({
+  page,
+}) => {
   await page.goto('/feed');
   const search = page.getByLabel('搜索更新');
   await search.fill('shadcn');

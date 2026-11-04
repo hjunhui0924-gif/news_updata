@@ -1,20 +1,38 @@
 import { getConfig } from '../config';
 import { getPool } from '../db/client';
-import { getItems, getJobs, getNotifications, getPreferences, getSubscriptions } from '../db/store';
+import {
+  getFeedPage,
+  getJobs,
+  getNotifications,
+  getPreferences,
+  getSubscriptions,
+} from '../db/store';
 import type { Bootstrap } from '@/shared/types';
 import { getStarSync } from '../subscriptions/star-sync';
 import { itemSourceIds } from '@/shared/feed';
 import { getGitHubAuthStatus } from '../connectors/github-auth';
+import { workerIsOnline } from '@/shared/health';
 
-export async function bootstrap(user: {
-  id: string;
-  name: string;
-  image?: string | null;
-}): Promise<Bootstrap> {
+export async function bootstrap(
+  user: {
+    id: string;
+    name: string;
+    image?: string | null;
+  },
+  metadataOnly = false,
+): Promise<Bootstrap> {
   const config = getConfig();
-  const [items, subscriptions, preferences, jobs, notifications, heartbeat, usage, githubAccount] =
+  const [feed, subscriptions, preferences, jobs, notifications, heartbeat, usage, githubAccount] =
     await Promise.all([
-      getItems(user.id),
+      metadataOnly
+        ? Promise.resolve(undefined)
+        : getFeedPage(user.id, {
+            view: 'feed',
+            type: 'all',
+            search: '',
+            unread: false,
+            source: '',
+          }),
       getSubscriptions(user.id),
       getPreferences(user.id),
       getJobs(user.id),
@@ -27,10 +45,11 @@ export async function bootstrap(user: {
       getGitHubAuthStatus(user.id),
     ]);
   const currentSubscriptions = new Map(subscriptions.map((sub) => [sub.id, sub]));
+  const feedStats = feed ? { ...feed, items: undefined } : undefined;
   return {
     mode: config.APP_MODE,
     user: { name: user.name, image: user.image },
-    items: items.map((item) => ({
+    items: (feed?.items ?? []).map((item) => ({
       ...item,
       priority: itemSourceIds(item).some((id) => currentSubscriptions.get(id)?.priority),
       matchedSources: itemSourceIds(item).flatMap((id) => {
@@ -38,6 +57,7 @@ export async function bootstrap(user: {
         return sub ? [{ id, kind: sub.kind, name: sub.name }] : [];
       }),
     })),
+    feed: feedStats,
     subscriptions,
     preferences,
     jobs,
@@ -48,8 +68,7 @@ export async function bootstrap(user: {
       githubAuth: githubAccount,
       ai: config.LLM_ENABLED === 'true',
       workerLastSeen: heartbeat.rows[0]?.value ?? null,
-      workerOnline:
-        !!heartbeat.rows[0]?.value && Date.now() - Date.parse(heartbeat.rows[0].value) < 60000,
+      workerOnline: workerIsOnline(heartbeat.rows[0]?.value),
       costToday: Number(usage.rows[0].cost),
     },
   };

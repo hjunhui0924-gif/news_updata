@@ -48,7 +48,7 @@ test('discovery reads Trending independently of Stars, translates and subscribes
       },
     });
   });
-  await page.route('**/api/bootstrap', async (route) => {
+  await page.route('**/api/bootstrap*', async (route) => {
     const data = await (await route.fetch()).json();
     return route.fulfill({
       json: {
@@ -139,9 +139,11 @@ test('trending translation failure offers a retry without losing the repository 
 }) => {
   let failed = true;
   await page.route('**/api/trending?*', (route) =>
-    route.fulfill({ json: { ...snapshot, language: '', repositories: [snapshot.repositories[0]] } }),
+    route.fulfill({
+      json: { ...snapshot, language: '', repositories: [snapshot.repositories[0]] },
+    }),
   );
-  await page.route('**/api/bootstrap', async (route) => {
+  await page.route('**/api/bootstrap*', async (route) => {
     const data = await (await route.fetch()).json();
     await route.fulfill({ json: { ...data, services: { ...data.services, ai: true } } });
   });
@@ -151,7 +153,10 @@ test('trending translation failure offers a retry without losing the repository 
       return;
     }
     await route.fulfill({
-      json: { description: snapshot.repositories[0].description, translation: '构建实用的开发工具。' },
+      json: {
+        description: snapshot.repositories[0].description,
+        translation: '构建实用的开发工具。',
+      },
     });
   });
   await page.goto('/today');

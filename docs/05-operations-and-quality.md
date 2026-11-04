@@ -98,7 +98,38 @@ pnpm worker:start
 5. `GITHUB_READ_TOKEN` 如果配置，必须使用只读公开数据凭据；多人部署建议留空，让每个登录用户使用自己的 OAuth 凭据。服务器的本地 Skill 目录属于运行账号的共享文件，不是按登录用户隔离的私人目录。
 6. 为 PostgreSQL 制定备份、恢复和密钥轮换方案。`BETTER_AUTH_SECRET` 变化会使已保存的 OAuth 凭据无法解密，必须和数据库备份一起管理。
 
-当前只提供本地运行与构建产物。生产进程守护、域名、备份计划和恢复演练未部署。数据库结构变化通过新增有序 SQL 迁移完成；手工检查迁移，特别是 Auth 和 pg-boss 管理的表。
+当前只提供本地运行与构建产物。生产进程守护、域名和自动备份计划未部署；本地 PostgreSQL 17 容器的备份与隔离恢复已按下方步骤演练。数据库结构变化通过新增有序 SQL 迁移完成；手工检查迁移，特别是 Auth 和 pg-boss 管理的表。
+
+### PostgreSQL 备份与隔离恢复
+
+Compose 容器包含 `pg_dump` 和 `pg_restore`。以下 PowerShell 示例把 custom-format 备份放在本地 `work/` 目录，并恢复到新建的临时数据库；恢复验证不得指向当前 `news` 数据库。备份包含用户、会话、加密 OAuth 凭据和业务内容，应限制本机文件访问，并把 `BETTER_AUTH_SECRET` 与备份分开安全保管。
+
+```powershell
+$stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+$backup = "work/news-$stamp.dump"
+$restoreDb = "news_restore_$stamp"
+
+New-Item -ItemType Directory -Force work | Out-Null
+docker exec news_updata-db-1 pg_dump -U news -d news -Fc -f "/tmp/$restoreDb.dump"
+if ($LASTEXITCODE -ne 0) { throw 'pg_dump failed' }
+docker cp "news_updata-db-1:/tmp/$restoreDb.dump" $backup
+if ($LASTEXITCODE -ne 0) { throw 'backup copy failed' }
+
+docker exec news_updata-db-1 createdb -U news $restoreDb
+if ($LASTEXITCODE -ne 0) { throw 'temporary database creation failed' }
+docker cp $backup "news_updata-db-1:/tmp/$restoreDb.dump"
+if ($LASTEXITCODE -ne 0) { throw 'restore copy failed' }
+docker exec news_updata-db-1 pg_restore -U news -d $restoreDb --exit-on-error "/tmp/$restoreDb.dump"
+if ($LASTEXITCODE -ne 0) { throw 'pg_restore failed' }
+
+docker exec news_updata-db-1 psql -U news -d $restoreDb -c "SELECT count(*) FROM app_migrations; SELECT count(*) FROM app_users; SELECT count(*) FROM items;"
+docker exec news_updata-db-1 dropdb -U news $restoreDb
+docker exec news_updata-db-1 rm -f "/tmp/$restoreDb.dump"
+```
+
+执行 `dropdb` 前确认 `$restoreDb` 是本轮创建的隔离库；不要把它替换成 `news`。只有在恢复成功、迁移版本及关键表计数与源库核对后才清理临时库。备份文件留在 `work/`，该目录被 Git 忽略；确认不再需要后可手动删除。
+
+2026-11-03 已完成一次演练：PostgreSQL 17 custom dump 大小 675,054 字节，恢复库能正常查询，3 个迁移记录一致；`app_users=2`、`subscriptions=36`、`items=159`、`jobs=6145`、`notifications=3` 与源库相同，条目孤儿用户数为 0。临时恢复库和容器内临时文件已清理，忽略目录中的演练备份保留。该演练证明本机单库逻辑备份可恢复，不等于自动备份计划、异机副本或生产灾难恢复已部署。
 
 ## 测试
 
@@ -106,18 +137,22 @@ pnpm worker:start
 pnpm typecheck
 pnpm lint
 pnpm test
-pnpm test:e2e:search # 推荐：自动启动隔离端口的增量组合
-pnpm test:e2e        # 基础演示流程，需要 demo Web/Worker
+pnpm test:e2e        # 完整回归，自动准备独立 Demo Web/Worker
+pnpm test:e2e:search # 搜索等增量组合，使用相同隔离配置
 pnpm build
 ```
 
 单元/集成测试默认使用独立 `news_test` 数据库，自动建库需要当前测试账户具有建库权限；可设置 TEST_DATABASE_URL，数据库名必须以 `_test` 结尾。测试不会清空演示数据库。
 
-浏览器测试使用本地 demo 数据，会修改示例的已读、收藏和偏好。启动 Web 与 Worker 后执行；默认使用 Windows 已安装的 Chrome，可设置 CHROME_PATH。其他环境安装 Playwright Chromium：`pnpm exec playwright install chromium`。
+浏览器测试自动启动 3002 端口的 Demo Web/Worker，关闭真实 GitHub/模型凭据，默认使用独立 `news_e2e_test`。每轮重建该专用库再迁移/seed；不复用日常库或单元测试库。可设置 E2E_DATABASE_URL，但只接受无查询参数的本机连接、库名以 `_e2e_test` 结尾；已有连接会阻止重建，不强行终止其他进程。勿将有价值的数据放入该专用测试库。各增量配置复用相同启动方式，不能同时运行占用同一端口的组合。默认使用 Windows Chrome，可设置 CHROME_PATH；其他环境安装 Chromium：`pnpm exec playwright install chromium`。
 
-`/api/health/live` 用于存活检查；Worker 心跳和费用出现在设置页。Web 在运行不代表 Worker 正在同步，应检查设置中的后台状态。
+`/api/health/live` 用于存活检查；`/api/health/ready` 检查数据库和迁移，Worker 离线返回 degraded 并允许阅读。`pnpm diagnose` 生成忽略目录中的脱敏报告。Web 在运行不代表 Worker 正在同步，应检查后台状态。升级本轮代码先运行 `pnpm db:backup`、`pnpm db:migrate` 应用 `0004_feed_performance.sql`；备份恢复步骤见 [维护说明](17-database-maintenance.md)。
 
-## 2026-10-23 当前验证快照
+## 2026-11-04 最新验证
+
+完整单元/数据库测试 36 文件 / 195 项、独立 Demo 浏览器回归 52 项、类型检查、Lint 和 Web/Worker 构建通过。生产 standalone 的本机登录页和 JS 资源为 200，数据库/迁移 ready，Worker 离线时可 degraded 运行。日常库 0004 已在验证可恢复备份后应用；包含 4 个迁移的备份再次恢复验证成功。逐项 review 与性能实测见 [八项收尾](16-demo-hardening.md)。验收进程已退出；G4 真实试用继续暂缓。
+
+## 2026-10-23 历史验证快照
 
 前端优化阶段 0–7 已完成，相关基线、状态矩阵和阶段记录见 [前端优化方案](frontend-optimization-plan.md)。本次交付前重新核对以下门禁：
 
@@ -136,7 +171,7 @@ pnpm build
 
 ## 已知运行限制
 
-单用户规模下使用客户端全量个人 feed，未做大数据量压测。部分历史扫描分批完成；长时间离线、来源改名/删除和 GitHub 限制可能影响覆盖。ETag 尚未接入同步检查点。没有邮件、浏览器推送、X/RSS 用户功能、自动数据库备份和已验证的生产部署。X/RSS 当前只有路线预研文档，不应配置或启动不存在的适配器。
+信息流使用 30 条 keyset 分页、精简预览和详情按需请求；0004 的生成搜索列和 pg_trgm 索引已在本机 10,000 条数据上实测，600 张已加载卡片完成浏览器滚动/搜索检查，指标见 [收尾记录](16-demo-hardening.md)，不视为生产并发 SLA。部分历史扫描分批完成；长时间离线、来源改名/删除和 GitHub 限制仍可能影响覆盖。没有邮件、浏览器推送、X/RSS 用户功能、定时异机备份和已验证的生产部署。X/RSS 当前只有路线预研文档，不应配置或启动不存在的适配器。
 
 ## 本地长期运行观察
 

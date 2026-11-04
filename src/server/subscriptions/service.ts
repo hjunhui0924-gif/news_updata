@@ -154,17 +154,37 @@ export async function syncSubscription(
         cursorKey,
       ]);
       const cursor = stored.rows[0]?.value as
-        { page: number; historyCount: number; completed?: boolean } | undefined;
+        | {
+            page: number;
+            historyCount: number;
+            completed?: boolean;
+            pages?: Record<
+              string,
+              { etag: string; hasNext: boolean; pageSize: number; historyIncrement: number }
+            >;
+          }
+        | undefined;
+      // Legacy ETags have no pagination metadata and are deliberately not reused.
+      const pages = { ...(cursor?.pages ?? {}) };
       let page = cursor && !cursor.completed ? cursor.page : 1;
       let historyCount = cursor && !cursor.completed ? cursor.historyCount : 0;
       let streamComplete = false;
       // Repository history retains resumable pages; the public events API has at most three pages.
       for (let iteration = 0; iteration < 5; iteration++, page++) {
         signal?.throwIfAborted();
-        const response =
+        const pageKey = String(page);
+        const cached = sub.kind === 'repo' ? pages[pageKey] : undefined;
+        let response =
           stream === 'author-releases'
             ? await connector.authorReleases(sub.name, page, sub.externalId)
-            : await connector.updates(sub.kind, sub.name, page, undefined);
+            : await connector.updates(sub.kind, sub.name, page, cached?.etag);
+        if ('notModified' in response && response.notModified) {
+          if (!cached) throw new GitHubError('同步缓存不可用，请重新同步。', 502);
+          // A full terminal page can gain a next page without changing its own body.
+          response = { ...response, hasNext: cached.hasNext || cached.pageSize >= 100 };
+          historyCount += cached.historyIncrement;
+        }
+        const historyBeforePage = historyCount;
         if ('windowCapped' in response) eventWindowCapped ||= response.windowCapped;
         const known = await getPool().query(
           'SELECT external_key FROM items WHERE user_id=$1 AND external_key=ANY($2::text[])',
@@ -230,14 +250,21 @@ export async function syncSubscription(
               Date.parse(update.publishedAt) <
               Date.parse(sub.lastSyncAt ?? sub.createdAt) - 30 * 86400000,
           );
-        const complete =
-          !response.hasNext ||
-          authorBoundary ||
-          ('notModified' in response && !!response.notModified);
+        const complete = !response.hasNext || authorBoundary;
+        if (sub.kind === 'repo' && 'notModified' in response && !response.notModified) {
+          if (response.etag)
+            pages[pageKey] = {
+              etag: response.etag,
+              hasNext: response.hasNext,
+              pageSize: response.pageSize,
+              historyIncrement: historyCount - historyBeforePage,
+            };
+          else delete pages[pageKey];
+        }
         const active = await transaction(async (client) => {
           signal?.throwIfAborted();
           const current = await client.query(
-            "SELECT id FROM subscriptions WHERE user_id=$1 AND id=$2 AND (data->>'enabled')::boolean FOR SHARE",
+            "SELECT id FROM subscriptions WHERE user_id=$1 AND id=$2 AND (data->>'enabled')::boolean FOR UPDATE",
             [userId, id],
           );
           if (!current.rowCount) return false;
@@ -252,7 +279,23 @@ export async function syncSubscription(
                 historyCount: complete ? 0 : historyCount,
                 startedAt,
                 completed: complete,
+                ...(Object.keys(pages).length ? { pages } : {}),
               },
+            ],
+          );
+          await client.query(
+            `UPDATE subscriptions SET data=CASE
+              WHEN $4::boolean AND data->'syncProgress'->>'nextPage' IS NOT NULL
+                AND data->'syncProgress'->>'stream' <> $5 THEN data
+              ELSE data || $3::jsonb END WHERE user_id=$1 AND id=$2`,
+            [
+              userId,
+              id,
+              JSON.stringify({
+                syncProgress: { stream, page, nextPage: complete ? null : page + 1 },
+              }),
+              complete,
+              stream,
             ],
           );
           signal?.throwIfAborted();

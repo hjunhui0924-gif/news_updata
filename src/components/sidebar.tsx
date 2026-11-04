@@ -60,12 +60,12 @@ export function Sidebar({
             <span>{label}</span>
             {id === 'feed' && (
               <span className="nav-count">
-                {data.items.filter((x) => !x.read && !x.muted).length}
+                {data.feed?.unread ?? data.items.filter((x) => !x.read && !x.muted).length}
               </span>
             )}
             {id === 'saved' && (
               <span className="nav-count">
-                {data.items.filter((x) => x.saved && !x.muted).length}
+                {data.feed?.saved ?? data.items.filter((x) => x.saved && !x.muted).length}
               </span>
             )}
           </button>

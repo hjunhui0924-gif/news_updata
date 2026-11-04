@@ -4,6 +4,7 @@ export default defineConfig({
   ...base,
   testMatch: [
     '**/repository-search.spec.ts',
+    '**/reader.spec.ts',
     ...(Array.isArray(base.testMatch) ? base.testMatch : []),
   ],
 });

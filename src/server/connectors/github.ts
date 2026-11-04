@@ -230,6 +230,7 @@ export class GitHubConnector {
         hasNext: false,
         notModified: true,
         etag: response.etag,
+        pageSize: 0,
       };
     const items: GitHubUpdate[] =
       kind === 'repo'
@@ -270,7 +271,13 @@ export class GitHubConnector {
               contentUrl: `https://github.com/${repo.full_name}/blob/HEAD/README.md`,
               publishedAt: repo.created_at,
             }));
-    return { items, hasNext: response.hasNext, notModified: false, etag: response.etag };
+    return {
+      items,
+      hasNext: response.hasNext,
+      notModified: false,
+      etag: response.etag,
+      pageSize: Array.isArray(response.data) ? response.data.length : 0,
+    };
   }
 
   async authorReleases(input: string, page: number, actorId: string) {

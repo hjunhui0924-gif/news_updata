@@ -111,3 +111,43 @@ it('aborted synchronization never starts a request or changes stored entries', a
   expect(requests).toBe(0);
   expect(await getItems(userId)).toEqual(before);
 });
+
+it('persists and reuses release-page ETags across synchronization runs', async () => {
+  const sub = await addSubscription(userId, 'repo', 'example/repo', connector);
+  await getPool().query(
+    "UPDATE subscriptions SET data=data - 'retryAt' - 'error' WHERE user_id=$1 AND id=$2",
+    [userId, sub.id],
+  );
+  let requests = 0;
+  let receivedEtag: string | undefined;
+  const conditional = new GitHubConnector(async (_path, etag) => {
+    requests++;
+    receivedEtag = etag;
+    return etag
+      ? { data: null, hasNext: false, notModified: true, etag }
+      : {
+          data: [
+            {
+              id: 901,
+              name: 'Cached version',
+              tag_name: 'v901',
+              body: 'Stable notes',
+              html_url: 'https://github.com/example/repo/releases/tag/v901',
+              draft: false,
+              prerelease: false,
+              published_at: now,
+              created_at: now,
+            },
+          ],
+          hasNext: false,
+          etag: 'W/"release-page-1"',
+        };
+  });
+
+  await syncSubscription(userId, sub.id, conditional);
+  await syncSubscription(userId, sub.id, conditional);
+
+  expect(requests).toBe(2);
+  expect(receivedEtag).toBe('W/"release-page-1"');
+  expect((await getItems(userId)).filter((item) => item.externalId === '901')).toHaveLength(1);
+});

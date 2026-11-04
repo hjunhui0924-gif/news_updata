@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Bell,
   Check,
@@ -15,8 +15,7 @@ import {
   PanelsTopLeft,
   BookOpen,
 } from 'lucide-react';
-import type { Bootstrap, FeedItem, Preferences } from '@/shared/types';
-import { filterItems } from '@/shared/feed';
+import type { Bootstrap, FeedItem, FeedPreview, FeedPage, Preferences } from '@/shared/types';
 import { Sidebar } from './sidebar';
 import { FeedList } from './feed-list';
 import { ItemDetail } from './item-detail';
@@ -26,17 +25,12 @@ import { SettingsPanel } from './settings-panel';
 import { TrendingPanel } from './trending-panel';
 import { GitHubConnection } from './github-connection';
 import { SkillsPanel } from './skills-panel';
+import { useFeed, feedParams } from './use-feed';
 
-export async function requestJson<T>(url: string, method = 'GET', body?: unknown): Promise<T> {
-  const response = await fetch(url, {
-    method,
-    headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
-  const result = await response.json();
-  if (!response.ok) throw new Error(result.error || '操作未完成，请重试。');
-  return result;
-}
+import { requestJson } from './request-json';
+import { startPolling } from './polling';
+import { toFeedPreview } from '@/shared/feed';
+export { requestJson } from './request-json';
 
 const titles: Record<string, string> = {
   today: '今日精选',
@@ -80,10 +74,30 @@ export function ReaderApp({
   initialItemId?: string;
 }) {
   const [data, setData] = useState(initial);
+  const itemCache = useRef(
+    new Map([
+      ...initial.items.map((item) => [item.id, item] as const),
+      ...(initial.selectedItem
+        ? [[initial.selectedItem.id, toFeedPreview(initial.selectedItem)] as const]
+        : []),
+    ]),
+  );
+  const [detail, setDetail] = useState<FeedItem | null>(initial.selectedItem ?? null);
+  const [detailError, setDetailError] = useState('');
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailRetry, setDetailRetry] = useState(0);
+  const detailRequestVersion = useRef(0);
+  const [stateBusyId, setStateBusyId] = useState('');
+  const itemMutations = useRef(new Map<string, Promise<void>>());
   const [view, setView] = useState(
     initialView === 'items' ? 'feed' : initialView === 'onboarding' ? 'subscriptions' : initialView,
   );
   const [selectedId, setSelectedId] = useState<string | null>(initialItemId ?? null);
+  const selectedRef = useRef(selectedId);
+  const mutationVersion = useRef(0);
+  useEffect(() => {
+    selectedRef.current = selectedId;
+  }, [selectedId]);
   const [type, setType] = useState('all');
   const [search, setSearch] = useState('');
   const [unread, setUnread] = useState(false);
@@ -91,8 +105,47 @@ export function ReaderApp({
   const [addOpen, setAddOpen] = useState(initialView === 'onboarding');
   const [toast, setToast] = useState('');
   const [busy, setBusy] = useState('');
+  const [pollError, setPollError] = useState('');
+  const poller = useRef<ReturnType<typeof startPolling> | null>(null);
+  const activeJobs = useRef(false);
+  const hasActiveJobs = data.jobs.some((job) => ['pending', 'running'].includes(job.status));
+  useEffect(() => {
+    if (activeJobs.current !== hasActiveJobs) {
+      activeJobs.current = hasActiveJobs;
+      poller.current?.retry();
+    }
+  }, [hasActiveJobs]);
   const [noticeOpen, setNoticeOpen] = useState(false);
+  const noticeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const lastSelectedRef = useRef(selectedId);
   const [discoveryRefresh, setDiscoveryRefresh] = useState(0);
+  const initialPage = useRef<FeedPage>({
+    total: initial.items.length,
+    unread: initial.items.filter((item) => !item.read && !item.muted).length,
+    saved: initial.items.filter((item) => item.saved && !item.muted).length,
+    nextCursor: null,
+    ...initial.feed,
+    items: initial.items,
+  }).current;
+  const ingestFeedItems = useCallback((items: FeedPreview[]) => {
+    for (const item of items) itemCache.current.set(item.id, item);
+    for (const id of itemCache.current.keys()) {
+      if (itemCache.current.size <= 600) break;
+      if (id !== selectedRef.current && !itemMutations.current.has(id))
+        itemCache.current.delete(id);
+    }
+    setData((current) => ({ ...current, items: items.slice(-300) }));
+  }, []);
+  const feed = useFeed(
+    { view, type, search, unread, source },
+    initialPage,
+    isFeedView(view),
+    ingestFeedItems,
+  );
+  const feedPage = feed.page;
+  const feedLoading = feed.loading;
+  const refreshFeedRef = useRef(feed.refresh);
+  refreshFeedRef.current = feed.refresh;
   const routeTitleRef = useRef<HTMLElement | null>(null);
   const hasMountedRouteRef = useRef(false);
   const feedPanelRef = useRef<HTMLElement | null>(null);
@@ -100,10 +153,88 @@ export function ReaderApp({
     feed: emptyFeedContext(),
     saved: emptyFeedContext(),
   });
-  const refresh = useCallback(async () => {
-    const next = await requestJson<Bootstrap>('/api/bootstrap');
-    setData(next);
-    return next;
+  const checkUpdatesRef = useRef(feed.checkUpdates);
+  checkUpdatesRef.current = feed.checkUpdates;
+  const refreshInFlight = useRef<Promise<Bootstrap> | null>(null);
+  const detailJobsKey = useRef('');
+  const refresh = useCallback(async function refreshRequest(
+    options: { background?: boolean; signal?: AbortSignal } = {},
+  ): Promise<Bootstrap> {
+    if (refreshInFlight.current) {
+      if (options.background) return refreshInFlight.current;
+      await refreshInFlight.current.catch(() => {});
+      return refreshRequest(options);
+    }
+    const operation = (async () => {
+      const next = await requestJson<Bootstrap>(
+        options.background ? '/api/bootstrap?metadata=true' : '/api/bootstrap',
+        'GET',
+        undefined,
+        options.signal,
+      );
+      setData((current) => ({ ...next, items: current.items, feed: current.feed }));
+      if (
+        !options.background &&
+        (isFeedView(location.pathname.split('/')[1] || '') ||
+          location.pathname.startsWith('/items/'))
+      ) {
+        if ((await refreshFeedRef.current()) === false)
+          throw new Error('列表刷新失败，请使用列表中的重试按钮。');
+      } else {
+        await Promise.allSettled([...itemMutations.current.values()]);
+        const version = mutationVersion.current;
+        await checkUpdatesRef.current(
+          options.signal ?? AbortSignal.timeout(15000),
+          () => version === mutationVersion.current,
+        );
+      }
+      const detailId = selectedRef.current;
+      const jobsKey = JSON.stringify(next.jobs.filter((job) => job.targetId === detailId));
+      if (detailId && (!options.background || jobsKey !== detailJobsKey.current)) {
+        await Promise.allSettled([...itemMutations.current.values()]);
+        if (selectedRef.current !== detailId) return next;
+        const version = mutationVersion.current;
+        const detailVersion = ++detailRequestVersion.current;
+        try {
+          const item = await requestJson<FeedItem>(
+            `/api/items/${encodeURIComponent(detailId)}`,
+            'GET',
+            undefined,
+            options.signal,
+          );
+          if (options.signal?.aborted) throw options.signal.reason;
+          if (
+            version === mutationVersion.current &&
+            detailVersion === detailRequestVersion.current &&
+            !options.signal?.aborted
+          ) {
+            detailJobsKey.current = jobsKey;
+            itemCache.current.set(item.id, toFeedPreview(item));
+            if (selectedRef.current === item.id) {
+              setDetail(item);
+              setDetailError('');
+            }
+          }
+        } catch (error) {
+          if (
+            !options.signal?.aborted &&
+            selectedRef.current === detailId &&
+            detailVersion === detailRequestVersion.current
+          )
+            setDetailError(error instanceof Error ? error.message : '详情更新失败，请重试。');
+          throw error;
+        } finally {
+          if (detailVersion === detailRequestVersion.current) setDetailLoading(false);
+        }
+      }
+      return next;
+    })();
+    refreshInFlight.current = operation;
+    try {
+      return await operation;
+    } finally {
+      if (refreshInFlight.current === operation) refreshInFlight.current = null;
+    }
   }, []);
   const notify = useCallback((message: string) => setToast(message), []);
   function captureFeedContext() {
@@ -136,30 +267,85 @@ export function ReaderApp({
       hasMountedRouteRef.current = true;
       return;
     }
-    requestAnimationFrame(() => routeTitleRef.current?.focus());
+    const previous = lastSelectedRef.current;
+    lastSelectedRef.current = selectedId;
+    requestAnimationFrame(() => {
+      const card =
+        !selectedId && previous && isFeedView(view)
+          ? document.querySelector<HTMLButtonElement>(
+              `[data-testid="item-${CSS.escape(previous)}"]`,
+            )
+          : null;
+      (card ?? routeTitleRef.current)?.focus({ preventScroll: true });
+    });
   }, [view, selectedId]);
   useEffect(() => {
-    const timer = setInterval(
-      () => {
-        refresh().catch(() => notify('暂时无法刷新更新，请检查服务连接。'));
+    if (!noticeOpen) return;
+    const close = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setNoticeOpen(false);
+        noticeButtonRef.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', close);
+    return () => window.removeEventListener('keydown', close);
+  }, [noticeOpen]);
+  useEffect(() => {
+    const polling = startPolling({
+      run: async (signal) => {
+        await refresh({ background: true, signal });
       },
-      data.jobs.some((x) => x.status === 'pending' || x.status === 'running') ? 1500 : 30000,
-    );
-    return () => clearInterval(timer);
-  }, [data.jobs, refresh, notify]);
+      active: () => activeJobs.current,
+      onError: setPollError,
+      document,
+      window,
+      online: () => navigator.onLine,
+    });
+    poller.current = polling;
+    return () => polling.stop();
+  }, [refresh]);
   useEffect(() => {
     if (!selectedId) return;
-    void requestJson(`/api/items/${selectedId}/state`, 'PATCH', { read: true })
-      .then(() =>
-        setData((current) => ({
-          ...current,
-          items: current.items.map((item) =>
-            item.id === selectedId ? { ...item, read: true } : item,
-          ),
-        })),
-      )
-      .catch((error: Error) => notify(error.message));
-  }, [selectedId, notify]);
+    const abort = new AbortController();
+    const timer = setTimeout(async () => {
+      setDetailError('');
+      setDetailLoading(true);
+      const version = mutationVersion.current;
+      const detailVersion = ++detailRequestVersion.current;
+      try {
+        const item = await requestJson<FeedItem>(
+          `/api/items/${encodeURIComponent(selectedId)}`,
+          'GET',
+          undefined,
+          abort.signal,
+        );
+        if (abort.signal.aborted || detailVersion !== detailRequestVersion.current) return;
+        const latest = itemCache.current.get(item.id);
+        const merged =
+          version !== mutationVersion.current && latest
+            ? { ...item, read: latest.read, saved: latest.saved, muted: latest.muted }
+            : item;
+        itemCache.current.set(item.id, toFeedPreview(merged));
+        setDetail(merged);
+      } catch (error) {
+        if (!abort.signal.aborted && detailVersion === detailRequestVersion.current)
+          setDetailError(error instanceof Error ? error.message : '详情加载失败，请重试。');
+      } finally {
+        if (!abort.signal.aborted && detailVersion === detailRequestVersion.current)
+          setDetailLoading(false);
+      }
+    }, 0);
+    return () => {
+      clearTimeout(timer);
+      abort.abort();
+    };
+  }, [selectedId, detailRetry]);
+  useEffect(() => {
+    if (!selectedId) return;
+    void patchItem(selectedId, { read: true });
+    // One read mutation for each selected item; list membership may change after it succeeds.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId]);
   useEffect(() => {
     const pop = () => {
       const parts = location.pathname.split('/').filter(Boolean);
@@ -173,11 +359,8 @@ export function ReaderApp({
     window.addEventListener('popstate', pop);
     return () => window.removeEventListener('popstate', pop);
   }, []);
-  const filtered = useMemo(
-    () => filterItems(data.items, { view, type, search, unread, source }),
-    [data.items, view, type, search, unread, source],
-  );
-  const selected = data.items.find((item) => item.id === selectedId) ?? null;
+  const filtered = feedPage.items;
+  const selected = detail?.id === selectedId ? detail : null;
   const selectedJobs = data.jobs.filter((job) => job.targetId === selectedId);
   function navigate(next: string) {
     captureFeedContext();
@@ -197,35 +380,58 @@ export function ReaderApp({
     history.pushState({}, '', `/${next}`);
   }
   async function patchItem(id: string, patch: Partial<Pick<FeedItem, 'read' | 'saved' | 'muted'>>) {
-    const previous = data.items.find((x) => x.id === id);
+    mutationVersion.current++;
+    const operation = (itemMutations.current.get(id) ?? Promise.resolve())
+      .catch(() => {})
+      .then(async () => {
+        feed.beginMutation();
+        setStateBusyId(id);
+        let success = false;
+        const previous = itemCache.current.get(id);
+        try {
+          await requestJson(`/api/items/${id}/state`, 'PATCH', patch);
+          mutationVersion.current++;
+          if (previous) {
+            itemCache.current.set(id, { ...previous, ...patch });
+            feed.patch(previous, patch);
+          }
+          setDetail((current) => (current?.id === id ? { ...current, ...patch } : current));
+          setData((current) => ({
+            ...current,
+            items: current.items.map((item) => (item.id === id ? { ...item, ...patch } : item)),
+          }));
+          success = true;
+        } finally {
+          feed.finishMutation(success);
+          setStateBusyId((current) => (current === id ? '' : current));
+        }
+      });
+    itemMutations.current.set(id, operation);
     try {
-      await requestJson(`/api/items/${id}/state`, 'PATCH', patch);
-      setData((current) => ({
-        ...current,
-        items: current.items.map((x) => (x.id === id ? { ...x, ...patch } : x)),
-      }));
+      await operation;
     } catch (error) {
-      if (previous)
-        setData((current) => ({
-          ...current,
-          items: current.items.map((x) => (x.id === id ? previous : x)),
-        }));
       notify((error as Error).message);
+    } finally {
+      if (itemMutations.current.get(id) === operation) itemMutations.current.delete(id);
     }
   }
   function selectItem(id: string) {
     captureFeedContext();
+    const preview = feedPage.items.find((item) => item.id === id);
+    if (preview) itemCache.current.set(id, preview);
     setSelectedId(id);
     history.pushState({}, '', `/items/${id}`);
   }
   async function execute(key: string, action: () => Promise<unknown>, message?: string) {
     setBusy(key);
+    let submitted = false;
     try {
       await action();
+      submitted = true;
       await refresh();
       if (message) notify(message);
     } catch (error) {
-      notify((error as Error).message);
+      notify(`${submitted ? '操作已提交，但刷新未完成。' : ''}${(error as Error).message}`);
     } finally {
       setBusy('');
     }
@@ -233,12 +439,21 @@ export function ReaderApp({
   async function markAll() {
     await execute(
       'read',
-      () =>
-        Promise.all(
-          filtered
-            .filter((x) => !x.read)
-            .map((x) => requestJson(`/api/items/${x.id}/state`, 'PATCH', { read: true })),
-        ),
+      async () => {
+        await Promise.allSettled([...itemMutations.current.values()]);
+        await requestJson(
+          '/api/feed/read',
+          'POST',
+          Object.fromEntries(feedParams({ view, type, search, unread, source })),
+        );
+        feed.invalidate();
+        setData((current) => ({
+          ...current,
+          items: current.items.map((item) =>
+            filtered.some((row) => row.id === item.id) ? { ...item, read: true } : item,
+          ),
+        }));
+      },
       '当前结果已标为已读',
     );
   }
@@ -265,7 +480,7 @@ export function ReaderApp({
       className={`app-shell ${data.preferences.compact ? 'compact' : ''} ${selectedId ? 'has-selection' : ''}`}
     >
       <Sidebar
-        data={data}
+        data={{ ...data, feed: feedPage }}
         view={view}
         navigate={navigate}
         onAdd={() => setAddOpen(true)}
@@ -283,12 +498,7 @@ export function ReaderApp({
             </span>
             <span className="desktop-workspace">我的工作空间</span>
             <ChevronRight size={13} />
-            <strong
-              ref={routeTitleRef}
-              tabIndex={-1}
-              aria-live="polite"
-              aria-atomic="true"
-            >
+            <strong ref={routeTitleRef} tabIndex={-1} aria-live="polite" aria-atomic="true">
               {selectedId ? titles.items : titles[view]}
             </strong>
           </div>
@@ -303,6 +513,7 @@ export function ReaderApp({
               {new Date().toLocaleDateString('zh-CN', { month: 'long', day: 'numeric' })}
             </span>
             <button
+              ref={noticeButtonRef}
               aria-expanded={noticeOpen}
               aria-controls="notice-popover"
               className="icon-button"
@@ -327,6 +538,14 @@ export function ReaderApp({
             </Button>
           </div>
         </header>
+        {pollError && (
+          <div className="connection-banner" role="status">
+            <span>后台刷新暂时失败，已有内容仍可阅读。{pollError}</span>
+            <Button size="small" onClick={() => poller.current?.retry()}>
+              重试连接
+            </Button>
+          </div>
+        )}
         {noticeOpen && (
           <div id="notice-popover" className="notice-popover" role="dialog" aria-label="通知中心">
             <h3>通知中心</h3>
@@ -376,14 +595,29 @@ export function ReaderApp({
               unread={unread}
               setUnread={setUnread}
               select={selectItem}
-              markAll={markAll}
-              hasUnderlyingItems={data.items.some(
-                (item) => !item.muted && (view !== 'saved' || item.saved),
-              )}
+              markAll={() => void markAll()}
+              loading={feedLoading || busy === 'read'}
+              total={feedPage.total}
+              hasMore={!!feedPage.nextCursor}
+              onLoadMore={feed.loadMore}
+              onAdd={() => setAddOpen(true)}
+              onBrowse={() => navigate('feed')}
+              updatesAvailable={feed.updatesAvailable}
+              onRefresh={() => {
+                void feed.refresh();
+                if (feedPanelRef.current) feedPanelRef.current.scrollTop = 0;
+              }}
+              error={feed.error}
+              retry={feed.refresh}
+              canMarkRead={(feedPage.matchingUnread ?? feedPage.unread) > 0}
+              hasUnderlyingItems={
+                (view === 'saved' ? feedPage.saved : (feedPage.all ?? initial.items.length)) > 0
+              }
               sourceName={data.subscriptions.find((x) => x.id === source)?.name}
               panelRef={feedPanelRef}
               onScroll={(event) => {
-                if (isFeedView(view)) feedContexts.current[view].scrollTop = event.currentTarget.scrollTop;
+                if (isFeedView(view))
+                  feedContexts.current[view].scrollTop = event.currentTarget.scrollTop;
               }}
               clearFilters={() => {
                 setSource('');
@@ -393,9 +627,13 @@ export function ReaderApp({
               }}
             />
             <ItemDetail
-              key={selected?.id ?? 'empty'}
+              key={selectedId ?? 'empty'}
               aiEnabled={data.services.ai}
               item={selected}
+              loading={!!selectedId && (!selected || detailLoading) && !detailError}
+              stateBusy={stateBusyId === selectedId}
+              error={selectedId ? detailError : ''}
+              retry={() => setDetailRetry((value) => value + 1)}
               timezone={data.preferences.timezone}
               projectSubscribed={
                 !!selected &&
@@ -442,13 +680,12 @@ export function ReaderApp({
               summaryBusy={summaryBusy}
               translationBusy={translationBusy}
               errors={{
-                summary:
-                  selectedJobs.find((job) => job.kind === 'summary' && job.status === 'failed')
-                    ?.error,
-                translation:
-                  selectedJobs.find(
-                    (job) => job.kind === 'translation' && job.status === 'failed',
-                  )?.error,
+                summary: selectedJobs.find(
+                  (job) => job.kind === 'summary' && job.status === 'failed',
+                )?.error,
+                translation: selectedJobs.find(
+                  (job) => job.kind === 'translation' && job.status === 'failed',
+                )?.error,
               }}
               back={() => {
                 setSelectedId(null);
@@ -569,7 +806,9 @@ export function ReaderApp({
       <AddSubscription
         open={addOpen}
         onOpenChange={setAddOpen}
-        authorSubscriptionCount={data.subscriptions.filter((subscription) => subscription.kind === 'author').length}
+        authorSubscriptionCount={
+          data.subscriptions.filter((subscription) => subscription.kind === 'author').length
+        }
         onAdded={async () => {
           await refresh();
           notify('订阅已添加，正在获取更新');

@@ -17,17 +17,20 @@
 pnpm typecheck
 pnpm lint
 pnpm test
-pnpm test:e2e:search
+pnpm test:e2e
 pnpm build
 ```
 
 ## 数据与测试隔离
 
 - 单元/集成测试使用 `news_test`，可以通过 `TEST_DATABASE_URL` 指定另一座名字以 `_test` 结尾的数据库。自动创建测试库需要建库权限。
-- 浏览器增量测试在 3002 端口启动独立 demo Web，接口按场景模拟，演示数据可能保存到配置数据库的 `demo` 用户下。它与真实用户数据按用户隔离，并非另一座数据库；不要把生产数据库交给浏览器测试。
+- 完整和增量浏览器测试统一在 3002 端口自动启动 Demo Web/Worker，使用独立 `news_e2e_test`，每轮重建该专用库并迁移/seed，真实 GitHub/模型凭据清空。不得在专用库中保存有价值的数据。
+- 自定义 `E2E_DATABASE_URL` 必须为无查询参数/fragment 的本机连接，库名以 `_e2e_test` 结尾；不接受日常 `news` 或单元测试 `news_test`。已有数据库连接会阻止重建，脚本不强行终止其他连接。
+- 各 Playwright 配置共享启动器、端口和隔离约束。完整测试、增量组合、类型生成和构建按顺序运行，避免争用生成目录和运行资源；`pnpm test:e2e:search` 可用于局部开发回归，提交前执行完整流程。
 - Windows 优先使用系统 Chrome，可通过 `CHROME_PATH` 指定路径；其他环境安装 Playwright Chromium。
 - `.next-e2e` 和测试产物已忽略。Next 测试/构建可能自动修改 `next-env.d.ts` 与 `tsconfig.json`，提交前判断是否为本次必要改动，勿连带还原他人的修改。
 - `drizzle/*.sql` 是完整迁移依据。Auth/pg-boss 表不应被未经复核的 `db:generate` 输出覆盖。
+- 日常库升级前先备份，再执行迁移；本机命令为 `pnpm db:backup`、`pnpm db:migrate`、`pnpm db:drill`，边界见 [维护说明](docs/17-database-maintenance.md)。恢复演练只操作本轮新建临时库，不覆盖源库。
 
 ## 改动约定
 

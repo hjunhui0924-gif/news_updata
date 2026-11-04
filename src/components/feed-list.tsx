@@ -1,4 +1,4 @@
-import { useState, type RefObject, type UIEventHandler } from 'react';
+import { type RefObject, type UIEventHandler } from 'react';
 import {
   ArrowUpRight,
   Bookmark,
@@ -8,7 +8,7 @@ import {
   SlidersHorizontal,
   Sparkles,
 } from 'lucide-react';
-import type { FeedItem } from '@/shared/types';
+import type { FeedPreview } from '@/shared/types';
 import { relativeTime } from '@/shared/feed';
 import { Button } from './ui/button';
 import { ItemSources } from './item-sources';
@@ -29,8 +29,19 @@ export function FeedList({
   hasUnderlyingItems,
   panelRef,
   onScroll,
+  loading,
+  total,
+  hasMore,
+  onLoadMore,
+  error,
+  retry,
+  canMarkRead,
+  updatesAvailable,
+  onRefresh,
+  onAdd,
+  onBrowse,
 }: {
-  items: FeedItem[];
+  items: FeedPreview[];
   selectedId: string | null;
   view: string;
   type: string;
@@ -46,15 +57,25 @@ export function FeedList({
   hasUnderlyingItems: boolean;
   panelRef?: RefObject<HTMLElement | null>;
   onScroll?: UIEventHandler<HTMLElement>;
+  loading: boolean;
+  total: number;
+  hasMore: boolean;
+  onLoadMore: () => void;
+  error: string;
+  retry: () => void;
+  canMarkRead: boolean;
+  updatesAvailable: boolean;
+  onRefresh: () => void;
+  onAdd: () => void;
+  onBrowse: () => void;
 }) {
-  const [limit, setLimit] = useState(20);
   return (
     <section ref={panelRef} onScroll={onScroll} className="feed-panel" aria-label="更新列表">
       <div className="feed-heading">
         <div className="eyebrow">{view === 'saved' ? 'WORTH KEEPING' : 'THE UPDATE STREAM'}</div>
         <div className="title-row">
           <h1>{view === 'saved' ? '已收藏' : '全部更新'}</h1>
-          <span className="count-pill">{items.length}</span>
+          <span className="count-pill">{total}</span>
         </div>
         <p>
           {view === 'saved' ? '把值得反复阅读的更新，留在这里。' : '你关注的每一次变化，都在这里。'}
@@ -64,7 +85,7 @@ export function FeedList({
         <Search size={17} />
         <input
           aria-label="搜索更新"
-          placeholder="搜索项目、作者或更新内容…"
+          placeholder="搜索项目、标题、描述或标签…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -103,13 +124,21 @@ export function FeedList({
       )}
       <div className="list-toolbar">
         <span>按发布时间排序</span>
-        <button onClick={markAll} disabled={!items.some((x) => !x.read)}>
+        <button onClick={markAll} disabled={loading || !canMarkRead}>
           <CheckCheck size={14} />
-          当前结果标为已读
+          当前筛选全部标为已读
         </button>
       </div>
+      {updatesAvailable && (
+        <div className="list-toolbar" role="status">
+          <span>列表有变化</span>
+          <Button size="small" onClick={onRefresh}>
+            查看最新更新
+          </Button>
+        </div>
+      )}
       <div className="update-list">
-        {items.slice(0, limit).map((item) => (
+        {items.map((item) => (
           <button
             key={item.id}
             data-testid={`item-${item.id}`}
@@ -155,7 +184,18 @@ export function FeedList({
           </button>
         ))}
       </div>
-      {items.length === 0 && (
+      {error && (
+        <div role="alert" className="empty-state">
+          <p>{error}</p>
+          <Button onClick={retry}>重试加载</Button>
+        </div>
+      )}
+      {loading && items.length === 0 && (
+        <p role="status" className="empty-state">
+          正在加载更新…
+        </p>
+      )}
+      {items.length === 0 && !loading && !error && (
         <div className="empty-state">
           <Search size={30} />
           <h3>
@@ -177,16 +217,21 @@ export function FeedList({
               清除筛选
             </Button>
           )}
+          {!hasUnderlyingItems && (
+            <Button variant="secondary" size="small" onClick={view === 'saved' ? onBrowse : onAdd}>
+              {view === 'saved' ? '浏览全部更新' : '添加第一份订阅'}
+            </Button>
+          )}
         </div>
       )}
-      {items.length > limit && (
+      {hasMore && (
         <div className="list-end">
-          <Button size="small" onClick={() => setLimit(limit + 20)}>
+          <Button size="small" loading={loading} onClick={onLoadMore}>
             加载更多更新
           </Button>
         </div>
       )}
-      {items.length > 0 && items.length <= limit && (
+      {items.length > 0 && !hasMore && (
         <div className="list-end">
           <span />
           已经看到这里的全部更新

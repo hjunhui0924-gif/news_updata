@@ -18,7 +18,9 @@ test('preferences persist and a web-only brief can be generated', async ({ page 
   await expect(page.getByText('仅网页展示', { exact: true })).toBeVisible();
 });
 
-test('notification control exposes its expanded state and dialog relationship', async ({ page }) => {
+test('notification control exposes its expanded state and dialog relationship', async ({
+  page,
+}) => {
   await page.goto('/settings');
   const button = page.getByRole('button', { name: '通知中心' });
   await expect(button).toHaveAttribute('aria-expanded', 'false');
@@ -30,7 +32,10 @@ test('notification control exposes its expanded state and dialog relationship', 
   await expect(page.getByRole('dialog', { name: '通知中心' })).not.toBeVisible();
 });
 
-test('mutations reject foreign origins and do not cross user boundaries', async ({ request }) => {
+test('mutations reject foreign origins and do not cross user boundaries', async ({
+  request,
+  baseURL,
+}) => {
   const foreign = await request.patch('/api/items/demo-item-0/state', {
     data: { saved: false },
     headers: { Origin: 'https://untrusted.example' },
@@ -38,7 +43,7 @@ test('mutations reject foreign origins and do not cross user boundaries', async 
   expect(foreign.status()).toBe(403);
   const missing = await request.patch('/api/items/missing-other-user-item/state', {
     data: { saved: false },
-    headers: { Origin: 'http://127.0.0.1:3000' },
+    headers: { Origin: new URL(baseURL!).origin },
   });
   expect(missing.status()).toBe(404);
 });

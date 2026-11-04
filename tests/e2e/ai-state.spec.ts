@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import type { FeedItem } from '../../src/shared/types';
+import { mockReaderBootstrap } from './reader-fixtures';
 
 test('AI disabled, enabled on historical items, quota failures and cached artifacts remain distinguishable', async ({
   page,
@@ -8,22 +8,19 @@ test('AI disabled, enabled on historical items, quota failures and cached artifa
   let cached = false;
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
-  await page.route('**/api/bootstrap', async (route) => {
-    const data = await (await route.fetch()).json();
-    await route.fulfill({
-      json: {
-        ...data,
-        jobs: [],
-        services: { ...data.services, ai: enabled },
-        items: data.items.map((item: FeedItem) => ({
-          ...item,
-          demo: false,
-          aiStatus: cached ? 'ready' : 'disabled',
-          summary: cached ? item.summary : null,
-          translation: cached ? '已经保存的中文译文' : null,
-        })),
-      },
-    });
+  await mockReaderBootstrap(page, (data) => {
+    return {
+      ...data,
+      jobs: [],
+      services: { ...data.services, ai: enabled },
+      items: data.items.map((item) => ({
+        ...item,
+        demo: false,
+        aiStatus: cached ? 'ready' : 'disabled',
+        summary: cached ? item.summary : null,
+        translation: cached ? '已经保存的中文译文' : null,
+      })),
+    };
   });
   await page.route('**/api/items/*/summary/retry', (route) =>
     route.fulfill({
@@ -64,42 +61,43 @@ test('summary and translation job failures show separate errors and can be retri
 }) => {
   let summaryFailed = true;
   let translationFailed = true;
-  await page.route('**/api/bootstrap', async (route) => {
-    const data = await (await route.fetch()).json();
-    await route.fulfill({
-      json: {
-        ...data,
-        services: { ...data.services, ai: true },
-        jobs: [
-          ...(summaryFailed
-            ? [{
+  await mockReaderBootstrap(page, (data) => {
+    return {
+      ...data,
+      services: { ...data.services, ai: true },
+      jobs: [
+        ...(summaryFailed
+          ? [
+              {
                 id: 'summary-job',
-                kind: 'summary',
+                kind: 'summary' as const,
                 targetId: 'demo-item-0',
-                status: 'failed',
+                status: 'failed' as const,
                 error: '摘要服务暂时不可用',
                 createdAt: new Date().toISOString(),
-              }]
-            : []),
-          ...(translationFailed
-            ? [{
+              },
+            ]
+          : []),
+        ...(translationFailed
+          ? [
+              {
                 id: 'translation-job',
-                kind: 'translation',
+                kind: 'translation' as const,
                 targetId: 'demo-item-0',
-                status: 'failed',
+                status: 'failed' as const,
                 error: '翻译服务暂时不可用',
                 createdAt: new Date().toISOString(),
-              }]
-            : []),
-        ],
-        items: data.items.map((item: FeedItem) => ({
-          ...item,
-          demo: false,
-          summary: null,
-          translation: null,
-        })),
-      },
-    });
+              },
+            ]
+          : []),
+      ],
+      items: data.items.map((item) => ({
+        ...item,
+        demo: false,
+        summary: null,
+        translation: null,
+      })),
+    };
   });
   await page.route('**/api/items/demo-item-0/summary/retry', async (route) => {
     summaryFailed = false;
@@ -123,28 +121,25 @@ test('summary and translation job failures show separate errors and can be retri
 });
 
 test('summary and translation pending states stay attached to their own tabs', async ({ page }) => {
-  await page.route('**/api/bootstrap', async (route) => {
-    const data = await (await route.fetch()).json();
-    await route.fulfill({
-      json: {
-        ...data,
-        services: { ...data.services, ai: true },
-        jobs: ['summary', 'translation'].map((kind) => ({
-          id: `${kind}-job`,
-          kind,
-          targetId: 'demo-item-0',
-          status: 'pending',
-          error: null,
-          createdAt: new Date().toISOString(),
-        })),
-        items: data.items.map((item: FeedItem) => ({
-          ...item,
-          demo: false,
-          summary: null,
-          translation: null,
-        })),
-      },
-    });
+  await mockReaderBootstrap(page, (data) => {
+    return {
+      ...data,
+      services: { ...data.services, ai: true },
+      jobs: (['summary', 'translation'] as const).map((kind) => ({
+        id: `${kind}-job`,
+        kind,
+        targetId: 'demo-item-0',
+        status: 'pending',
+        error: null,
+        createdAt: new Date().toISOString(),
+      })),
+      items: data.items.map((item) => ({
+        ...item,
+        demo: false,
+        summary: null,
+        translation: null,
+      })),
+    };
   });
   await page.goto('/feed');
   await page.getByRole('button', { name: '刷新内容' }).click();
@@ -158,29 +153,26 @@ test('summary and translation pending states stay attached to their own tabs', a
 });
 
 test('bilingual paragraphs keep original above Chinese on desktop and mobile', async ({ page }) => {
-  await page.route('**/api/bootstrap', async (route) => {
-    const data = await (await route.fetch()).json();
-    await route.fulfill({
-      json: {
-        ...data,
-        items: data.items.map((item: FeedItem) => ({
-          ...item,
-          language: 'en',
-          translation: '加载更快。',
-          translationBlocks: [
-            { original: '### Improvements', translation: '### 改进' },
-            { original: 'Faster loading.', translation: '加载更快。' },
-            {
-              original:
-                '- Default image requests to GPT Image 2.5 Flare. [#101](https://github.com/example/repo/issues/101)\n- Refresh image backend guidance across all languages.',
-              translation:
-                '- 默认图片请求使用 GPT Image 2.5 Flare。[#101](https://github.com/example/repo/issues/101)\n- 更新所有语言的图片后端指引。',
-            },
-            { original: '```js\nconsole.log(1);\n```', translation: null },
-          ],
-        })),
-      },
-    });
+  await mockReaderBootstrap(page, (data) => {
+    return {
+      ...data,
+      items: data.items.map((item) => ({
+        ...item,
+        language: 'en',
+        translation: '加载更快。',
+        translationBlocks: [
+          { original: '### Improvements', translation: '### 改进' },
+          { original: 'Faster loading.', translation: '加载更快。' },
+          {
+            original:
+              '- Default image requests to GPT Image 2.5 Flare. [#101](https://github.com/example/repo/issues/101)\n- Refresh image backend guidance across all languages.',
+            translation:
+              '- 默认图片请求使用 GPT Image 2.5 Flare。[#101](https://github.com/example/repo/issues/101)\n- 更新所有语言的图片后端指引。',
+          },
+          { original: '```js\nconsole.log(1);\n```', translation: null },
+        ],
+      })),
+    };
   });
   await page.goto('/feed');
   await page.getByRole('button', { name: '刷新内容' }).click();

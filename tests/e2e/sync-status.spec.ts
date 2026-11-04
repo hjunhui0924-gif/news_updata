@@ -23,7 +23,7 @@ function subscription(
 }
 
 async function mockBootstrap(page: Page, online: boolean) {
-  await page.route('**/api/bootstrap', async (route) => {
+  await page.route('**/api/bootstrap*', async (route) => {
     const data = (await (await route.fetch()).json()) as Bootstrap;
     const template = data.subscriptions[0];
     const subscriptions = [
@@ -65,13 +65,19 @@ async function mockBootstrap(page: Page, online: boolean) {
         ...data,
         subscriptions,
         jobs,
-        services: { ...data.services, workerOnline: online, workerLastSeen: online ? new Date().toISOString() : null },
+        services: {
+          ...data.services,
+          workerOnline: online,
+          workerLastSeen: online ? new Date().toISOString() : null,
+        },
       },
     });
   });
 }
 
-test('subscription cards explain queue, completion, partial, rate-limit, and auth states', async ({ page }) => {
+test('subscription cards explain queue, completion, partial, rate-limit, and auth states', async ({
+  page,
+}) => {
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await mockBootstrap(page, true);
@@ -99,7 +105,9 @@ test('subscription cards explain queue, completion, partial, rate-limit, and aut
   expect(errors).toEqual([]);
 });
 
-test('subscription management announces an offline worker while keeping content available', async ({ page }) => {
+test('subscription management announces an offline worker while keeping content available', async ({
+  page,
+}) => {
   await mockBootstrap(page, false);
   await page.goto('/subscriptions');
   await page.getByRole('button', { name: '刷新内容' }).click();

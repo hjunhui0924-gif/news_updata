@@ -12,6 +12,8 @@ export async function api(
     const data = await action(viewer);
     return Response.json(data, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
+    if (error instanceof SyntaxError)
+      return Response.json({ error: '请求内容无法读取，请重试。' }, { status: 400 });
     if (error instanceof GitHubError)
       return Response.json(
         { error: error.message },
