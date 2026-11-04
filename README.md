@@ -2,7 +2,7 @@
 
 在一个网页里查看你关注的 GitHub 项目、开发者与 YouTube 频道更新。GitHub 支持中文摘要、对照译文和原文；YouTube 展示公开视频信息和作者简介，并提供原站观看入口。
 
-**当前为本地 Demo：GitHub 已接入，YouTube 支持在现有工作空间连接自己的账号、读取关注并导入频道；真实 Google 授权联调仍待自己的 OAuth 客户端配置与人工授权。Bilibili / X / RSS 尚未接入。** 网页内的订阅、已读和收藏保存在本应用，不会替你 Star、Follow 或修改源站频道订阅。没有邮件功能。
+**当前为本地 Demo：GitHub 已接入，YouTube 的账号连接、关注读取与频道导入代码已实现，但真实 Google 授权处理失败，联调按用户要求暂停，尚未验收为可用闭环。Bilibili / X / RSS 尚未接入。** 网页内的订阅、已读和收藏保存在本应用，不会替你 Star、Follow 或修改源站频道订阅。没有邮件功能。
 
 ![知更桌面阅读器，使用演示数据](docs/assets/reader-demo.png)
 
@@ -288,7 +288,7 @@ pnpm worker:check       # 检查已有 Worker 构建；不启动数据库、采�
 
 浏览器测试每轮重建专用 `news_e2e_test`、迁移并写入示例，关闭真实服务凭据，不复用日常库；勿将有价值的数据放入该库。自定义 E2E_DATABASE_URL 必须是无查询参数的本机 `*_e2e_test`，已有连接会阻止重建。优先使用 Windows Chrome；其他环境可先安装 Chromium。测试与开发约定见 [运行指南](docs/05-operations-and-quality.md)。
 
-2026-11-04 生产启动增量：修复共享错误类型把 Next 请求模块带入 Worker 的问题，新增纯 Node 生产 bundle 加载门禁。本次重新通过 245 项单元/集成测试、14 项相关浏览器回归、类型、Lint 与构建；真实配置下 Web/Worker 已启动、健康 ready，实际同步任务完成。自己的 Google OAuth 客户端已在本机配置，Google 人工授权与真实关注结果仍待验证。[启动与授权记录](docs/19-youtube-account-following.md)
+2026-11-04 生产启动增量：修复共享错误类型把 Next 请求模块带入 Worker 的问题，新增纯 Node 生产 bundle 加载门禁。本次重新通过 245 项单元/集成测试、14 项相关浏览器回归、类型、Lint 与构建；真实配置下 Web/Worker 已启动、健康 ready，实际同步任务完成。随后用户使用已配置的 Google OAuth 客户端尝试授权，但回调后续处理失败，联调现已暂停，自己的关注读取仍未验收。[启动与授权记录](docs/19-youtube-account-following.md)
 
 此前账号关注版本验证：**42 文件、245 项单元/集成测试通过，完整 Playwright Demo 回归 58 项通过，类型、Lint 与 Web/Worker 构建通过**；逐阶段 review、手机弹窗检查、日常库 0006 升级与隔离恢复、生产路由鉴权/回调冒烟均通过。当轮验收时未配置自己的 Google OAuth 客户端，真实关注和 G4 未验收。[账号与关注记录](docs/19-youtube-account-following.md)
 
@@ -316,6 +316,7 @@ G3 当前约定的站内阅读闭环已完成。项目目前是 Demo，尚无真
 - [Demo 八项收尾](docs/16-demo-hardening.md) · [本地备份恢复与诊断](docs/17-database-maintenance.md)
 - [平台适配层与 YouTube](docs/18-platform-adapters.md)
 - [YouTube 账号与关注导入](docs/19-youtube-account-following.md)
+- [聚合阅读器优化开发方案：借鉴、改进与分项验收](docs/20-aggregation-optimization-roadmap.md)
 - [前端优化方案](docs/frontend-optimization-plan.md) · [基线审计](docs/frontend-optimization-baseline.md)
 - [前端阶段 1–3](docs/frontend-optimization-stage1.md) · [阶段 4–7](docs/frontend-optimization-stage4.md) · [阶段 7 收尾](docs/frontend-optimization-stage7.md)
 - [变更记录](CHANGELOG.md) · [安全说明](SECURITY.md) · [开发贡献](CONTRIBUTING.md)

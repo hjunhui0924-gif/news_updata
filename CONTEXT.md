@@ -8,7 +8,7 @@
 
 平台是提供外部内容和身份体系的服务，例如 GitHub、X（原 Twitter）或 RSS。平台决定授权方式、内容边界和可用的更新类型。
 
-当前已实现 GitHub 与 YouTube 的适配及共用阅读流程；YouTube 尚待配置自己的密钥完成真实接口联调。Bilibili、X 和 RSS 尚未接入。
+当前已实现 GitHub 与 YouTube 的适配及共用阅读流程；YouTube 的真实账号连接仍未验收，联调暂缓。Bilibili、X 和 RSS 尚未接入。
 
 ## 来源
 
