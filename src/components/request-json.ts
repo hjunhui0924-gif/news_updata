@@ -1,3 +1,12 @@
+export class RequestError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+  ) {
+    super(message);
+  }
+}
+
 export async function requestJson<T>(
   url: string,
   method = 'GET',
@@ -34,6 +43,9 @@ export async function requestJson<T>(
     fail(error, '服务返回了无法读取的响应，请稍后重试。');
   }
   if (!response.ok)
-    throw new Error(typeof result?.error === 'string' ? result.error : '操作未完成，请重试。');
+    throw new RequestError(
+      typeof result?.error === 'string' ? result.error : '操作未完成，请重试。',
+      response.status,
+    );
   return result;
 }

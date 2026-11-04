@@ -54,3 +54,12 @@ it('preserves caller cancellation and API validation messages', async () => {
   });
   await expect(requestJson('/api/subscriptions', 'POST', {})).rejects.toThrow('请填写有效仓库');
 });
+it('retains a safe HTTP status for explicit stale-preview recovery', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockResolvedValue(Response.json({ error: '关注预览已过期' }, { status: 409 })),
+  );
+  await expect(
+    requestJson('/api/platforms/youtube/following/import', 'POST', {}),
+  ).rejects.toMatchObject({ message: '关注预览已过期', status: 409 });
+});

@@ -6,7 +6,8 @@ import { getPool } from '../db/client';
 import { getSubscriptions } from '../db/store';
 import type { GitHubFollowingPreview } from '@/shared/types';
 import type { Subscription } from '@/shared/types';
-import { addSubscription } from './service';
+import { addSubscription, addSubscriptionWithResult } from './service';
+import type { ImportReceipt } from '@/shared/import-receipt';
 
 type FollowingDependencies = {
   getSubscriptions?: typeof getSubscriptions;
@@ -84,15 +85,24 @@ export async function importFollowing(
   );
   const added: Subscription[] = [];
   const failed: { name: string; error: string }[] = [];
-  const add = dependencies?.addSubscription ?? addSubscription;
+  const receipt: ImportReceipt = { created: 0, existing: 0, failed: 0 };
+  const accepted: string[] = [];
+  const add = async (name: string) =>
+    dependencies?.addSubscription
+      ? {
+          subscription: await dependencies.addSubscription(userId, 'author', name, github),
+          created: true,
+        }
+      : addSubscriptionWithResult(userId, 'author', name, github);
   for (let offset = 0; offset < names.length; offset += 5) {
     const batch = names.slice(offset, offset + 5);
-    const results = await Promise.allSettled(
-      batch.map((name) => add(userId, 'author', name, github)),
-    );
+    const results = await Promise.allSettled(batch.map((name) => add(name)));
     results.forEach((result, index) => {
-      if (result.status === 'fulfilled') added.push(result.value);
-      else
+      if (result.status === 'fulfilled') {
+        added.push(result.value.subscription);
+        accepted.push(batch[index]);
+        receipt[result.value.created ? 'created' : 'existing']++;
+      } else
         failed.push({
           name: batch[index],
           error:
@@ -102,5 +112,6 @@ export async function importFollowing(
         });
     });
   }
-  return { added, failed };
+  receipt.failed = failed.length;
+  return { added, failed, receipt, accepted };
 }

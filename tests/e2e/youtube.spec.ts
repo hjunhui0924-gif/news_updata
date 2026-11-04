@@ -69,6 +69,122 @@ async function openYouTube(page: import('@playwright/test').Page) {
   return dialog;
 }
 
+test('a lost import response can be retried and reports existing sources without duplicate selection', async ({
+  page,
+}) => {
+  await page.clock.install();
+  const stored: Subscription[] = [];
+  const existing = Array.from({ length: 49 }, (_, index) => ({
+    ...channel,
+    id: `existing-channel-${index}`,
+    externalId: `existing-channel-${index}`,
+  }));
+  await mockReaderBootstrap(page, (data) => ({
+    ...data,
+    subscriptions: [...existing, ...stored, ...data.subscriptions],
+    services: { ...data.services, youtubeAuth: connected },
+  }));
+  await page.route('**/api/platforms/youtube/following/preview', (route) =>
+    route.fulfill({
+      json: {
+        previewId: 'lost-response-preview',
+        channels: [
+          { id: channel.externalId, name: channel.name, description: '', subscribed: false },
+        ],
+        nextCursor: null,
+        truncated: false,
+      },
+    }),
+  );
+  let calls = 0;
+  await page.route('**/api/platforms/youtube/following/import', async (route) => {
+    expect(route.request().postDataJSON()).toEqual({
+      previewId: 'lost-response-preview',
+      channelIds: [channel.externalId],
+    });
+    if (++calls === 1) {
+      stored.push(channel);
+      return route.abort('failed');
+    }
+    return route.fulfill({
+      json: { added: [channel], failed: [], receipt: { created: 0, existing: 1, failed: 0 } },
+    });
+  });
+  const dialog = await openYouTube(page);
+  await dialog.getByRole('button', { name: '读取我的关注', exact: true }).click();
+  await dialog.getByRole('button', { name: '导入 1 个频道', exact: true }).click();
+  await expect(dialog.getByRole('alert')).toContainText('暂时无法连接服务');
+  await expect(
+    dialog.getByRole('checkbox', { name: `订阅 ${channel.name}`, exact: true }),
+  ).toBeChecked();
+  await page.clock.fastForward(31000);
+  await expect(
+    dialog.getByText('频道订阅上限：50 个，当前还可添加 0 个。', { exact: false }),
+  ).toBeVisible();
+  await expect(dialog.getByRole('button', { name: '导入 1 个频道', exact: true })).toBeEnabled();
+  await dialog.getByRole('button', { name: '导入 1 个频道', exact: true }).click();
+  await expect(dialog.getByText('本次新增 0 个频道，已存在 1 个，失败 0 个。')).toBeVisible();
+  await expect(
+    dialog.getByRole('checkbox', { name: `订阅 ${channel.name}`, exact: true }),
+  ).toBeDisabled();
+  expect(calls).toBe(2);
+  expect(stored).toHaveLength(1);
+  await page.unrouteAll({ behavior: 'wait' });
+});
+
+for (const mode of ['expired-preview', 'account-changed-during-import'] as const) {
+  test(`${mode} clears obsolete choices and requires a new preview`, async ({ page }) => {
+    await mockReaderBootstrap(page, (data) => ({
+      ...data,
+      services: { ...data.services, youtubeAuth: connected },
+    }));
+    let reads = 0;
+    await page.route('**/api/platforms/youtube/following/preview', (route) =>
+      route.fulfill({
+        json: {
+          previewId: `current-preview-${++reads}`,
+          channels: [
+            { id: channel.externalId, name: channel.name, description: '', subscribed: false },
+          ],
+          nextCursor: null,
+          truncated: false,
+        },
+      }),
+    );
+    await page.route('**/api/platforms/youtube/following/import', (route) =>
+      route.fulfill(
+        mode === 'expired-preview'
+          ? { status: 409, json: { error: '关注预览已过期或账号已变化，请重新读取我的关注。' } }
+          : {
+              json: {
+                added: [],
+                failed: [
+                  {
+                    id: channel.externalId,
+                    name: channel.name,
+                    error: '平台账号已变化，请重新读取关注后导入。',
+                  },
+                ],
+                receipt: { created: 0, existing: 0, failed: 1 },
+                previewInvalidated: true,
+              },
+            },
+      ),
+    );
+    const dialog = await openYouTube(page);
+    await dialog.getByRole('button', { name: '读取我的关注', exact: true }).click();
+    await dialog.getByRole('button', { name: '导入 1 个频道', exact: true }).click();
+    await expect(dialog.getByRole('alert')).toContainText('请重新读取');
+    await expect(dialog.getByRole('checkbox')).toHaveCount(0);
+    await dialog.getByRole('button', { name: '读取我的关注', exact: true }).click();
+    await expect(
+      dialog.getByRole('checkbox', { name: `订阅 ${channel.name}`, exact: true }),
+    ).toBeChecked();
+    expect(reads).toBe(2);
+    await page.unrouteAll({ behavior: 'wait' });
+  });
+}
+
 test('unconfigured account explains OAuth setup and rejects unsafe or unsupported requests', async ({
   page,
   request,
@@ -180,7 +296,7 @@ test('own following supports cross-page selection, partial retry and responsive 
   await expect(dialog.getByText(/当前还可添加 49 个/)).toBeVisible();
   await dialog.getByRole('button', { name: '导入 1 个频道', exact: true }).click();
   await expect(dialog.getByRole('alert')).toHaveCount(0);
-  await expect(dialog.getByText('已导入 1 个频道，后台将获取近期更新。')).toBeVisible();
+  await expect(dialog.getByText('本次新增 1 个频道，已存在 0 个，失败 0 个。')).toBeVisible();
   await expect(dialog.getByText(/当前还可添加 48 个/)).toBeVisible();
   const titleBox = await dialog.getByRole('heading').boundingBox();
   const closeBox = await dialog.getByRole('button', { name: '关闭添加订阅' }).boundingBox();

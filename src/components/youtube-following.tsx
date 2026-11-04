@@ -9,7 +9,8 @@ import type {
   YouTubeFollowingPreview,
 } from '@/shared/types';
 import { Button } from './ui/button';
-import { requestJson } from './reader-app';
+import { requestJson, RequestError } from './request-json';
+import { importReceiptMessage, type ImportReceipt } from '@/shared/import-receipt';
 
 export function YouTubeFollowing({
   connection,
@@ -47,6 +48,17 @@ export function YouTubeFollowing({
   // Use local success counts too: refreshing the surrounding reader may temporarily fail.
   const remaining = Math.max(0, 50 - Math.max(subscriptionCount, imported + initialCount));
   const available = channels.filter((channel) => !channel.subscribed);
+  function invalidatePreview() {
+    setChannels([]);
+    setChecked([]);
+    setPreviewId('');
+    setCursor(null);
+    setTruncated(false);
+  }
+  function handleError(error: unknown) {
+    if (error instanceof RequestError && error.status === 409) invalidatePreview();
+    setError((error as Error).message);
+  }
   function working(value: boolean) {
     if (value) onDismissCallbackError?.();
     setBusy(value);
@@ -126,7 +138,7 @@ export function YouTubeFollowing({
       setCursor(result.nextCursor);
       setTruncated(result.truncated);
     } catch (error) {
-      setError((error as Error).message);
+      handleError(error);
     } finally {
       working(false);
     }
@@ -139,6 +151,8 @@ export function YouTubeFollowing({
       const result = await requestJson<{
         added: Subscription[];
         failed: { id: string; name: string; error: string }[];
+        receipt?: ImportReceipt;
+        previewInvalidated?: boolean;
       }>('/api/platforms/youtube/following/import', 'POST', { previewId, channelIds: checked });
       const successful = new Set(result.added.map((subscription) => subscription.externalId));
       setChannels((current) =>
@@ -155,7 +169,17 @@ export function YouTubeFollowing({
               !channels.find((channel) => channel.id === subscription.externalId)?.subscribed,
           ).length,
       );
-      setNotice(`已导入 ${result.added.length} 个频道，后台将获取近期更新。`);
+      setNotice(
+        importReceiptMessage(
+          result.receipt ?? {
+            created: result.added.length,
+            existing: 0,
+            failed: result.failed.length,
+          },
+          '个频道',
+        ),
+      );
+      if (result.previewInvalidated) invalidatePreview();
       if (result.failed.length)
         setError(
           `部分频道未能导入：${result.failed.map((failure) => `${failure.name}（${failure.error}）`).join('、')}。已导入的会保留，可重试剩余选择。`,
@@ -167,8 +191,15 @@ export function YouTubeFollowing({
           setError((current) => `${current} 频道已保存，但页面刷新失败，请刷新页面。`.trim());
         }
       }
+      if (result.previewInvalidated && !result.added.length) {
+        try {
+          await onRefresh();
+        } catch {
+          /* The visible error still asks for an explicit reread. */
+        }
+      }
     } catch (error) {
-      setError((error as Error).message);
+      handleError(error);
     } finally {
       working(false);
     }
@@ -304,7 +335,7 @@ export function YouTubeFollowing({
             <span>只读授权 · 不修改源站关注</span>
             <Button
               variant="primary"
-              disabled={busy || !checked.length || !remaining}
+              disabled={busy || !checked.length}
               onClick={() => void importSelection()}
             >
               {busy ? <Loader2 size={15} className="spin" /> : <Check size={15} />}导入{' '}

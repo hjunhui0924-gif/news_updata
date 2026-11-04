@@ -214,6 +214,8 @@ export async function importYouTubeFollowing(
   const adapter = new YouTubeAdapter(await createUserYouTubeTransport(userId, signal, fetcher));
   const resolved = await adapter.resolveMany(options.channelIds);
   const added: Subscription[] = [];
+  const receipt = { created: 0, existing: 0, failed: 0 };
+  let previewInvalidated = false;
   const failed: { id: string; name: string; error: string }[] = [];
   for (const id of options.channelIds) {
     signal?.throwIfAborted();
@@ -228,9 +230,13 @@ export async function importYouTubeFollowing(
         connectionGeneration: generation,
         signal,
       });
-      if (result) added.push(result.subscription);
+      if (result) {
+        added.push(result.subscription);
+        receipt[result.created ? 'created' : 'existing']++;
+      }
     } catch (error) {
       signal?.throwIfAborted();
+      if (error instanceof PlatformError && error.status === 409) previewInvalidated = true;
       failed.push({
         id,
         name: known.get(id)!.name,
@@ -238,5 +244,6 @@ export async function importYouTubeFollowing(
       });
     }
   }
-  return { added, failed };
+  receipt.failed = failed.length;
+  return { added, failed, receipt, previewInvalidated };
 }

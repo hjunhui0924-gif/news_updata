@@ -90,6 +90,8 @@ it('creates one source and one sync job per channel and marks existing subscript
   const first = await preview();
   const initial = await importChannels(first.previewId, [1]);
   const repeated = await importChannels(first.previewId, [1]);
+  expect(initial.receipt).toEqual({ created: 1, existing: 0, failed: 0 });
+  expect(repeated.receipt).toEqual({ created: 0, existing: 1, failed: 0 });
   expect(repeated.added[0].id).toBe(initial.added[0].id);
   expect(initial.added[0]).toMatchObject({
     platform: 'youtube',
@@ -236,6 +238,7 @@ it('fences an import whose channel lookup returns after the account has been dis
   const result = await importing;
   expect(result.added).toEqual([]);
   expect(result.failed[0].error).toContain('账号已变化');
+  expect(result.previewInvalidated).toBe(true);
   expect(
     (await getPool().query('SELECT count(*) FROM subscriptions WHERE user_id=$1', [user])).rows[0]
       .count,

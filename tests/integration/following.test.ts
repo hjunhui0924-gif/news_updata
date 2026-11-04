@@ -14,7 +14,7 @@ const connector = new GitHubConnector(async (path) => {
   return {
     hasNext: false,
     data: {
-      id: login === 'alice' ? 10 : 11,
+      id: ['alice', 'renamed'].includes(login) ? 10 : 11,
       login,
       type: 'User',
       bio: `${login} bio`,
@@ -41,15 +41,29 @@ it('persists successful following imports, reports failures, and makes retries i
     connector,
   );
   expect(first.added).toHaveLength(1);
+  expect(first.receipt).toEqual({ created: 1, existing: 0, failed: 1 });
   expect(first.failed).toEqual([{ name: 'missing', error: '账号不存在' }]);
 
   const second = await importFollowing(userId, { usernames: ['alice'] }, connector);
   expect(second.added).toHaveLength(1);
+  expect(second.receipt).toEqual({ created: 0, existing: 1, failed: 0 });
   expect(second.added[0].id).toBe(first.added[0].id);
+  const alias = await importFollowing(userId, { usernames: ['renamed'] }, connector);
+  expect(alias.receipt).toEqual({ created: 0, existing: 1, failed: 0 });
+  expect(alias.accepted).toEqual(['renamed']);
   expect(
     (await getPool().query('SELECT id FROM subscriptions WHERE user_id=$1', [userId])).rows,
   ).toHaveLength(1);
-  expect((await getPool().query('SELECT id FROM jobs WHERE user_id=$1', [userId])).rows).toHaveLength(
-    1,
-  );
+  expect(
+    (await getPool().query('SELECT id FROM jobs WHERE user_id=$1', [userId])).rows,
+  ).toHaveLength(1);
+});
+
+it('counts concurrent imports from their atomic create outcomes', async () => {
+  const results = await Promise.all([
+    importFollowing(userId, { usernames: ['carol'] }, connector),
+    importFollowing(userId, { usernames: ['CAROL'] }, connector),
+  ]);
+  expect(results.reduce((count, result) => count + result.receipt.created, 0)).toBe(1);
+  expect(results.reduce((count, result) => count + result.receipt.existing, 0)).toBe(1);
 });

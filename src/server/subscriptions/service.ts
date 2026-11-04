@@ -29,11 +29,21 @@ export async function addSubscription(
   connector?: GitHubConnector | PlatformAdapter,
   platform: PlatformId = 'github',
 ) {
+  return (await addSubscriptionWithResult(userId, kind, input, connector, platform)).subscription;
+}
+
+export async function addSubscriptionWithResult(
+  userId: string,
+  kind: SourceKind,
+  input: string,
+  connector?: GitHubConnector | PlatformAdapter,
+  platform: PlatformId = 'github',
+) {
   assertSourceKind(platform, kind);
   const adapter = await getAdapter(userId, platform, connector);
   const resolved = await adapter.resolve(kind, input);
   const result = await persistSubscription(userId, kind, resolved, { platform });
-  return result!.subscription;
+  return result!;
 }
 
 export async function persistSubscription(

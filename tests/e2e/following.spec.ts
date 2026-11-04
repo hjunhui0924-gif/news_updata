@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import type { Bootstrap } from '../../src/shared/types';
+import type { Bootstrap, Subscription } from '../../src/shared/types';
 import { mockReaderBootstrap } from './reader-fixtures';
 
 test('one release appears under both project and followed author with explicit coverage and mobile layout', async ({
@@ -142,7 +142,9 @@ test('following import pages preserve selections and mark existing authors', asy
     imported = true;
     await route.fulfill({
       json: {
-        added: [{ name: 'alice' }, { name: 'charlie' }],
+        added: [{ name: 'alice-before-rename' }, { name: 'charlie' }],
+        accepted: ['alice', 'charlie'],
+        receipt: { created: 1, existing: 1, failed: 0 },
         failed: [],
       },
     });
@@ -162,11 +164,99 @@ test('following import pages preserve selections and mark existing authors', asy
   await expect(page.getByRole('checkbox', { name: '订阅 alice', exact: true })).not.toBeChecked();
   await page.getByRole('checkbox', { name: '订阅 alice', exact: true }).check();
   await page.getByRole('button', { name: '导入 2 人', exact: true }).click();
+  await expect(page.getByRole('dialog').getByRole('status')).toContainText(
+    '本次新增 1 位作者，已存在 1 个，失败 0 个',
+  );
+  await expect(page.getByRole('checkbox', { name: '订阅 alice', exact: true })).toBeDisabled();
+  await page.getByRole('button', { name: '完成', exact: true }).click();
   await expect(page.getByRole('dialog')).not.toBeVisible();
   expect(imported).toBe(true);
   await page.setViewportSize({ width: 390, height: 844 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
+
+for (const mode of ['lost-response', 'refresh-failed'] as const) {
+  test(`following import recovers at full capacity after ${mode}`, async ({ page }) => {
+    await page.clock.install();
+    const stored: Subscription[] = [];
+    let template: Subscription;
+    await mockReaderBootstrap(page, (data) => {
+      template = data.subscriptions[0];
+      return {
+        ...data,
+        subscriptions: [
+          ...Array.from({ length: 49 }, (_, index) => ({
+            ...template,
+            id: `existing-author-${index}`,
+            externalId: `existing-author-${index}`,
+            kind: 'author' as const,
+          })),
+          ...stored,
+        ],
+      };
+    });
+    await page.route('**/api/github/following/preview', (route) =>
+      route.fulfill({
+        json: {
+          username: 'owner',
+          page: 1,
+          nextPage: null,
+          truncated: false,
+          users: [{ id: 'last-author', login: 'last-author', subscribed: false }],
+        },
+      }),
+    );
+    let calls = 0;
+    await page.route('**/api/github/following/import', async (route) => {
+      expect(route.request().postDataJSON()).toEqual({ usernames: ['last-author'] });
+      calls++;
+      if (!stored.length)
+        stored.push({
+          ...template,
+          id: 'last-author',
+          externalId: 'last-author',
+          kind: 'author',
+          name: 'last-author',
+        });
+      if (mode === 'lost-response' && calls === 1) return route.abort('failed');
+      if (mode === 'refresh-failed') {
+        await page.route('**/api/bootstrap*', (refresh) => refresh.abort('failed'));
+      }
+      return route.fulfill({
+        json: {
+          added: stored,
+          accepted: ['last-author'],
+          failed: [],
+          receipt: { created: calls === 1 ? 1 : 0, existing: calls === 1 ? 0 : 1, failed: 0 },
+        },
+      });
+    });
+    await page.goto('/subscriptions');
+    await page.getByRole('button', { name: '刷新内容' }).click();
+    await page.getByRole('button', { name: '添加订阅', exact: true }).first().click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByRole('tab', { name: '导入关注', exact: true }).click();
+    await dialog.getByRole('button', { name: '查看关注列表', exact: true }).click();
+    await dialog.getByRole('button', { name: '导入 1 人', exact: true }).click();
+    if (mode === 'lost-response') {
+      await expect(dialog.getByRole('alert')).toContainText('暂时无法连接服务');
+      await page.clock.fastForward(31000);
+      await expect(dialog.getByText('作者订阅上限：50 个，当前还可添加 0 个。')).toBeVisible();
+      await expect(dialog.getByRole('button', { name: '导入 1 人', exact: true })).toBeEnabled();
+      await dialog.getByRole('button', { name: '导入 1 人', exact: true }).click();
+      await expect(dialog.getByRole('status')).toContainText('本次新增 0 位作者，已存在 1 个');
+    } else {
+      await expect(dialog.getByRole('alert')).toContainText('订阅已保存，但页面刷新失败');
+      await expect(dialog.getByText('作者订阅上限：50 个，当前还可添加 0 个。')).toBeVisible();
+    }
+    await expect(
+      dialog.getByRole('checkbox', { name: '订阅 last-author', exact: true }),
+    ).toBeDisabled();
+    expect(stored).toHaveLength(1);
+    expect(calls).toBe(mode === 'lost-response' ? 2 : 1);
+    await page.unrouteAll({ behavior: 'wait' });
+  });
+}
 
 test('following import explains the author subscription limit before selection', async ({
   page,
@@ -248,5 +338,7 @@ test('following import keeps the dialog open for failed accounts after partial s
   await expect(page.getByRole('checkbox', { name: '订阅 alice', exact: true })).toBeDisabled();
   await expect(page.getByRole('checkbox', { name: '订阅 bob', exact: true })).toBeChecked();
   await page.getByRole('button', { name: '导入 1 人', exact: true }).click();
+  await expect(page.getByRole('dialog').getByRole('status')).toContainText('本次新增 1 位作者');
+  await page.getByRole('button', { name: '完成', exact: true }).click();
   await expect(page.getByRole('dialog')).not.toBeVisible();
 });

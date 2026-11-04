@@ -3,10 +3,16 @@
 import { useState } from 'react';
 import { ArrowUpRight, Check, CodeXml as Github, Loader2 } from 'lucide-react';
 import type { GitHubFollowingPreview, GitHubFollowingUser, Subscription } from '@/shared/types';
-import { requestJson } from './reader-app';
+import { requestJson } from './request-json';
+import { importReceiptMessage, type ImportReceipt } from '@/shared/import-receipt';
 import { Button } from './ui/button';
 
-type ImportResult = { added: Subscription[]; failed: { name: string; error: string }[] };
+type ImportResult = {
+  added: Subscription[];
+  failed: { name: string; error: string }[];
+  receipt?: ImportReceipt;
+  accepted?: string[];
+};
 
 export function FollowingImport({
   onAdded,
@@ -27,7 +33,13 @@ export function FollowingImport({
   const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const remainingSlots = Math.max(0, 50 - authorSubscriptionCount);
+  const [notice, setNotice] = useState('');
+  const [initialCount] = useState(authorSubscriptionCount);
+  const [confirmedIds, setConfirmedIds] = useState<string[]>([]);
+  const remainingSlots = Math.max(
+    0,
+    50 - Math.max(authorSubscriptionCount, initialCount + confirmedIds.length),
+  );
 
   function setWorking(value: boolean) {
     setBusy(value);
@@ -37,6 +49,7 @@ export function FollowingImport({
   async function preview(page = 1) {
     setWorking(true);
     setError('');
+    setNotice('');
     try {
       const result = await requestJson<GitHubFollowingPreview>(
         '/api/github/following/preview',
@@ -72,29 +85,48 @@ export function FollowingImport({
   async function importSelection() {
     setWorking(true);
     setError('');
+    setNotice('');
     try {
       const result = await requestJson<ImportResult>('/api/github/following/import', 'POST', {
         usernames: checked,
       });
       const successfulNames = new Set(
-        result.added.map((subscription) => subscription.name.toLowerCase()),
+        (result.accepted ?? result.added.map((subscription) => subscription.name)).map((name) =>
+          name.toLowerCase(),
+        ),
       );
+      const newlyConfirmed = users
+        .filter((user) => !user.subscribed && successfulNames.has(user.login.toLowerCase()))
+        .map((user) => user.id);
+      setConfirmedIds((current) => [...new Set([...current, ...newlyConfirmed])]);
       setUsers((current) =>
         current.map((user) =>
           successfulNames.has(user.login.toLowerCase()) ? { ...user, subscribed: true } : user,
         ),
       );
-      setChecked((current) =>
-        current.filter((login) => !successfulNames.has(login.toLowerCase())),
+      setChecked((current) => current.filter((login) => !successfulNames.has(login.toLowerCase())));
+      setNotice(
+        importReceiptMessage(
+          result.receipt ?? {
+            created: result.added.length,
+            existing: 0,
+            failed: result.failed.length,
+          },
+          '位作者',
+        ),
       );
-      if (result.added.length) await onAdded();
       if (result.failed.length) {
         setError(
           `部分账号未能导入：${result.failed.map((failure) => `${failure.name}（${failure.error}）`).join('、')}。已导入的账号会保留，请稍后重试。`,
         );
-        return;
       }
-      onClose();
+      if (result.added.length) {
+        try {
+          await onAdded();
+        } catch {
+          setError((current) => `${current} 订阅已保存，但页面刷新失败，请刷新页面。`.trim());
+        }
+      }
     } catch (requestError) {
       setError((requestError as Error).message);
     } finally {
@@ -131,6 +163,7 @@ export function FollowingImport({
             setChecked([]);
             setNextPage(null);
             setError('');
+            setNotice('');
           }}
         />
         <p className="helper">
@@ -175,7 +208,9 @@ export function FollowingImport({
                     type="checkbox"
                     aria-label={`订阅 ${user.login}`}
                     checked={user.subscribed || checked.includes(user.login)}
-                    disabled={busy || user.subscribed || (!checked.includes(user.login) && !remainingSlots)}
+                    disabled={
+                      busy || user.subscribed || (!checked.includes(user.login) && !remainingSlots)
+                    }
                     onChange={(event) =>
                       setChecked((current) => {
                         if (event.target.checked) {
@@ -220,14 +255,25 @@ export function FollowingImport({
       )}
       <div className="dialog-footer">
         <span>仅访问公开信息</span>
+        {notice && (
+          <Button disabled={busy} onClick={onClose}>
+            完成
+          </Button>
+        )}
         <Button
           variant="primary"
-          disabled={busy || !checked.length || !remainingSlots}
+          disabled={busy || !checked.length}
           onClick={() => void importSelection()}
         >
-          {busy ? <Loader2 className="spin" size={15} /> : <Check size={15} />}导入 {checked.length} 人
+          {busy ? <Loader2 className="spin" size={15} /> : <Check size={15} />}导入 {checked.length}{' '}
+          人
         </Button>
       </div>
+      {notice && (
+        <p className="helper" role="status">
+          {notice}
+        </p>
+      )}
     </div>
   );
 }
