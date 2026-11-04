@@ -6,6 +6,7 @@ import { getConfig } from '../config';
 import { getPool, transaction } from '../db/client';
 import { PlatformError } from './contract';
 import { createYouTubeTransport } from './youtube';
+import { persistentYouTubeQuota } from './youtube-quota';
 import type { YouTubeConnectionStatus } from '@/shared/types';
 import type { YouTubeOAuthStage, YouTubeOAuthRecovery } from '@/shared/youtube-oauth';
 
@@ -299,12 +300,18 @@ async function completeYouTubeOAuthRequest(
     if (!profile.ok) throw new Error('identity unavailable');
     identity = z.object({ sub: z.string().min(1).max(255) }).parse(await profile.json());
     setStage('channel');
-    const transport = createYouTubeTransport(signal, fetcher, '', {
-      token: async () => grant.access_token,
-      reject: async () => {
-        throw new YouTubeAuthError('reconnect_required');
+    const transport = createYouTubeTransport(
+      signal,
+      fetcher,
+      '',
+      {
+        token: async () => grant.access_token,
+        reject: async () => {
+          throw new YouTubeAuthError('reconnect_required');
+        },
       },
-    });
+      persistentYouTubeQuota('oauth', getConfig().YOUTUBE_CLIENT_ID),
+    );
     const channels = z
       .object({ items: z.array(z.object({ snippet: z.object({ title: z.string() }) })) })
       .parse(await transport('channels', { part: 'snippet', mine: 'true' }));
@@ -463,11 +470,24 @@ export async function createUserYouTubeTransport(
       'youtube',
     ])
   ).rowCount;
-  if (!exists) return createYouTubeTransport(signal, fetcher);
-  return createYouTubeTransport(signal, fetcher, '', {
-    token: (rejectedToken) => youtubeAccessToken(userId, { signal, fetcher, rejectedToken }),
-    reject: (token) => rejectToken(userId, token),
-  });
+  if (!exists)
+    return createYouTubeTransport(
+      signal,
+      fetcher,
+      getConfig().YOUTUBE_API_KEY,
+      undefined,
+      persistentYouTubeQuota('key', getConfig().YOUTUBE_API_KEY),
+    );
+  return createYouTubeTransport(
+    signal,
+    fetcher,
+    '',
+    {
+      token: (rejectedToken) => youtubeAccessToken(userId, { signal, fetcher, rejectedToken }),
+      reject: (token) => rejectToken(userId, token),
+    },
+    persistentYouTubeQuota('oauth', getConfig().YOUTUBE_CLIENT_ID),
+  );
 }
 export async function youtubeConnectionGeneration(userId: string) {
   const status = await getYouTubeAuthStatus(userId);

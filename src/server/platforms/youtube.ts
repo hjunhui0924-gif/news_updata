@@ -10,6 +10,7 @@ import {
 } from './contract';
 import type { Subscription } from '@/shared/types';
 import { platformCapabilities, type SourceKind } from '@/shared/platforms';
+import type { YouTubeQuota } from './youtube-quota';
 
 type Resource = 'channels' | 'playlistItems' | 'videos' | 'subscriptions';
 export type YouTubeTransport = (
@@ -112,6 +113,7 @@ export function createYouTubeTransport(
     token: (rejectedToken?: string) => Promise<string>;
     reject: (token: string) => Promise<void>;
   },
+  quota?: YouTubeQuota,
 ): YouTubeTransport {
   return async (resource, parameters) => {
     signal?.throwIfAborted();
@@ -121,12 +123,15 @@ export function createYouTubeTransport(
         503,
       );
     const quotaKey = credential ? `oauth:${getConfig().YOUTUBE_CLIENT_ID}` : key;
-    if (quotaCooldown?.key === quotaKey && quotaCooldown.until > Date.now())
-      throw new PlatformError(
-        'YouTube 配额暂不可用，稍后会自动重试。',
-        429,
-        Math.ceil((quotaCooldown.until - Date.now()) / 1000),
-      );
+    const remaining = quota
+      ? await quota.remaining().catch(() => {
+          throw new PlatformError('配额状态暂不可读取，请稍后重试。');
+        })
+      : quotaCooldown?.key === quotaKey
+        ? Math.max(0, Math.ceil((quotaCooldown.until - Date.now()) / 1000))
+        : 0;
+    if (remaining > 0)
+      throw new PlatformError('YouTube 配额暂不可用，稍后会自动重试。', 429, remaining);
     const url = new URL(`https://www.googleapis.com/youtube/v3/${resource}`);
     for (const [name, value] of Object.entries(parameters)) url.searchParams.set(name, value);
     if (!credential) url.searchParams.set('key', key);
@@ -162,7 +167,8 @@ export function createYouTubeTransport(
             ? parsed.data.error.errors.map((error) => error.reason)
             : [];
           if (reasons.includes('quotaExceeded') || reasons.includes('dailyLimitExceeded')) {
-            quotaCooldown = { key: quotaKey, until: Date.now() + 86400000 };
+            if (quota) await quota.hold(86400);
+            else quotaCooldown = { key: quotaKey, until: Date.now() + 86400000 };
             throw new PlatformError(
               'YouTube API 配额不足，已暂停请求，24 小时后再试。',
               429,

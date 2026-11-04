@@ -3,10 +3,20 @@ import { getConfig } from '../config';
 import { getPool, transaction } from '../db/client';
 import type { Job, JobKind } from '@/shared/types';
 import { randomUUID } from 'node:crypto';
+import { finishTask } from './completion';
 
 export const QUEUE = 'news-tasks';
-export async function createBoss() {
-  const boss = new PgBoss({ connectionString: getConfig().DATABASE_URL, schema: 'pgboss' });
+// Separate reserved consumers share one durable queue, so pre-upgrade deliveries remain valid.
+export const TASK_PRIORITIES = [0, 1, 2] as const;
+export function taskPriority(kind: JobKind, platform: string) {
+  return kind === 'stars' || (kind === 'sync' && platform !== 'youtube')
+    ? 1
+    : kind === 'sync'
+      ? 2
+      : 0;
+}
+export async function createBoss(schema = 'pgboss') {
+  const boss = new PgBoss({ connectionString: getConfig().DATABASE_URL, schema });
   boss.on('error', () => console.error('Queue error: database operation unavailable'));
   await boss.start();
   await boss.createQueue(QUEUE, {
@@ -53,7 +63,18 @@ export function mapJob(row: Record<string, unknown>): Job {
 export async function publishPending(boss: PgBoss) {
   await transaction(async (client) => {
     const { rows } = await client.query(
-      "SELECT id FROM jobs WHERE status='pending' AND enqueued_at IS NULL ORDER BY created_at LIMIT 50 FOR UPDATE SKIP LOCKED",
+      `WITH candidates AS (
+         SELECT j.id,COALESCE(s.platform,'github') AS platform,
+           row_number() OVER (
+             PARTITION BY CASE WHEN j.kind='stars' THEN 'github'
+               WHEN j.kind='sync' THEN COALESCE(s.platform,'github') ELSE 'ai' END
+             ORDER BY j.created_at,j.id
+           ) AS position
+         FROM jobs j LEFT JOIN subscriptions s ON j.kind='sync' AND s.id=j.target_id AND s.user_id=j.user_id
+         WHERE j.status='pending' AND j.enqueued_at IS NULL
+       )
+       SELECT j.id,j.kind,c.platform FROM jobs j JOIN candidates c ON c.id=j.id
+       WHERE c.position<=16 ORDER BY j.created_at,j.id FOR UPDATE OF j SKIP LOCKED`,
     );
     for (const row of rows) {
       await boss.send(
@@ -62,6 +83,7 @@ export async function publishPending(boss: PgBoss) {
         {
           id: row.id,
           singletonKey: row.id,
+          priority: taskPriority(row.kind, row.platform),
           db: { executeSql: (sql, values) => client.query(sql, values) },
         },
       );
@@ -86,10 +108,7 @@ export async function reconcileJobs(boss: PgBoss) {
         [row.id, '后台任务中断，已自动重新排队。'],
       );
     } else if (interrupted) {
-      await getPool().query(
-        "UPDATE jobs SET status='failed',error=$2,updated_at=now() WHERE id=$1 AND status IN ('pending','running')",
-        [row.id, '后台任务中断或超时，请重新同步或生成。'],
-      );
+      await finishTask(row.id, 'failed', '后台任务中断或超时，请重新同步或生成。');
     }
   }
 }

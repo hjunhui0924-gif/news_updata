@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { getConfig } from '../config';
 import { getPool, transaction } from '../db/client';
 import { getItem } from '../db/store';
+import { claimSummaryVersion } from '../jobs/completion';
 import { createDemoData, demoTranslation } from '../demo/fixtures';
 import type { FeedItem, Summary, TranslationBlock } from '@/shared/types';
 import {
@@ -254,6 +255,8 @@ export async function runAi(
 ) {
   const item = await getItem(userId, itemId);
   if (!item) throw new AiError('更新不存在');
+  if (kind === 'summary' && !(await claimSummaryVersion(userId, itemId, item.contentHash)))
+    throw new AiError('原文已更新，请重新生成。');
   if (item.type === 'video') throw new AiError('当前仅收录视频简介，暂不提供视频全文摘要或翻译。');
   if (!item.body) throw new AiError('来源尚无正文，暂时无法生成。');
   if (item.demo) {

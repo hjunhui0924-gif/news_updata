@@ -3,6 +3,7 @@ import type { PoolClient } from 'pg';
 import type { FeedItem } from '@/shared/types';
 import { itemSourceIds } from '@/shared/feed';
 import { itemExternalKey } from '@/shared/platforms';
+import { summaryFollowupKey } from '../jobs/completion';
 
 export async function persistUpdates(client: PoolClient, userId: string, updates: FeedItem[]) {
   // Consistent lock order covers concurrent source pages, including rows not inserted yet.
@@ -50,10 +51,16 @@ export async function persistUpdates(client: PoolClient, userId: string, updates
       'INSERT INTO items(id,user_id,source_id,external_key,data,published_at) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(user_id,external_key) DO UPDATE SET data=excluded.data,published_at=excluded.published_at',
       [item.id, userId, item.sourceId, key, item, item.publishedAt],
     );
-    if (changed && item.aiStatus === 'pending')
-      await client.query(
+    if (changed && item.aiStatus === 'pending') {
+      const queued = await client.query(
         "INSERT INTO jobs(id,user_id,kind,target_id) VALUES($1,$2,'summary',$3) ON CONFLICT DO NOTHING",
         [randomUUID(), userId, item.id],
       );
+      if (!queued.rowCount)
+        await client.query(
+          'INSERT INTO system_state(key,value) VALUES($1,$2) ON CONFLICT(key) DO UPDATE SET value=excluded.value',
+          [summaryFollowupKey(userId, item.id), JSON.stringify(item.contentHash)],
+        );
+    }
   }
 }
