@@ -13,6 +13,7 @@ import { mapJob } from '../jobs/queue';
 import { itemSourceIds } from '@/shared/feed';
 import { itemExternalKey, sourcePlatform } from '@/shared/platforms';
 import { z } from 'zod';
+import { currentArtifactVersions, withCurrentArtifacts } from '../ai/artifact-version';
 
 export const defaultPreferences: Preferences = { timezone: 'Asia/Shanghai', compact: false };
 
@@ -22,7 +23,13 @@ export async function getItems(userId: string): Promise<FeedItem[]> {
     .from(items)
     .where(eq(items.userId, userId))
     .orderBy(desc(items.publishedAt), desc(items.id));
-  return rows.map((row) => ({ ...row.data, read: row.read, saved: row.saved, muted: row.muted }));
+  const versions = currentArtifactVersions();
+  return rows.map((row) =>
+    withCurrentArtifacts(
+      { ...row.data, read: row.read, saved: row.saved, muted: row.muted },
+      versions,
+    ),
+  );
 }
 type FeedQuery = {
   view: string;
@@ -127,11 +134,12 @@ export async function getFeedPage(userId: string, input: FeedQuery): Promise<Fee
   const currentSubscriptions = new Map(
     (await getSubscriptions(userId)).map((subscription) => [subscription.id, subscription]),
   );
+  const versions = currentArtifactVersions();
   const pageItems = pageRows.map((row) => {
     const item = { ...row.data, read: row.read, saved: row.saved, muted: row.muted };
     const sourceIds = itemSourceIds(item);
     return {
-      ...item,
+      ...withCurrentArtifacts(item, versions),
       priority: sourceIds.some((id) => currentSubscriptions.get(id)?.priority),
       matchedSources: sourceIds.flatMap((id) => {
         const subscription = currentSubscriptions.get(id);
@@ -170,7 +178,10 @@ export async function getItem(userId: string, id: string) {
     .where(and(eq(items.userId, userId), eq(items.id, id)))
     .limit(1);
   if (!rows[0]) return null;
-  const item = { ...rows[0].data, read: rows[0].read, saved: rows[0].saved, muted: rows[0].muted };
+  const item = withCurrentArtifacts(
+    { ...rows[0].data, read: rows[0].read, saved: rows[0].saved, muted: rows[0].muted },
+    currentArtifactVersions(),
+  );
   const sources = new Map((await getSubscriptions(userId)).map((source) => [source.id, source]));
   const ids = itemSourceIds(item);
   return {

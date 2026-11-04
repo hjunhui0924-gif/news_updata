@@ -152,6 +152,46 @@ test('summary and translation pending states stay attached to their own tabs', a
   await expect(detail.getByRole('button', { name: '生成中文翻译' })).toBeDisabled();
 });
 
+test('pending, timeout, invalid output and exhausted budget never block original reading or saving', async ({
+  page,
+}) => {
+  let stage = 'pending';
+  await mockReaderBootstrap(page, (data) => ({
+    ...data,
+    services: { ...data.services, ai: true },
+    jobs: [
+      {
+        id: 'degraded-summary',
+        kind: 'summary',
+        targetId: 'demo-item-0',
+        status: stage === 'pending' ? 'running' : 'failed',
+        error: stage === 'pending' ? null : `fixture ${stage}`,
+        createdAt: new Date().toISOString(),
+      },
+    ],
+    items: data.items.map((item) => ({ ...item, demo: false, summary: null, translation: null })),
+  }));
+  let paidRequests = 0;
+  await page.route('**/api/items/*/summary/retry', (route) => {
+    paidRequests++;
+    return route.fulfill({ status: 500, json: { error: 'unexpected paid retry' } });
+  });
+  await page.goto('/feed');
+  for (stage of ['pending', 'timeout', 'invalid-output', 'budget-exhausted']) {
+    await page.getByRole('button', { name: '刷新内容' }).click();
+    await page.getByTestId('item-demo-item-0').click();
+    const detail = page.getByRole('region', { name: '更新详情' });
+    await detail.getByRole('tab', { name: '原文', exact: true }).click();
+    await expect(detail.getByText('DEMO FIXTURE', { exact: false })).toBeVisible();
+    await detail.getByRole('button', { name: '收藏更新', exact: true }).click();
+    await expect(detail.getByRole('button', { name: '取消收藏', exact: true })).toBeEnabled();
+    await detail.getByRole('button', { name: '取消收藏', exact: true }).click();
+    await expect(detail.getByRole('button', { name: '收藏更新', exact: true })).toBeEnabled();
+  }
+  expect(paidRequests).toBe(0);
+  await page.unrouteAll({ behavior: 'wait' });
+});
+
 test('bilingual paragraphs keep original above Chinese on desktop and mobile', async ({ page }) => {
   await mockReaderBootstrap(page, (data) => {
     return {

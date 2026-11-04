@@ -1,7 +1,8 @@
 import { beforeAll, afterAll, it, expect, vi } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { getPool } from '../../src/server/db/client';
-import { saveItem, getItem } from '../../src/server/db/store';
+import { saveItem, getItem, getFeedPage, patchItemState } from '../../src/server/db/store';
+import { enqueueAi } from '../../src/server/ai/enqueue';
 import { migrate } from '../../scripts/migrate';
 import { runAi, reserveBudget } from '../../src/server/ai/service';
 import { createDemoData } from '../../src/server/demo/fixtures';
@@ -115,6 +116,108 @@ it('does not save or cache a partial translation, and caches a complete retry', 
     { original: source.split('\n\n')[1].trim(), translation: translated.split('\n\n')[1].trim() },
   ]);
 });
+it('model changes invalidate attached results without spending or automatically scheduling a retry', async () => {
+  const current = {
+    ...item,
+    id: randomUUID(),
+    externalId: randomUUID(),
+    contentHash: randomUUID(),
+  };
+  await saveItem(userId, current);
+  await runAi(userId, current.id, 'summary', async () => ({ value: valid }));
+  expect((await getItem(userId, current.id))?.summary).not.toBeNull();
+  vi.stubEnv('LLM_MODEL', 'fixture-next');
+  const before = await getPool().query('SELECT count(*) FROM ai_usage WHERE user_id=$1', [userId]);
+  const stale = await getItem(userId, current.id);
+  expect(stale?.summary).toBeNull();
+  expect(stale?.body).toBe(current.body);
+  expect(stale?.aiError).toContain('配置或提示词已更新');
+  const page = await getFeedPage(userId, {
+    view: 'feed',
+    type: 'all',
+    search: '',
+    source: '',
+    unread: false,
+  });
+  expect(page.items.find((entry) => entry.id === current.id)?.summary).toBeNull();
+  expect(
+    (await getPool().query('SELECT count(*) FROM ai_usage WHERE user_id=$1', [userId])).rows,
+  ).toEqual(before.rows);
+  expect(
+    (
+      await getPool().query(
+        'SELECT count(*)::int count FROM jobs WHERE user_id=$1 AND target_id=$2',
+        [userId, current.id],
+      )
+    ).rows[0].count,
+  ).toBe(0);
+  const queued = await enqueueAi(userId, current.id, 'summary');
+  expect(queued.status).not.toBe('completed');
+  await getPool().query('DELETE FROM jobs WHERE user_id=$1 AND target_id=$2', [userId, current.id]);
+  await runAi(userId, current.id, 'summary', async () => ({
+    value: { ...valid, overview: '新模型结果' },
+  }));
+  expect((await getItem(userId, current.id))?.summary?.overview).toBe('新模型结果');
+  vi.stubEnv('LLM_MODEL', 'fixture');
+});
+
+it('slow and failing models preserve reading state and distinguish billed invalid output from uncertain timeouts', async () => {
+  const current = {
+    ...item,
+    id: randomUUID(),
+    externalId: randomUUID(),
+    contentHash: randomUUID(),
+    aiStatus: 'pending' as const,
+  };
+  await saveItem(userId, current);
+  let release!: () => void;
+  let started!: () => void;
+  const entered = new Promise<void>((resolve) => {
+    started = resolve;
+  });
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const running = runAi(userId, current.id, 'summary', async () => {
+    started();
+    await gate;
+    return { value: valid, inputTokens: 20, outputTokens: 30 };
+  });
+  await entered;
+  try {
+    await patchItemState(userId, current.id, { read: true, saved: true });
+    const readable = await getItem(userId, current.id);
+    expect(readable?.body).toBe(current.body);
+    expect(readable?.read).toBe(true);
+    expect(readable?.saved).toBe(true);
+  } finally {
+    release();
+  }
+  await running;
+  for (const mode of ['invalid', 'timeout'] as const) {
+    const failed = {
+      ...current,
+      id: randomUUID(),
+      externalId: randomUUID(),
+      contentHash: randomUUID(),
+    };
+    await saveItem(userId, failed);
+    await expect(
+      runAi(userId, failed.id, 'summary', async () => {
+        if (mode === 'timeout') throw new Error('fixture provider timeout');
+        return { value: { invalid: true }, inputTokens: 20, outputTokens: 30 };
+      }),
+    ).rejects.toThrow();
+    expect((await getItem(userId, failed.id))?.body).toBe(failed.body);
+  }
+  const usage = await getPool().query(
+    'SELECT status,count(*)::int count FROM ai_usage WHERE user_id=$1 GROUP BY status',
+    [userId],
+  );
+  expect(usage.rows.find((row) => row.status === 'uncertain')?.count).toBe(1);
+  expect(usage.rows.find((row) => row.status === 'settled')?.count).toBeGreaterThanOrEqual(2);
+});
+
 it('concurrent reservations cannot exceed the configured daily budget', async () => {
   const results = await Promise.allSettled(
     Array.from({ length: 5 }, () => reserveBudget(userId, 0.2)),

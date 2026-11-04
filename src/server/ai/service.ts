@@ -4,6 +4,7 @@ import { getConfig } from '../config';
 import { getPool, transaction } from '../db/client';
 import { getItem } from '../db/store';
 import { claimSummaryVersion } from '../jobs/completion';
+import { artifactVersions, promptVersions } from './artifact-version';
 import { createDemoData, demoTranslation } from '../demo/fixtures';
 import type { FeedItem, Summary, TranslationBlock } from '@/shared/types';
 import {
@@ -111,7 +112,7 @@ export function cacheKey(
         type: item.type,
         kind,
         language: 'zh-CN',
-        prompt: kind === 'translation' ? '2026-09-13-v4-bilingual' : '2026-09-13-v2-zh-complete',
+        prompt: promptVersions[kind],
         thinking,
         model,
         baseUrl,
@@ -230,6 +231,7 @@ async function applyArtifact(
   item: FeedItem,
   kind: 'summary' | 'translation',
   artifact: unknown,
+  version?: string,
 ) {
   const patch =
     kind === 'summary'
@@ -241,8 +243,8 @@ async function applyArtifact(
             translationBlocks: (artifact as TranslationArtifact).blocks,
           };
   const result = await getPool().query(
-    "UPDATE items SET data=data || $4::jsonb WHERE user_id=$1 AND id=$2 AND data->>'contentHash'=$3",
-    [userId, item.id, item.contentHash, JSON.stringify(patch)],
+    "UPDATE items SET data=data || $4::jsonb || CASE WHEN $5::text IS NULL THEN '{}'::jsonb ELSE jsonb_build_object('aiVersions',coalesce(data->'aiVersions','{}'::jsonb) || jsonb_build_object($6::text,$5::text)) END WHERE user_id=$1 AND id=$2 AND data->>'contentHash'=$3",
+    [userId, item.id, item.contentHash, JSON.stringify(patch), version ?? null, kind],
   );
   if (!result.rowCount) throw new AiError('原文已更新，请重新生成。');
 }
@@ -275,6 +277,7 @@ export async function runAi(
   }
   const config = getConfig();
   if (config.LLM_ENABLED !== 'true') throw new AiError('尚未配置 AI 服务，原文可直接阅读。');
+  const version = artifactVersions(config)[kind];
   const key = cacheKey(
     item,
     kind,
@@ -284,7 +287,7 @@ export async function runAi(
   );
   const cached = await getPool().query('SELECT result FROM ai_cache WHERE key=$1', [key]);
   if (cached.rows[0]) {
-    await applyArtifact(userId, item, kind, cached.rows[0].result);
+    await applyArtifact(userId, item, kind, cached.rows[0].result, version);
     return;
   }
   if (kind === 'translation' && item.body.length > 16000)
@@ -345,7 +348,7 @@ export async function runAi(
       key,
       JSON.stringify(artifact),
     ]);
-    await applyArtifact(userId, item, kind, artifact);
+    await applyArtifact(userId, item, kind, artifact, version);
   } catch (error) {
     // A timeout can still be billed. Keep reservations until the provider can be reconciled.
     if (reservation)

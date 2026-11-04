@@ -41,6 +41,7 @@ export type FeedItem = {
   summary: Summary | null;
   aiStatus: AiStatus;
   aiError?: string;
+  aiVersions?: Partial<Record<'summary' | 'translation', string>>;
   translation: string | null;
   translationBlocks?: TranslationBlock[] | null;
   read: boolean;
