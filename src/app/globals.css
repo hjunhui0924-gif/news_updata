@@ -1012,12 +1012,17 @@ svg {
   color: var(--primary);
 }
 .update-list {
-  display: grid;
-  gap: 10px;
+  display: block;
+}
+.update-batch {
+  content-visibility: auto;
+}
+.update-batch + .update-batch,
+.update-card + .update-card {
+  margin-top: 10px;
 }
 .update-card {
-  content-visibility: auto;
-  contain-intrinsic-size: auto 210px;
+  display: block;
   width: 100%;
   text-align: left;
   border: 1px solid var(--border);
@@ -2483,8 +2488,9 @@ svg {
 .compact .update-card {
   padding: 11px 14px;
 }
-.compact .update-list {
-  gap: 6px;
+.compact .update-batch + .update-batch,
+.compact .update-card + .update-card {
+  margin-top: 6px;
 }
 .compact .update-card > p {
   display: none;

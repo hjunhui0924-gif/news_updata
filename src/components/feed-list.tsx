@@ -1,4 +1,4 @@
-import { type RefObject, type UIEventHandler } from 'react';
+import { useLayoutEffect, useRef, type RefObject, type UIEventHandler } from 'react';
 import {
   ArrowUpRight,
   Bookmark,
@@ -71,6 +71,20 @@ export function FeedList({
   onAdd: () => void;
   onBrowse: () => void;
 }) {
+  const listRef = useRef<HTMLDivElement>(null);
+  const focusedItem = useRef<string | null>(null);
+  useLayoutEffect(() => {
+    // Moving a card across a layout batch must not lose a keyboard user's focus.
+    if (focusedItem.current && document.activeElement === document.body)
+      listRef.current
+        ?.querySelector<HTMLButtonElement>(
+          `[data-testid="${CSS.escape(`item-${focusedItem.current}`)}"]`,
+        )
+        ?.focus({ preventScroll: true });
+  }, [items]);
+  const batches = Array.from({ length: Math.ceil(items.length / 30) }, (_, index) =>
+    items.slice(index * 30, (index + 1) * 30),
+  );
   return (
     <section ref={panelRef} onScroll={onScroll} className="feed-panel" aria-label="更新列表">
       <div className="feed-heading">
@@ -140,75 +154,89 @@ export function FeedList({
           </Button>
         </div>
       )}
-      <div className="update-list">
-        {items.map((item) => (
-          <button
-            key={item.id}
-            data-testid={`item-${item.id}`}
-            className={`update-card ${selectedId === item.id ? 'selected' : ''} ${item.read ? 'read' : ''}`}
-            aria-pressed={selectedId === item.id}
-            onClick={() => select(item.id)}
+      <div className="update-list" ref={listRef}>
+        {batches.map((batch, index) => (
+          <div
+            className="update-batch"
+            key={index}
+            style={{ containIntrinsicSize: `auto ${batch.length * 220 - 10}px` }}
           >
-            <div className="card-meta">
-              <span className={`repo-avatar ${item.color}`}>
-                {item.repo.split('/').pop()?.slice(0, 2).toUpperCase()}
-              </span>
-              <span className="repo-name">{item.repo}</span>
-              {!item.read && <span className="unread-dot" aria-label="未读" />}
-              <span className="card-time">{relativeTime(item.publishedAt)}</span>
-            </div>
-            <h2>{item.title}</h2>
-            {item.type === 'video' && item.media?.thumbnailUrl && (
-              /* eslint-disable-next-line @next/next/no-img-element -- small lazy remote thumbnails; no image proxy/download */
-              <img
-                className="video-thumbnail"
-                src={item.media.thumbnailUrl}
-                alt=""
-                width={160}
-                height={90}
-                loading="lazy"
-                decoding="async"
-                referrerPolicy="no-referrer"
-                onError={(event) => {
-                  event.currentTarget.hidden = true;
+            {batch.map((item) => (
+              <button
+                key={item.id}
+                data-testid={`item-${item.id}`}
+                className={`update-card ${selectedId === item.id ? 'selected' : ''} ${item.read ? 'read' : ''}`}
+                aria-pressed={selectedId === item.id}
+                onClick={() => select(item.id)}
+                onFocus={() => {
+                  focusedItem.current = item.id;
                 }}
-              />
-            )}
-            <ItemSources item={item} />
-            <p>
-              {item.summary?.overview ||
-                item.description ||
-                (item.type === 'video'
-                  ? '暂无公开简介，可打开原视频查看。'
-                  : '项目介绍尚未完善，点击查看已有信息。')}
-            </p>
-            <div className="card-footer">
-              <span className={`type-label ${item.type === 'new_repo' ? 'new' : ''}`}>
-                {item.type === 'video' ? (
-                  <Play size={12} />
-                ) : item.type === 'new_repo' ? (
-                  <GitBranch size={12} />
-                ) : (
-                  <span className="release-dot" />
+                onBlur={() => {
+                  focusedItem.current = null;
+                }}
+              >
+                <div className="card-meta">
+                  <span className={`repo-avatar ${item.color}`}>
+                    {item.repo.split('/').pop()?.slice(0, 2).toUpperCase()}
+                  </span>
+                  <span className="repo-name">{item.repo}</span>
+                  {!item.read && <span className="unread-dot" aria-label="未读" />}
+                  <span className="card-time">{relativeTime(item.publishedAt)}</span>
+                </div>
+                <h2>{item.title}</h2>
+                {item.type === 'video' && item.media?.thumbnailUrl && (
+                  /* eslint-disable-next-line @next/next/no-img-element -- small lazy remote thumbnails; no image proxy/download */
+                  <img
+                    className="video-thumbnail"
+                    src={item.media.thumbnailUrl}
+                    alt=""
+                    width={160}
+                    height={90}
+                    loading="lazy"
+                    decoding="async"
+                    referrerPolicy="no-referrer"
+                    onError={(event) => {
+                      event.currentTarget.hidden = true;
+                    }}
+                  />
                 )}
-                {itemTypeLabels[item.type]}
-              </span>
-              <span className="topic-tag">
-                {item.tags[0] || platformLabels[sourcePlatform(item)]}
-              </span>
-              {item.demo && <span className="demo-mini">示例</span>}
-              {item.backfill && <span className="demo-mini">历史</span>}
-              <span className="card-trailing">
-                {item.saved ? (
-                  <Bookmark size={14} fill="currentColor" />
-                ) : item.priority ? (
-                  <Sparkles size={13} />
-                ) : (
-                  <ArrowUpRight size={14} />
-                )}
-              </span>
-            </div>
-          </button>
+                <ItemSources item={item} />
+                <p>
+                  {item.summary?.overview ||
+                    item.description ||
+                    (item.type === 'video'
+                      ? '暂无公开简介，可打开原视频查看。'
+                      : '项目介绍尚未完善，点击查看已有信息。')}
+                </p>
+                <div className="card-footer">
+                  <span className={`type-label ${item.type === 'new_repo' ? 'new' : ''}`}>
+                    {item.type === 'video' ? (
+                      <Play size={12} />
+                    ) : item.type === 'new_repo' ? (
+                      <GitBranch size={12} />
+                    ) : (
+                      <span className="release-dot" />
+                    )}
+                    {itemTypeLabels[item.type]}
+                  </span>
+                  <span className="topic-tag">
+                    {item.tags[0] || platformLabels[sourcePlatform(item)]}
+                  </span>
+                  {item.demo && <span className="demo-mini">示例</span>}
+                  {item.backfill && <span className="demo-mini">历史</span>}
+                  <span className="card-trailing">
+                    {item.saved ? (
+                      <Bookmark size={14} fill="currentColor" />
+                    ) : item.priority ? (
+                      <Sparkles size={13} />
+                    ) : (
+                      <ArrowUpRight size={14} />
+                    )}
+                  </span>
+                </div>
+              </button>
+            ))}
+          </div>
         ))}
       </div>
       {error && (

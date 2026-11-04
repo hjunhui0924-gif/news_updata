@@ -81,6 +81,7 @@ for (const width of [1440, 768, 390]) {
       if (count === 600 && width === 390)
         await page.screenshot({ path: 'work/aggregation-baseline/mobile.png' });
       await page.unrouteAll({ behavior: 'wait' });
+      expect(summarize(rounds.flatMap((round) => round.samplesMs)).p95Ms).toBeLessThanOrEqual(25);
     });
   }
 }
