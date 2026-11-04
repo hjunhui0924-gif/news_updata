@@ -6,7 +6,12 @@ export function ItemSources({ item }: { item: Pick<FeedItem, 'matchedSources'> }
     <div className="item-sources" aria-label="关注来源">
       {item.matchedSources.map((source) => (
         <span key={source.id}>
-          {source.kind === 'author' ? '关注博主' : '订阅项目'} · {source.name}
+          {source.kind === 'channel'
+            ? '订阅频道'
+            : source.kind === 'author'
+              ? '关注博主'
+              : '订阅项目'}{' '}
+          · {source.name}
         </span>
       ))}
     </div>

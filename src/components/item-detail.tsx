@@ -20,6 +20,7 @@ import { Button } from './ui/button';
 import { Markdown } from './markdown';
 import { BilingualTranslation } from './bilingual-translation';
 import { ItemSources } from './item-sources';
+import { itemTypeLabels, platformLabels, sourcePlatform } from '@/shared/platforms';
 export function ItemDetail({
   item,
   toggleSaved,
@@ -91,13 +92,18 @@ export function ItemDetail({
       </section>
     );
   const translationTooLong = item.body.length > 16000 && !item.translation;
-  const tabs = [
-    { key: 'summary' as const, label: '中文摘要', icon: Sparkles },
-    { key: 'translation' as const, label: '对照翻译', icon: Languages },
-    { key: 'original' as const, label: '原文', icon: Code2 },
-  ];
+  const isVideo = item.type === 'video';
+  const detailTab = item.type === 'video' ? 'original' : tab;
+  const tabs =
+    item.type === 'video'
+      ? [{ key: 'original' as const, label: '视频简介', icon: FileText }]
+      : [
+          { key: 'summary' as const, label: '中文摘要', icon: Sparkles },
+          { key: 'translation' as const, label: '对照翻译', icon: Languages },
+          { key: 'original' as const, label: '原文', icon: Code2 },
+        ];
   function handleTabKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
-    const currentIndex = tabs.findIndex(({ key }) => key === tab);
+    const currentIndex = tabs.findIndex(({ key }) => key === detailTab);
     const nextIndex =
       event.key === 'ArrowRight'
         ? (currentIndex + 1) % tabs.length
@@ -143,7 +149,7 @@ export function ItemDetail({
             href={item.url}
             target="_blank"
             rel="noreferrer"
-            aria-label="打开 GitHub 来源"
+            aria-label={`打开 ${platformLabels[sourcePlatform(item)]} 来源`}
           >
             <ArrowUpRight size={20} />
           </a>
@@ -169,7 +175,9 @@ export function ItemDetail({
           </span>
           <div>
             <strong>{item.repo}</strong>
-            <span>{item.type === 'new_repo' ? '新项目' : '正式版本发布'} · GitHub</span>
+            <span>
+              {itemTypeLabels[item.type]} · {platformLabels[sourcePlatform(item)]}
+            </span>
           </div>
           <span className="status-chip">
             <Check size={12} />
@@ -178,6 +186,29 @@ export function ItemDetail({
         </div>
         <h2 className="detail-title">{item.title}</h2>
         <ItemSources item={item} />
+        {item.type === 'video' && (
+          <div className="video-source-card">
+            {item.media?.thumbnailUrl && (
+              /* eslint-disable-next-line @next/next/no-img-element -- only load the selected video cover, never an embedded player */
+              <img
+                src={item.media.thumbnailUrl}
+                alt=""
+                width={480}
+                height={270}
+                loading="lazy"
+                decoding="async"
+                referrerPolicy="no-referrer"
+                onError={(event) => {
+                  event.currentTarget.hidden = true;
+                }}
+              />
+            )}
+            <p>以下是作者提供的视频简介，不是字幕、转写或视频全文。当前不生成视频内容摘要。</p>
+            <a className="video-watch-link" href={item.url} target="_blank" rel="noreferrer">
+              在 YouTube 观看 <ArrowUpRight size={15} />
+            </a>
+          </div>
+        )}
         {item.type === 'new_repo' && subscribeProject && (
           <div className="project-subscribe-card" aria-label="项目订阅">
             <div>
@@ -216,10 +247,10 @@ export function ItemDetail({
           <div className="long-content-note" role="status">
             <FileText size={16} />
             <div>
-              <strong>正文较长</strong>
+              <strong>{isVideo ? '简介较长' : '正文较长'}</strong>
               <span>
-                约 {item.body.length.toLocaleString('zh-CN')} 字符，切换到原文后可按 Markdown
-                结构阅读。
+                约 {item.body.length.toLocaleString('zh-CN')} 字符，
+                {isVideo ? '可按段落阅读作者提供的简介。' : '切换到原文后可按 Markdown 结构阅读。'}
               </span>
             </div>
           </div>
@@ -230,12 +261,12 @@ export function ItemDetail({
               key={key}
               id={`reader-detail-tab-${key}`}
               role="tab"
-              aria-selected={tab === key}
+              aria-selected={detailTab === key}
               aria-controls="reader-detail-panel"
-              tabIndex={tab === key ? 0 : -1}
+              tabIndex={detailTab === key ? 0 : -1}
               onClick={() => setTab(key as typeof tab)}
               onKeyDown={handleTabKeyDown}
-              className={tab === key ? 'active' : ''}
+              className={detailTab === key ? 'active' : ''}
             >
               <Icon size={15} />
               {label}
@@ -245,11 +276,11 @@ export function ItemDetail({
         <div
           id="reader-detail-panel"
           role="tabpanel"
-          aria-labelledby={`reader-detail-tab-${tab}`}
+          aria-labelledby={`reader-detail-tab-${detailTab}`}
           tabIndex={0}
           className="tab-content"
         >
-          {tab === 'summary' &&
+          {detailTab === 'summary' &&
             (item.summary ? (
               <>
                 <div className="summary-intro">
@@ -356,17 +387,21 @@ export function ItemDetail({
                 </Button>
               </div>
             ))}
-          {tab === 'original' &&
-            (item.body ? (
+          {detailTab === 'original' &&
+            (item.type === 'video' ? (
+              <div className="video-description">
+                {item.body || '该视频没有公开简介，可前往原站观看。'}
+              </div>
+            ) : item.body ? (
               <Markdown text={item.body} baseUrl={item.contentUrl ?? item.url} />
             ) : (
               <div className="empty-state">
                 <FileText size={28} />
                 <h3>暂无可读取的正文</h3>
-                <p>你仍可以前往 GitHub 查看项目信息。</p>
+                <p>你仍可以前往来源网站查看内容。</p>
               </div>
             ))}
-          {tab === 'translation' &&
+          {detailTab === 'translation' &&
             (item.language === 'zh' ? (
               <Markdown text={item.body} baseUrl={item.contentUrl ?? item.url} />
             ) : item.translation ? (
@@ -413,10 +448,20 @@ export function ItemDetail({
         <footer className="reading-footer">
           <span>
             <ShieldCheck size={14} />
-            {item.demo ? '以上内容是用于体验的固定示例' : '摘要用于辅助阅读，请以来源为准'}
+            {item.demo
+              ? '以上内容是用于体验的固定示例'
+              : isVideo
+                ? '作者提供的视频简介，请以原视频为准'
+                : '摘要用于辅助阅读，请以来源为准'}
           </span>
           <a href={item.url} target="_blank" rel="noreferrer">
-            {item.demo ? '查看参考项目' : item.contentUrl ? '查看项目来源' : '查看完整原文'}
+            {item.demo
+              ? '查看参考项目'
+              : isVideo
+                ? '前往 YouTube'
+                : item.contentUrl
+                  ? '查看项目来源'
+                  : '查看完整原文'}
             <ArrowUpRight size={14} />
           </a>
           {item.contentUrl && item.contentUrl !== item.url && (

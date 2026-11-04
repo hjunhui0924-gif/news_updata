@@ -14,6 +14,7 @@ const report: Record<string, unknown> = {
       'GITHUB_CLIENT_ID',
       'GITHUB_CLIENT_SECRET',
       'GITHUB_READ_TOKEN',
+      'YOUTUBE_API_KEY',
       'LLM_API_KEY',
     ].map((key) => [key, !!process.env[key]]),
   ),

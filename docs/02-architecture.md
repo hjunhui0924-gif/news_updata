@@ -9,8 +9,10 @@ flowchart LR
   Browser[浏览器阅读器] --> Web[Next.js Web / API]
   Web --> DB[(PostgreSQL)]
   Web --> GitHub[GitHub 公开 API]
+  Web --> YouTube[YouTube Data API]
   Worker[Node.js Worker] --> DB
   Worker --> GitHub
+  Worker --> YouTube
   Worker --> AI[可选模型服务]
 ```
 
@@ -38,6 +40,7 @@ Web 和 Worker 是两个进程，共享 TypeScript 类型、数据库访问及�
 - `src/server/db`：数据库连接、事务和带用户约束的持久化。
 - `src/server/auth`：配置、会话和访问允许名单，演示仅限本地开发。
 - `src/server/connectors/github.ts`：输入验证、公开 API 数据转换，不处理 UI 状态。
+- `src/server/platforms`：公共来源/分页/错误/正文补全契约，GitHub 包装适配器与 YouTube Data API 适配器，集中注册工厂与平台检查间隔。
 - `src/server/connectors/github-auth.ts` / `github-user.ts`：跨进程续期、加密凭据、401 重试与状态；搜索、采集复用同一账号连接器。
 - `src/server/discovery`：Trending 快照、刷新恢复、简介翻译和缓存。
 - `src/server/subscriptions`：订阅管理、分页游标、去重、历史边界和同步覆盖。
@@ -53,7 +56,7 @@ MVP 采用按用户保存条目的简化模型，身份与阅读状态为关系�
 | 表                                      | 内容                                                                     |
 | --------------------------------------- | ------------------------------------------------------------------------ |
 | app_users                               | 业务用户，演示用户为 demo                                                |
-| subscriptions                           | 用户、来源种类与外部 ID 唯一，JSONB 保存状态和元数据                     |
+| subscriptions                           | 用户、平台、来源种类与外部 ID 唯一，JSONB 保存状态和适配器元数据          |
 | items                                   | 用户与事件外部 ID 唯一，JSONB 保存原文/摘要/译文，已读/收藏/屏蔽独立字段 |
 | preferences                             | 时区、紧凑列表                                                           |
 | jobs                                    | 任务状态和待投递记录，与业务写入同一事务                                 |
@@ -71,8 +74,8 @@ MVP 采用按用户保存条目的简化模型，身份与阅读状态为关系�
 1. 新订阅和同步任务在同一事务保存，避免订阅成功但任务丢失。
 2. Worker 使用 `FOR UPDATE SKIP LOCKED` 领取未投递记录，pg-boss 使用应用任务 UUID；入队与投递标记同事务提交。
 3. 活动任务按用户、类型、目标去重，普通同步错误允许有限重试。
-4. 每页条目与检查点同事务保存；用户内事件以类型和外部 ID 去重，合并 sourceIds，重复采集不重置阅读状态；正文 hash 变化清除过期生成结果，版本更新时间阻止旧响应回写。
-5. Worker 对 GitHub 同步设置 240 秒取消期限，小于队列 300 秒期限。取消信号传递到 HTTP 与保存检查。
+4. 每页条目与检查点同事务保存；用户内事件按平台、类型和外部 ID 去重，GitHub 历史外部键保持不变。合并 sourceIds，重复采集不重置阅读状态；正文 hash 变化清除过期生成结果，版本更新时间阻止旧响应回写。
+5. Worker 对同步设置 240 秒取消期限，小于队列 300 秒期限。取消信号传递到 HTTP 与保存检查。
 6. 定期核对 pg-boss 终态；崩溃、超时或缺失任务不永久显示运行中，网页可重新同步。
 7. GitHub 限流等待期限持久化，自动和手动入口都遵守。
 
@@ -94,6 +97,8 @@ MVP 采用按用户保存条目的简化模型，身份与阅读状态为关系�
 
 ## 平台扩展
 
-后续新增 RSS/X 适配器时应转换为统一的“平台—来源—订阅—更新条目”语义，再复用存储、AI 与阅读器。当前来源枚举、表唯一键、订阅类型、授权状态和部分 UI 仍以 GitHub 为中心，需要先增加平台身份和平台无关的唯一键，再接入新适配器。
+平台无关的 `PlatformAdapter` 负责来源解析、流定义、opaque cursor、条件请求和正文补全；公共同步编排负责事务、用户隔离、去重、历史额度、阅读状态与任务。适配器返回 `sourceName`，仅在兼容旧存储时映射到 `repo`。迁移 0005 回填 GitHub 平台并扩展订阅唯一键，不改变历史条目 ID、阅读状态或摘要。
 
-扩展顺序暂定为：先完成 GitHub G1～G4 和至少 7 天真实试用；然后做 X 官方接口、权限、成本和内容边界预研；必要时先用 RSS/Atom 验证统一阅读模型。X 预研不代表 X 已接入，不新增 X OAuth、数据库迁移或后台任务。详细准入条件见 [跨平台扩展预研](14-platform-expansion.md)。
+GitHub 已通过适配层工作，保留双流与 ETag 语义。YouTube 使用服务端密钥和固定 Google API，通过 uploads 分页与最多 50 个视频批量元数据请求读取公开视频；默认 180 分钟、每轮前 5 页/250 项窗口，旧页提前结束，下一轮回首页。 opaque cursor 持久化并在失效时只清理对应来源检查点。简介纯文本、封面懒加载、原站观看；API 和 Worker 都阻止视频全文 AI。
+
+用户已确认 G4 暂缓期间推进 YouTube Demo；真实 Key/网络验证、长期使用与公开部署分开验收。Bilibili、X、RSS 尚未实现，后续平台在契约与注册表扩展，不能把平台分页/鉴权规则复制到公共事务。细节见 [适配层与 YouTube](18-platform-adapters.md)；历史 X/RSS 预研见 [跨平台扩展预研](14-platform-expansion.md)。

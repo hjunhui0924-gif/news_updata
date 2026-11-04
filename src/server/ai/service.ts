@@ -254,6 +254,7 @@ export async function runAi(
 ) {
   const item = await getItem(userId, itemId);
   if (!item) throw new AiError('更新不存在');
+  if (item.type === 'video') throw new AiError('当前仅收录视频简介，暂不提供视频全文摘要或翻译。');
   if (!item.body) throw new AiError('来源尚无正文，暂时无法生成。');
   if (item.demo) {
     if (getConfig().APP_MODE !== 'demo') throw new AiError('真实模式不能使用演示结果');

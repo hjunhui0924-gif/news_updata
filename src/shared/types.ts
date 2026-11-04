@@ -1,4 +1,6 @@
-export type ItemType = 'release' | 'new_repo';
+import type { PlatformId, SourceKind } from './platforms';
+
+export type ItemType = 'release' | 'new_repo' | 'video';
 export type TranslationBlock = { original: string; translation: string | null };
 export type AiStatus = 'ready' | 'pending' | 'disabled' | 'failed' | 'insufficient';
 export type Summary = {
@@ -11,18 +13,21 @@ export type Summary = {
   evidence: { id: string; text: string }[];
 };
 export type FeedItem = {
+  platform?: PlatformId;
   id: string;
   sourceId: string;
   sourceIds?: string[];
-  matchedSources?: { id: string; kind: 'repo' | 'author'; name: string }[];
+  matchedSources?: { id: string; kind: SourceKind; name: string }[];
   externalId: string;
   type: ItemType;
   repo: string;
+  sourceName?: string;
   author: string;
   title: string;
   description: string;
   url: string;
   contentUrl?: string;
+  media?: { kind: 'video'; thumbnailUrl?: string; content: 'description' };
   publishedAt: string;
   firstSeenAt: string;
   body: string;
@@ -44,9 +49,11 @@ export type FeedItem = {
   priority: boolean;
 };
 export type Subscription = {
+  platform?: PlatformId;
+  adapterData?: Record<string, string>;
   id: string;
   externalId: string;
-  kind: 'repo' | 'author';
+  kind: SourceKind;
   name: string;
   description: string;
   url: string;
@@ -60,8 +67,9 @@ export type Subscription = {
   retryAt?: string | null;
   autoFromStar?: boolean;
   authorEventWindowCapped?: boolean;
+  syncWindowCapped?: boolean;
   syncProgress?: {
-    stream: 'repositories' | 'author-releases';
+    stream: string;
     page: number;
     nextPage: number | null;
   };
@@ -160,6 +168,7 @@ export type Bootstrap = {
   jobs: Job[];
   starSync: StarSyncStatus | null;
   services: {
+    platforms?: Partial<Record<PlatformId, { configured: boolean; intervalMinutes: number }>>;
     githubAuth?: GitHubAuthStatus;
     github: boolean;
     ai: boolean;

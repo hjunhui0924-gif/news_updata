@@ -1,3 +1,4 @@
+import { PlatformError } from '../platforms/contract';
 import { z } from 'zod';
 import { GitHubConnector, GitHubError, parseSourceInput } from '../connectors/github';
 import { createUserGitHubConnector } from '../connectors/github-user';
@@ -38,7 +39,8 @@ export async function previewFollowing(
   const { username, page } = followingPreviewSchema.parse(input);
   const github = connector ?? (await createUserGitHubConnector(userId));
   const resolveUsername =
-    dependencies?.resolveUsername ?? (async (viewerId: string, currentConnector: GitHubConnector) => {
+    dependencies?.resolveUsername ??
+    (async (viewerId: string, currentConnector: GitHubConnector) => {
       const { rows } = await getPool().query(
         'SELECT "accountId" FROM account WHERE "userId"=$1 AND "providerId"=$2',
         [viewerId, 'github'],
@@ -55,7 +57,9 @@ export async function previewFollowing(
     (dependencies?.getSubscriptions ?? getSubscriptions)(userId),
   ]);
   const subscribed = new Set(
-    subscriptions.filter((subscription) => subscription.kind === 'author').map((subscription) => subscription.externalId),
+    subscriptions
+      .filter((subscription) => subscription.kind === 'author')
+      .map((subscription) => subscription.externalId),
   );
   return {
     username: normalized,
@@ -91,7 +95,10 @@ export async function importFollowing(
       else
         failed.push({
           name: batch[index],
-          error: result.reason instanceof GitHubError ? result.reason.message : '导入失败，请稍后重试。',
+          error:
+            result.reason instanceof PlatformError
+              ? result.reason.message
+              : '导入失败，请稍后重试。',
         });
     });
   }

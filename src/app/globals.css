@@ -902,8 +902,59 @@ svg {
   border-radius: 3px;
   padding: 2px 4px;
 }
+.video-thumbnail {
+  display: block;
+  width: 160px;
+  max-width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: 6px;
+  margin: 10px 0;
+}
+.video-source-card {
+  margin: 20px 0;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--background);
+}
+.video-source-card img {
+  display: block;
+  width: 100%;
+  max-width: 480px;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: 6px;
+}
+.video-thumbnail[hidden],
+.video-source-card img[hidden] {
+  display: none;
+}
+.video-source-card p {
+  font-size: 12px;
+  line-height: 1.8;
+  margin: 12px 0;
+  color: var(--muted);
+}
+.video-watch-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  color: var(--primary);
+  font-size: 13px;
+  font-weight: 600;
+}
+.video-description {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.9;
+}
 .filter-row {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
   margin-top: 16px;
@@ -1804,6 +1855,7 @@ svg {
   font-size: 11px;
 }
 .management-tabs {
+  flex-wrap: wrap;
   margin-bottom: 19px;
 }
 .subscription-list {

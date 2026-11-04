@@ -4,4 +4,5 @@ export const migrationNames = [
   '0002_ai_cache.sql',
   '0003_star_sync.sql',
   '0004_feed_performance.sql',
+  '0005_platform_sources.sql',
 ];

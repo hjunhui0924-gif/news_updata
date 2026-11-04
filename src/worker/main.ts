@@ -5,7 +5,8 @@ import { syncSubscription } from '../server/subscriptions/service';
 import type { Subscription } from '../shared/types';
 import pino from 'pino';
 import { runAi, AiError } from '../server/ai/service';
-import { GitHubError } from '../server/connectors/github';
+import { PlatformError } from '../server/platforms/contract';
+import { syncIntervalMinutes } from '../server/platforms/registry';
 import { scheduleStarSync, syncStarred } from '../server/subscriptions/star-sync';
 import { getTrending } from '../server/discovery/service';
 import { getUserSkillDetails } from '../server/skills/service';
@@ -49,8 +50,7 @@ await boss.work<{ id: string }, void, { includeMetadata: true; pollingIntervalSe
             detail,
             task.kind === 'skill-summary' ? 'summary' : 'translation',
           );
-        }
-        else throw new Error('该任务处理器尚未就绪');
+        } else throw new Error('该任务处理器尚未就绪');
         await getPool().query(
           "UPDATE jobs SET status='completed',error=NULL,updated_at=now() WHERE id=$1",
           [task.id],
@@ -61,7 +61,7 @@ await boss.work<{ id: string }, void, { includeMetadata: true; pollingIntervalSe
         const final =
           error instanceof AiError ||
           !['sync', 'stars'].includes(task.kind) ||
-          (error instanceof GitHubError && [401, 404, 429].includes(error.status)) ||
+          (error instanceof PlatformError && [401, 404, 429].includes(error.status)) ||
           job.retryCount >= job.retryLimit;
         await getPool().query('UPDATE jobs SET status=$2,error=$3,updated_at=now() WHERE id=$1', [
           task.id,
@@ -90,10 +90,7 @@ async function tick() {
         continue;
       const key = `schedule:${row.user_id}:${sub.id}`;
       const previous = await getPool().query('SELECT value FROM system_state WHERE key=$1', [key]);
-      const interval =
-        (sub.kind === 'repo'
-          ? config.SYNC_REPO_INTERVAL_MINUTES
-          : config.SYNC_AUTHOR_INTERVAL_MINUTES) * 60000;
+      const interval = syncIntervalMinutes(sub) * 60000;
       if (previous.rows[0] && Date.now() - Date.parse(previous.rows[0].value) < interval) continue;
       await enqueue(row.user_id, 'sync', sub.id);
       await getPool().query(

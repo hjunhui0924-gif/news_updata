@@ -1,3 +1,4 @@
+import { PlatformError } from '../platforms/contract';
 import { z } from 'zod';
 import { GitHubConnector, GitHubError, parseSourceInput } from '../connectors/github';
 import { getPool } from '../db/client';
@@ -72,7 +73,9 @@ export async function importStarred(userId: string, input: unknown, connector?: 
         failed.push({
           name: batch[index],
           error:
-            result.reason instanceof GitHubError ? result.reason.message : '导入失败，请稍后重试。',
+            result.reason instanceof PlatformError
+              ? result.reason.message
+              : '导入失败，请稍后重试。',
         });
     });
   }

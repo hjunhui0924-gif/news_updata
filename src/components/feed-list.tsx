@@ -7,9 +7,11 @@ import {
   Search,
   SlidersHorizontal,
   Sparkles,
+  Play,
 } from 'lucide-react';
 import type { FeedPreview } from '@/shared/types';
 import { relativeTime } from '@/shared/feed';
+import { itemTypeLabels, platformLabels, sourcePlatform } from '@/shared/platforms';
 import { Button } from './ui/button';
 import { ItemSources } from './item-sources';
 export function FeedList({
@@ -97,6 +99,7 @@ export function FeedList({
             ['all', '全部'],
             ['release', '新版本'],
             ['new_repo', '新项目'],
+            ['video', '新视频'],
           ].map(([key, label]) => (
             <button
               key={key}
@@ -155,20 +158,44 @@ export function FeedList({
               <span className="card-time">{relativeTime(item.publishedAt)}</span>
             </div>
             <h2>{item.title}</h2>
+            {item.type === 'video' && item.media?.thumbnailUrl && (
+              /* eslint-disable-next-line @next/next/no-img-element -- small lazy remote thumbnails; no image proxy/download */
+              <img
+                className="video-thumbnail"
+                src={item.media.thumbnailUrl}
+                alt=""
+                width={160}
+                height={90}
+                loading="lazy"
+                decoding="async"
+                referrerPolicy="no-referrer"
+                onError={(event) => {
+                  event.currentTarget.hidden = true;
+                }}
+              />
+            )}
             <ItemSources item={item} />
             <p>
-              {item.summary?.overview || item.description || '项目介绍尚未完善，点击查看已有信息。'}
+              {item.summary?.overview ||
+                item.description ||
+                (item.type === 'video'
+                  ? '暂无公开简介，可打开原视频查看。'
+                  : '项目介绍尚未完善，点击查看已有信息。')}
             </p>
             <div className="card-footer">
               <span className={`type-label ${item.type === 'new_repo' ? 'new' : ''}`}>
-                {item.type === 'new_repo' ? (
+                {item.type === 'video' ? (
+                  <Play size={12} />
+                ) : item.type === 'new_repo' ? (
                   <GitBranch size={12} />
                 ) : (
                   <span className="release-dot" />
                 )}
-                {item.type === 'new_repo' ? '新项目' : '版本发布'}
+                {itemTypeLabels[item.type]}
               </span>
-              <span className="topic-tag">{item.tags[0] || '开源项目'}</span>
+              <span className="topic-tag">
+                {item.tags[0] || platformLabels[sourcePlatform(item)]}
+              </span>
               {item.demo && <span className="demo-mini">示例</span>}
               {item.backfill && <span className="demo-mini">历史</span>}
               <span className="card-trailing">

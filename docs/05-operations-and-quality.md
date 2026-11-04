@@ -1,6 +1,6 @@
 # 运行与质量指南
 
-更新日期：2026-10-23。
+更新日期：2026-11-04。
 
 ## 本地运行：Docker 可选
 
@@ -51,7 +51,21 @@ pnpm worker:dev
 
 `.env.local` 已被 Git 忽略。公开运行前使用独立数据库账户、随机密钥和 HTTPS。允许名单面向个人试用，不等于完整多人 SaaS 权限体系。
 
+## YouTube 频道配置
+
+新增环境变量 `YOUTUBE_API_KEY`（仅服务端，默认空）和 `SYNC_YOUTUBE_INTERVAL_MINUTES`（默认 180，最小 15 分钟）。在 Google 项目启用 YouTube Data API v3 后配置自己的密钥，重启 Web 与 Worker；不要使用 `NEXT_PUBLIC_` 或把密钥输入网页。后台 Node 进程须可访问 Google API，浏览器可访问 YouTube 不代表后台已连通。
+
+```powershell
+pnpm youtube:check -- "@GoogleDevelopers"
+```
+
+该命令只读频道和第一页公开元数据，不写数据库、不启动 Worker、不调用模型。检查通过后，在「添加订阅 → YouTube 频道」添加频道 ID、@handle 或规范频道地址。缺少密钥时页面给出配置提示；第一版不支持单视频、`/c/`、`/user/` 地址或关注列表导入。配额不足持久化来源等待时间，同一进程共享密钥冷却；跨实例共享配额仍需后续专项设计。
+
+升级适配层版本前先 `pnpm db:backup`，再 `pnpm db:migrate` 应用 0005；保持 Web/Worker 停止后升级，避免旧进程写入旧契约。完成后运行 `pnpm db:drill` 验证临时库恢复，再重启应用。完整窗口、性能和真实接口待验证项见 [适配层与 YouTube](18-platform-adapters.md)。
+
 ## 模型配置
+
+YouTube 第一版不生成视频全文摘要或翻译。模型配置只用于原有支持的内容，不会通过开启模型把视频简介变成字幕或转写。
 
 默认 `LLM_ENABLED=false`。启用需要设置以下全部字段：
 
@@ -139,18 +153,19 @@ pnpm lint
 pnpm test
 pnpm test:e2e        # 完整回归，自动准备独立 Demo Web/Worker
 pnpm test:e2e:search # 搜索等增量组合，使用相同隔离配置
+pnpm test:e2e:youtube # 频道配置态、添加、视频阅读与手机回归
 pnpm build
 ```
 
 单元/集成测试默认使用独立 `news_test` 数据库，自动建库需要当前测试账户具有建库权限；可设置 TEST_DATABASE_URL，数据库名必须以 `_test` 结尾。测试不会清空演示数据库。
 
-浏览器测试自动启动 3002 端口的 Demo Web/Worker，关闭真实 GitHub/模型凭据，默认使用独立 `news_e2e_test`。每轮重建该专用库再迁移/seed；不复用日常库或单元测试库。可设置 E2E_DATABASE_URL，但只接受无查询参数的本机连接、库名以 `_e2e_test` 结尾；已有连接会阻止重建，不强行终止其他进程。勿将有价值的数据放入该专用测试库。各增量配置复用相同启动方式，不能同时运行占用同一端口的组合。默认使用 Windows Chrome，可设置 CHROME_PATH；其他环境安装 Chromium：`pnpm exec playwright install chromium`。
+浏览器测试自动启动 3002 端口的 Demo Web/Worker，关闭真实 GitHub/YouTube/模型凭据，默认使用独立 `news_e2e_test`。每轮重建该专用库再迁移/seed；不复用日常库或单元测试库。可设置 E2E_DATABASE_URL，但只接受无查询参数的本机连接、库名以 `_e2e_test` 结尾；已有连接会阻止重建，不强行终止其他进程。勿将有价值的数据放入该专用测试库。各增量配置复用相同启动方式，不能同时运行占用同一端口的组合。默认使用 Windows Chrome，可设置 CHROME_PATH；其他环境安装 Chromium：`pnpm exec playwright install chromium`。
 
-`/api/health/live` 用于存活检查；`/api/health/ready` 检查数据库和迁移，Worker 离线返回 degraded 并允许阅读。`pnpm diagnose` 生成忽略目录中的脱敏报告。Web 在运行不代表 Worker 正在同步，应检查后台状态。升级本轮代码先运行 `pnpm db:backup`、`pnpm db:migrate` 应用 `0004_feed_performance.sql`；备份恢复步骤见 [维护说明](17-database-maintenance.md)。
+`/api/health/live` 用于存活检查；`/api/health/ready` 检查数据库和迁移，Worker 离线返回 degraded 并允许阅读。`pnpm diagnose` 生成忽略目录中的脱敏报告。Web 在运行不代表 Worker 正在同步，应检查后台状态。升级本轮代码先运行 `pnpm db:backup`、`pnpm db:migrate` 依次应用尚未执行的迁移（当前最新 `0005_platform_sources.sql`）；备份恢复步骤见 [维护说明](17-database-maintenance.md)。
 
 ## 2026-11-04 最新验证
 
-完整单元/数据库测试 36 文件 / 195 项、独立 Demo 浏览器回归 52 项、类型检查、Lint 和 Web/Worker 构建通过。生产 standalone 的本机登录页和 JS 资源为 200，数据库/迁移 ready，Worker 离线时可 degraded 运行。日常库 0004 已在验证可恢复备份后应用；包含 4 个迁移的备份再次恢复验证成功。逐项 review 与性能实测见 [八项收尾](16-demo-hardening.md)。验收进程已退出；G4 真实试用继续暂缓。
+适配层/YouTube 版本：40 文件 / 226 项单元与数据库测试、完整 56 项 Demo 浏览器回归、类型、Lint 与 Web/Worker 构建通过。本轮改动源码/配置格式检查通过，未格式化无关的既有文件。生产 standalone 本机登录页和 JS 为 200，数据库/5 个迁移 ready、Worker 离线可 degraded 运行；验收进程已退出，未启动真实采集 Worker。日常库 0005 已在备份后应用，隔离恢复与清理通过，36 订阅、159 更新及已读 25 / 收藏 3 / 静音 0、状态指纹保持一致。YouTube 仍缺自己的 Key/网络联调，G4 暂缓。逐阶段 review 见 [本轮记录](18-platform-adapters.md)；前轮性能实测见 [八项收尾](16-demo-hardening.md)。
 
 ## 2026-10-23 历史验证快照
 

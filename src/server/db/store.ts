@@ -11,6 +11,7 @@ import type {
 } from '@/shared/types';
 import { mapJob } from '../jobs/queue';
 import { itemSourceIds } from '@/shared/feed';
+import { itemExternalKey, sourcePlatform } from '@/shared/platforms';
 import { z } from 'zod';
 
 export const defaultPreferences: Preferences = { timezone: 'Asia/Shanghai', compact: false };
@@ -188,7 +189,7 @@ export async function saveItem(userId: string, item: FeedItem) {
       id: item.id,
       userId,
       sourceId: item.sourceId,
-      externalKey: `${item.type}:${item.externalId}`,
+      externalKey: itemExternalKey(item),
       publishedAt: new Date(item.publishedAt),
       data: item,
       read: item.read,
@@ -235,9 +236,21 @@ export async function getSubscription(userId: string, id: string) {
 export async function saveSubscription(userId: string, data: Subscription) {
   const result = await getDb()
     .insert(subscriptions)
-    .values({ id: data.id, userId, externalId: data.externalId, kind: data.kind, data })
+    .values({
+      id: data.id,
+      userId,
+      externalId: data.externalId,
+      platform: sourcePlatform(data),
+      kind: data.kind,
+      data,
+    })
     .onConflictDoUpdate({
-      target: [subscriptions.userId, subscriptions.kind, subscriptions.externalId],
+      target: [
+        subscriptions.userId,
+        subscriptions.platform,
+        subscriptions.kind,
+        subscriptions.externalId,
+      ],
       set: { data },
     })
     .returning();

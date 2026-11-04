@@ -1,3 +1,4 @@
+import { PlatformError } from '../platforms/contract';
 import { randomUUID } from 'node:crypto';
 import { getPool, transaction } from '../db/client';
 import { getConfig } from '../config';
@@ -178,7 +179,7 @@ export async function syncStarred(
     }
   } catch (error) {
     signal?.throwIfAborted();
-    const known = error instanceof GitHubError;
+    const known = error instanceof PlatformError;
     const delay =
       known && error.status === 429
         ? error.retryAfter

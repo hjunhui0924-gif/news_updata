@@ -767,7 +767,9 @@ export function ReaderApp({
         <div className="connection-strip">
           <span>
             <span className="online-dot" />
-            {data.mode === 'demo' ? '24 条固定示例 · 可添加真实 GitHub 订阅' : 'GitHub 公开数据'}
+            {data.mode === 'demo'
+              ? '24 条固定示例 · 可添加 GitHub / YouTube 订阅'
+              : 'GitHub / YouTube 公开内容'}
           </span>
           <button
             onClick={() => {
@@ -804,6 +806,7 @@ export function ReaderApp({
         </button>
       </nav>
       <AddSubscription
+        platformStatus={data.services.platforms}
         open={addOpen}
         onOpenChange={setAddOpen}
         authorSubscriptionCount={

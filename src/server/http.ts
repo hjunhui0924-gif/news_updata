@@ -1,6 +1,6 @@
 import { AccessError, checkMutationOrigin, getViewer } from './auth';
 import { ZodError } from 'zod';
-import { GitHubError } from './connectors/github';
+import { PlatformError } from './platforms/contract';
 
 export async function api(
   request: Request,
@@ -14,7 +14,7 @@ export async function api(
   } catch (error) {
     if (error instanceof SyntaxError)
       return Response.json({ error: '请求内容无法读取，请重试。' }, { status: 400 });
-    if (error instanceof GitHubError)
+    if (error instanceof PlatformError)
       return Response.json(
         { error: error.message },
         { status: error.status === 401 ? 503 : error.status },

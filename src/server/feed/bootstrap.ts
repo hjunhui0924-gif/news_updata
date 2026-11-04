@@ -64,6 +64,16 @@ export async function bootstrap(
     starSync: await getStarSync(user.id),
     notifications,
     services: {
+      platforms: {
+        github: {
+          configured: ['connected', 'configured', 'refresh_pending'].includes(githubAccount.state),
+          intervalMinutes: config.SYNC_REPO_INTERVAL_MINUTES,
+        },
+        youtube: {
+          configured: !!config.YOUTUBE_API_KEY,
+          intervalMinutes: config.SYNC_YOUTUBE_INTERVAL_MINUTES,
+        },
+      },
       github: ['connected', 'configured', 'refresh_pending'].includes(githubAccount.state),
       githubAuth: githubAccount,
       ai: config.LLM_ENABLED === 'true',

@@ -10,9 +10,11 @@ import {
   RefreshCw,
   Star,
   Users,
+  Play,
   X,
 } from 'lucide-react';
-import type { Job, Subscription, StarSyncStatus } from '@/shared/types';
+import type { Bootstrap, Job, Subscription, StarSyncStatus } from '@/shared/types';
+import { sourcePlatform, platformLabels, subscriptionScope } from '@/shared/platforms';
 import { getSubscriptionSyncStatus } from '@/shared/sync-status';
 import { Button } from './ui/button';
 import { requestJson } from './reader-app';
@@ -51,7 +53,7 @@ export function SubscriptionsPanel({
         <div>
           <span className="eyebrow">CURATE YOUR SOURCES</span>
           <h1>关注你真正关心的</h1>
-          <p>订阅项目看项目版本，关注博主看他新建的项目和本人发布的版本。</p>
+          <p>跟踪 GitHub 项目与开发者，也可以订阅 YouTube 频道的新视频。</p>
         </div>
         <Button variant="primary" onClick={onAdd}>
           <Plus size={16} />
@@ -63,11 +65,11 @@ export function SubscriptionsPanel({
           <strong>{subscriptions.filter((x) => x.enabled).length}</strong> 正在关注
         </span>
         <span>
-          <strong>{subscriptions.filter((x) => x.priority).length}</strong> 重点项目
+          <strong>{subscriptions.filter((x) => x.priority).length}</strong> 重点来源
         </span>
         <p>
           <Github size={15} />
-          GitHub 公开内容
+          GitHub / YouTube 公开内容
         </p>
       </div>
       {showStarSync && (
@@ -92,6 +94,7 @@ export function SubscriptionsPanel({
           ['all', '全部来源'],
           ['repo', '项目仓库'],
           ['author', '开发者'],
+          ['channel', '视频频道'],
         ].map(([value, label]) => (
           <button
             key={value}
@@ -119,7 +122,13 @@ export function SubscriptionsPanel({
             return (
               <article className={`subscription-card ${sub.enabled ? '' : 'paused'}`} key={sub.id}>
                 <span className={`repo-avatar large ${sub.kind === 'author' ? 'blue' : 'slate'}`}>
-                  {sub.kind === 'author' ? <Users size={21} /> : <Github size={22} />}
+                  {sub.kind === 'channel' ? (
+                    <Play size={21} />
+                  ) : sub.kind === 'author' ? (
+                    <Users size={21} />
+                  ) : (
+                    <Github size={22} />
+                  )}
                 </span>
                 <div className="subscription-info">
                   <h2>
@@ -129,11 +138,9 @@ export function SubscriptionsPanel({
                     </a>
                     {sub.demo && <span className="demo-mini">示例</span>}
                   </h2>
-                  <p>{sub.description || '公开 GitHub 来源'}</p>
+                  <p>{sub.description || `公开 ${platformLabels[sourcePlatform(sub)]} 来源`}</p>
                   <p className="subscription-scope">
-                    {sub.kind === 'author'
-                      ? '跟踪：新建公开项目 · 本人发布的正式版本'
-                      : '跟踪：正式版本 · 已收录版本的说明变化'}
+                    {platformLabels[sourcePlatform(sub)]} · {subscriptionScope(sub)}
                   </p>
                   <div className="subscription-status">
                     <span className={`sync-state sync-state-${syncStatus.state}`}>
@@ -162,6 +169,12 @@ export function SubscriptionsPanel({
                     </p>
                   )}
                   {sub.error && <p className="error-text">{sub.error}</p>}
+                  {sub.kind === 'channel' && (
+                    <p className="subscription-scope">
+                      {sub.syncWindowCapped ? '已达到最近 250 条窗口；' : ''}
+                      仅检查近期公开视频，首次导入近 30 天最多 20 条历史；不包含字幕或视频全文。
+                    </p>
+                  )}
                   {sub.kind === 'author' && sub.authorEventWindowCapped && (
                     <p className="warning-text">
                       公开活动已达到 300 条窗口上限，更早的发布动态可能无法补查。
@@ -244,13 +257,17 @@ export function AddSubscription({
   onOpenChange,
   onAdded,
   authorSubscriptionCount,
+  platformStatus,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   onAdded: () => Promise<void>;
   authorSubscriptionCount: number;
+  platformStatus?: Bootstrap['services']['platforms'];
 }) {
-  const [kind, setKind] = useState<'repo' | 'author' | 'following' | 'starred' | 'search'>('repo');
+  const [kind, setKind] = useState<
+    'repo' | 'author' | 'following' | 'starred' | 'search' | 'channel'
+  >('repo');
   const [value, setValue] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -260,6 +277,7 @@ export function AddSubscription({
     ['starred', '导入 Star'],
     ['author', '开发者'],
     ['following', '导入关注'],
+    ['channel', 'YouTube 频道'],
   ] as const;
   function handleMethodKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
     const index = addMethods.findIndex(([key]) => key === kind);
@@ -287,7 +305,11 @@ export function AddSubscription({
     setBusy(true);
     setError('');
     try {
-      await requestJson('/api/subscriptions', 'POST', { kind, input: value });
+      await requestJson('/api/subscriptions', 'POST', {
+        kind,
+        input: value,
+        ...(kind === 'channel' ? { platform: 'youtube' } : {}),
+      });
       await onAdded();
       onOpenChange(false);
       setValue('');
@@ -317,7 +339,7 @@ export function AddSubscription({
           </span>
           <Dialog.Title>添加一份值得关注的更新</Dialog.Title>
           <Dialog.Description>
-            从 GitHub 公开仓库或开发者开始，建立自己的信息源。
+            添加 GitHub 公开仓库、开发者或 YouTube 频道，建立自己的信息源。
           </Dialog.Description>
           <div className="segmented dialog-tabs" role="tablist" aria-label="订阅方式">
             {addMethods.map(([key, label]) => (
@@ -365,7 +387,11 @@ export function AddSubscription({
             ) : (
               <form onSubmit={submit} aria-busy={busy}>
                 <label className="field-label" htmlFor="source-input">
-                  {kind === 'repo' ? '仓库地址或 owner/repo' : 'GitHub 用户名'}
+                  {kind === 'channel'
+                    ? 'YouTube 频道 ID、@handle 或频道地址'
+                    : kind === 'repo'
+                      ? '仓库地址或 owner/repo'
+                      : 'GitHub 用户名'}
                 </label>
                 <input
                   id="source-input"
@@ -374,18 +400,32 @@ export function AddSubscription({
                   onChange={(e) => {
                     setValue(e.target.value);
                   }}
-                  placeholder={kind === 'repo' ? '例如 vercel/next.js' : '例如 torvalds'}
+                  placeholder={
+                    kind === 'channel'
+                      ? '例如 @GoogleDevelopers 或 UC 开头的频道 ID'
+                      : kind === 'repo'
+                        ? '例如 vercel/next.js'
+                        : '例如 torvalds'
+                  }
                   aria-describedby={`source-input-help${error ? ' source-input-error' : ''}`}
                   required
                   maxLength={200}
                 />
                 <p className="helper" id="source-input-help">
-                  {kind === 'repo'
-                    ? '跟踪正式版本发布，首次导入的历史版本不会作为新提醒。'
-                    : kind === 'author'
-                      ? '跟踪新建公开项目和本人发布的正式版本；版本动态受 GitHub 近期公开活动窗口限制。'
-                      : ''}
+                  {kind === 'channel'
+                    ? `每 ${platformStatus?.youtube?.intervalMinutes ?? 180} 分钟检查一次，单轮最多最近 250 条；首次导入近 30 天最多 20 条历史视频。仅展示公开简介，跳转原站观看。`
+                    : kind === 'repo'
+                      ? '跟踪正式版本发布，首次导入的历史版本不会作为新提醒。'
+                      : kind === 'author'
+                        ? '跟踪新建公开项目和本人发布的正式版本；版本动态受 GitHub 近期公开活动窗口限制。'
+                        : ''}
                 </p>
+                {kind === 'channel' && !platformStatus?.youtube?.configured && (
+                  <p className="form-error" role="status">
+                    尚未配置 YouTube API Key。请在服务端 .env.local 设置 YOUTUBE_API_KEY、启用
+                    YouTube Data API v3，并重启 Web 和 Worker。
+                  </p>
+                )}
                 {error && (
                   <p className="form-error" id="source-input-error" role="alert">
                     {error}
@@ -396,7 +436,11 @@ export function AddSubscription({
                     <Github size={14} />
                     仅访问公开信息
                   </span>
-                  <Button type="submit" variant="primary" disabled={busy}>
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    disabled={busy || (kind === 'channel' && !platformStatus?.youtube?.configured)}
+                  >
                     {busy ? <Loader2 size={15} className="spin" /> : <Check size={15} />} 添加订阅
                   </Button>
                 </div>

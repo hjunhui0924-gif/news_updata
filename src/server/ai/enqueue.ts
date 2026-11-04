@@ -5,6 +5,8 @@ import { enqueue } from '../jobs/queue';
 export async function enqueueAi(userId: string, id: string, kind: 'summary' | 'translation') {
   const item = await getItem(userId, id);
   if (!item) throw new AccessError('更新不存在', 404);
+  if (item.type === 'video')
+    throw new AccessError('当前仅收录视频简介，暂不提供视频全文摘要或翻译。', 400);
   if (!item.body) throw new AccessError('来源没有可读取的正文。', 400);
   if (kind === 'translation' && item.translation) return { status: 'completed' };
   if (kind === 'summary' && item.summary) return { status: 'completed' };

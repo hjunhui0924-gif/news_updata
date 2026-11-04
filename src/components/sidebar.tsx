@@ -11,6 +11,7 @@ import {
   ArrowUpRight,
   CircleHelp,
   BookOpen,
+  Play,
 } from 'lucide-react';
 import type { Bootstrap } from '@/shared/types';
 const nav = [
@@ -91,8 +92,8 @@ export function Sidebar({
           .slice(0, 6)
           .map((sub) => (
             <button className="source-link" key={sub.id} onClick={() => selectSource(sub.id)}>
-              <Github size={15} />
-              <span>{sub.name.split('/').pop()}</span>
+              {sub.kind === 'channel' ? <Play size={15} /> : <Github size={15} />}
+              <span>{sub.kind === 'repo' ? sub.name.split('/').pop() : sub.name}</span>
               {sub.priority && <span className="source-dot" />}
             </button>
           ))}
@@ -100,7 +101,7 @@ export function Sidebar({
       </div>
       <button className="add-source" onClick={onAdd}>
         <Plus size={16} />
-        添加关注的人或项目
+        添加关注的来源
       </button>
       <div className="sidebar-bottom">
         <div className="quiet-note">

@@ -1,16 +1,9 @@
 import { Octokit } from '@octokit/rest';
 import { z } from 'zod';
 import { getConfig } from '../config';
+import { PlatformError } from '../platforms/contract';
 
-export class GitHubError extends Error {
-  constructor(
-    message: string,
-    public status = 502,
-    public retryAfter = 60,
-  ) {
-    super(message);
-  }
-}
+export class GitHubError extends PlatformError {}
 export type GitHubTransport = (
   path: string,
   etag?: string,

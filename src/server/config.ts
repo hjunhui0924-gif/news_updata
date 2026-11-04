@@ -10,6 +10,7 @@ const schema = z.object({
   GITHUB_CLIENT_SECRET: z.string().default(''),
   ALLOWED_GITHUB_USER_IDS: z.string().default(''),
   GITHUB_READ_TOKEN: z.string().default(''),
+  YOUTUBE_API_KEY: z.string().default(''),
   LLM_ENABLED: z.enum(['true', 'false']).default('false'),
   LLM_API_BASE_URL: z.string().default(''),
   LLM_API_KEY: z.string().default(''),
@@ -23,6 +24,7 @@ const schema = z.object({
   SYNC_REPO_INTERVAL_MINUTES: z.coerce.number().positive().default(15),
   SYNC_AUTHOR_INTERVAL_MINUTES: z.coerce.number().positive().default(30),
   SYNC_STAR_INTERVAL_MINUTES: z.coerce.number().positive().default(5),
+  SYNC_YOUTUBE_INTERVAL_MINUTES: z.coerce.number().min(15).default(180),
 });
 
 export function getConfig(input: Record<string, string | undefined> = process.env) {

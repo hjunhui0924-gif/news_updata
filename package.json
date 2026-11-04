@@ -18,6 +18,7 @@
     "db:backup": "tsx --env-file=.env.local scripts/database-maintenance.ts backup",
     "db:drill": "tsx --env-file=.env.local scripts/database-maintenance.ts drill",
     "diagnose": "tsx --env-file=.env.local scripts/diagnose.ts",
+    "youtube:check": "tsx --env-file=.env.local scripts/check-youtube.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
@@ -29,6 +30,7 @@
     "test:e2e:following": "playwright test --config playwright.following.config.ts",
     "test:e2e:auth": "playwright test --config playwright.auth.config.ts",
     "test:e2e:search": "playwright test --config playwright.search.config.ts",
+    "test:e2e:youtube": "playwright test --config playwright.youtube.config.ts",
     "format": "prettier --write src tests scripts",
     "demo": "tsx scripts/demo.ts"
   },

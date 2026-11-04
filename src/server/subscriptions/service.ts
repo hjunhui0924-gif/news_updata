@@ -1,6 +1,20 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { GitHubConnector, GitHubError } from '../connectors/github';
-import { createUserGitHubConnector } from '../connectors/github-user';
+import { GitHubConnector } from '../connectors/github';
+import { GitHubAdapter } from '../platforms/github';
+import {
+  CursorExpiredError,
+  PlatformError,
+  type PlatformAdapter,
+  type PageValidator,
+} from '../platforms/contract';
+import { assertSourceKind, createPlatformAdapter } from '../platforms/registry';
+import {
+  itemExternalKey,
+  sourcePlatform,
+  platformLabels,
+  type PlatformId,
+  type SourceKind,
+} from '@/shared/platforms';
 import { getPool, transaction } from '../db/client';
 import { getSubscription } from '../db/store';
 import { enqueue } from '../jobs/queue';
@@ -10,22 +24,39 @@ import type { FeedItem, Subscription } from '@/shared/types';
 
 export async function addSubscription(
   userId: string,
-  kind: 'repo' | 'author',
+  kind: SourceKind,
   input: string,
-  connector?: GitHubConnector,
+  connector?: GitHubConnector | PlatformAdapter,
+  platform: PlatformId = 'github',
 ) {
-  connector ??= await createUserGitHubConnector(userId);
-  const resolved = await connector.resolve(kind, input);
-  const result = await persistSubscription(userId, kind, resolved);
+  assertSourceKind(platform, kind);
+  const adapter = await getAdapter(userId, platform, connector);
+  const resolved = await adapter.resolve(kind, input);
+  const result = await persistSubscription(userId, kind, resolved, { platform });
   return result!.subscription;
 }
 
 export async function persistSubscription(
   userId: string,
-  kind: 'repo' | 'author',
-  resolved: { externalId: string; name: string; description: string; url: string },
-  options: { automatic?: boolean; generation?: string; signal?: AbortSignal } = {},
+  kind: SourceKind,
+  resolved: {
+    externalId: string;
+    name: string;
+    description: string;
+    url: string;
+    adapterData?: Record<string, string>;
+  },
+  options: {
+    automatic?: boolean;
+    generation?: string;
+    signal?: AbortSignal;
+    platform?: PlatformId;
+  } = {},
 ) {
+  const platform = options.platform ?? 'github';
+  assertSourceKind(platform, kind);
+  if (options.automatic && (platform !== 'github' || kind !== 'repo'))
+    throw new PlatformError('自动 Star 导入只支持 GitHub 仓库。', 400);
   return transaction(async (client) => {
     options.signal?.throwIfAborted();
     await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`subscription:${userId}`]);
@@ -41,28 +72,29 @@ export async function persistSubscription(
         [userId, resolved.externalId],
       );
       if (excluded.rowCount) return null;
-    } else if (kind === 'repo') {
+    } else if (platform === 'github' && kind === 'repo') {
       await client.query('DELETE FROM star_sync_exclusions WHERE user_id=$1 AND external_id=$2', [
         userId,
         resolved.externalId,
       ]);
     }
     const existing = await client.query(
-      'SELECT data FROM subscriptions WHERE user_id=$1 AND kind=$2 AND external_id=$3',
-      [userId, kind, resolved.externalId],
+      'SELECT data FROM subscriptions WHERE user_id=$1 AND kind=$2 AND external_id=$3 AND platform=$4',
+      [userId, kind, resolved.externalId, platform],
     );
     if (existing.rows[0])
       return { subscription: existing.rows[0].data as Subscription, created: false };
     const count = await client.query(
-      'SELECT count(*) FROM subscriptions WHERE user_id=$1 AND kind=$2',
-      [userId, kind],
+      'SELECT count(*) FROM subscriptions WHERE user_id=$1 AND kind=$2 AND platform=$3',
+      [userId, kind, platform],
     );
     if (Number(count.rows[0].count) >= (kind === 'repo' ? 100 : 50))
-      throw new GitHubError('已达到本地试用的订阅数量上限。', 400);
+      throw new PlatformError('已达到本地试用的订阅数量上限。', 400);
     const data: Subscription = {
       id: randomUUID(),
       kind,
       ...resolved,
+      platform,
       enabled: true,
       priority: false,
       demo: false,
@@ -73,8 +105,8 @@ export async function persistSubscription(
       ...(options.automatic ? { autoFromStar: true } : {}),
     };
     await client.query(
-      'INSERT INTO subscriptions(id,user_id,external_id,kind,data) VALUES($1,$2,$3,$4,$5)',
-      [data.id, userId, data.externalId, kind, data],
+      'INSERT INTO subscriptions(id,user_id,external_id,kind,data,platform) VALUES($1,$2,$3,$4,$5,$6)',
+      [data.id, userId, data.externalId, kind, data, platform],
     );
     // This record is the transactional outbox; the worker publishes it to pg-boss.
     await client.query('INSERT INTO jobs(id,user_id,kind,target_id) VALUES($1,$2,$3,$4)', [
@@ -92,10 +124,10 @@ export async function deleteSubscription(userId: string, id: string) {
   await transaction(async (client) => {
     await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`subscription:${userId}`]);
     const { rows } = await client.query(
-      'DELETE FROM subscriptions WHERE user_id=$1 AND id=$2 RETURNING kind,external_id',
+      'DELETE FROM subscriptions WHERE user_id=$1 AND id=$2 RETURNING kind,external_id,platform',
       [userId, id],
     );
-    if (rows[0]?.kind === 'repo')
+    if (rows[0]?.kind === 'repo' && rows[0]?.platform === 'github')
       await client.query(
         'INSERT INTO star_sync_exclusions(user_id,external_id) VALUES($1,$2) ON CONFLICT DO NOTHING',
         [userId, rows[0].external_id],
@@ -112,7 +144,7 @@ export async function updateSubscription(
     'UPDATE subscriptions SET data=data || $3::jsonb WHERE user_id=$1 AND id=$2 RETURNING data',
     [userId, id, JSON.stringify(patch)],
   );
-  if (!result.rows[0]) throw new GitHubError('订阅不存在', 404);
+  if (!result.rows[0]) throw new PlatformError('订阅不存在', 404);
   if (patch.enabled) await enqueue(userId, 'sync', id);
   return result.rows[0].data as Subscription;
 }
@@ -120,15 +152,15 @@ export async function updateSubscription(
 export async function syncSubscription(
   userId: string,
   id: string,
-  connector?: GitHubConnector,
+  connector?: GitHubConnector | PlatformAdapter,
   signal?: AbortSignal,
 ) {
   signal?.throwIfAborted();
   const sub = await getSubscription(userId, id);
   if (!sub || !sub.enabled) return;
   if (sub.retryAt && Date.parse(sub.retryAt) > Date.now())
-    throw new GitHubError(
-      'GitHub 限流等待中，请到期后重试。',
+    throw new PlatformError(
+      `${platformLabels[sourcePlatform(sub)]} 限流等待中，请到期后重试。`,
       429,
       (Date.parse(sub.retryAt) - Date.now()) / 1000,
     );
@@ -141,15 +173,14 @@ export async function syncSubscription(
   }
   const startedAt = new Date().toISOString();
   try {
-    connector ??= await createUserGitHubConnector(userId, signal);
+    const platform = sourcePlatform(sub);
+    const adapter = await getAdapter(userId, platform, connector, signal);
+    assertSourceKind(platform, sub.kind);
     let allComplete = true;
     let eventWindowCapped = false;
-    const streams =
-      sub.kind === 'author'
-        ? (['repositories', 'author-releases'] as const)
-        : (['repositories'] as const);
-    for (const stream of streams) {
-      const cursorKey = `sync:${userId}:${id}${stream === 'author-releases' ? ':author-releases' : ''}`;
+    const streams = adapter.streams(sub);
+    for (const [streamIndex, stream] of streams.entries()) {
+      const cursorKey = `sync:${userId}:${id}${streamIndex ? `:${stream}` : ''}`;
       const stored = await getPool().query('SELECT value FROM system_state WHERE key=$1', [
         cursorKey,
       ]);
@@ -158,63 +189,68 @@ export async function syncSubscription(
             page: number;
             historyCount: number;
             completed?: boolean;
-            pages?: Record<
-              string,
-              { etag: string; hasNext: boolean; pageSize: number; historyIncrement: number }
-            >;
+            nextToken?: string;
+            pages?: Record<string, PageValidator>;
           }
         | undefined;
       // Legacy ETags have no pagination metadata and are deliberately not reused.
       const pages = { ...(cursor?.pages ?? {}) };
       let page = cursor && !cursor.completed ? cursor.page : 1;
       let historyCount = cursor && !cursor.completed ? cursor.historyCount : 0;
+      let nextToken = cursor && !cursor.completed ? cursor.nextToken : undefined;
       let streamComplete = false;
-      // Repository history retains resumable pages; the public events API has at most three pages.
+      // Work is bounded for every provider; unfinished cursors resume on the next task.
       for (let iteration = 0; iteration < 5; iteration++, page++) {
         signal?.throwIfAborted();
         const pageKey = String(page);
-        const cached = sub.kind === 'repo' ? pages[pageKey] : undefined;
-        let response =
-          stream === 'author-releases'
-            ? await connector.authorReleases(sub.name, page, sub.externalId)
-            : await connector.updates(sub.kind, sub.name, page, cached?.etag);
-        if ('notModified' in response && response.notModified) {
-          if (!cached) throw new GitHubError('同步缓存不可用，请重新同步。', 502);
-          // A full terminal page can gain a next page without changing its own body.
-          response = { ...response, hasNext: cached.hasNext || cached.pageSize >= 100 };
+        const cached = pages[pageKey];
+        let received;
+        try {
+          received = await adapter.readPage(sub, stream, {
+            page,
+            cursor: nextToken,
+            validator: cached,
+          });
+        } catch (error) {
+          if (error instanceof CursorExpiredError)
+            await getPool().query('DELETE FROM system_state WHERE key=$1', [cursorKey]);
+          throw error;
+        }
+        const response = received.notModified
+          ? { ...received, nextCursor: received.nextCursor ?? cached?.nextCursor }
+          : received;
+        if (response.notModified) {
+          if (!cached) throw new PlatformError('同步缓存不可用，请重新同步。', 502);
           historyCount += cached.historyIncrement;
         }
         const historyBeforePage = historyCount;
-        if ('windowCapped' in response) eventWindowCapped ||= response.windowCapped;
+        if ('windowCapped' in response) eventWindowCapped ||= !!response.windowCapped;
         const known = await getPool().query(
           'SELECT external_key FROM items WHERE user_id=$1 AND external_key=ANY($2::text[])',
-          [userId, response.items.map((update) => `${update.type}:${update.externalId}`)],
+          [userId, response.items.map((update) => itemExternalKey({ ...update, platform }))],
         );
         const existingKeys = new Set(known.rows.map((row) => row.external_key));
         const rows: FeedItem[] = [];
-        for (const update of response.items) {
+        for (const candidate of response.items) {
           signal?.throwIfAborted();
-          const backfill = Date.parse(update.publishedAt) < Date.parse(sub.createdAt);
-          const existing = existingKeys.has(`${update.type}:${update.externalId}`);
+          const backfill = Date.parse(candidate.publishedAt) < Date.parse(sub.createdAt);
+          const existing = existingKeys.has(itemExternalKey({ ...candidate, platform }));
           // Previously captured notes remain eligible for edits even after the initial-history window.
           if (
             !existing &&
             backfill &&
             (historyCount >= 20 ||
-              Date.parse(update.publishedAt) < Date.parse(sub.createdAt) - 30 * 86400000)
+              Date.parse(candidate.publishedAt) < Date.parse(sub.createdAt) - 30 * 86400000)
           )
             continue;
           // Count known candidates too, so later scans cannot expand the historical import cap.
           if (backfill) historyCount++;
-          if (update.type === 'new_repo') {
-            update.body = await connector.readme(update.repo);
-            if (!update.body) update.contentUrl = undefined;
-          }
+          const update = await adapter.materialize(candidate);
           const contentHash = createHash('sha256')
             .update(`${update.title}\n${update.description}\n${update.body}`)
             .digest('hex');
           const itemId = createHash('sha256')
-            .update(`${userId}:${update.type}:${update.externalId}`)
+            .update(`${userId}:${itemExternalKey({ ...update, platform })}`)
             .digest('hex')
             .slice(0, 32);
           rows.push({
@@ -222,19 +258,24 @@ export async function syncSubscription(
             sourceId: id,
             sourceIds: [id],
             ...update,
+            repo: update.sourceName,
+            platform,
             firstSeenAt: new Date().toISOString(),
             contentHash,
             language: /[\u4e00-\u9fff]/.test(update.body.slice(0, 300)) ? 'zh' : 'en',
-            tags: ['GitHub'],
+            tags: [platformLabels[platform]],
             color: 'slate',
             demo: false,
             backfill,
             summary: null,
-            aiStatus: update.body
-              ? getConfig().LLM_ENABLED === 'true'
-                ? 'pending'
-                : 'disabled'
-              : 'insufficient',
+            aiStatus:
+              update.type === 'video'
+                ? 'insufficient'
+                : update.body
+                  ? getConfig().LLM_ENABLED === 'true'
+                    ? 'pending'
+                    : 'disabled'
+                  : 'insufficient',
             translation: null,
             read: false,
             saved: false,
@@ -242,22 +283,15 @@ export async function syncSubscription(
             priority: sub.priority,
           });
         }
-        const authorBoundary =
-          stream === 'repositories' &&
-          sub.kind === 'author' &&
-          response.items.some(
-            (update) =>
-              Date.parse(update.publishedAt) <
-              Date.parse(sub.lastSyncAt ?? sub.createdAt) - 30 * 86400000,
-          );
-        const complete = !response.hasNext || authorBoundary;
-        if (sub.kind === 'repo' && 'notModified' in response && !response.notModified) {
+        const complete = !response.hasNext || !!response.historyComplete;
+        if (!response.notModified) {
           if (response.etag)
             pages[pageKey] = {
               etag: response.etag,
               hasNext: response.hasNext,
               pageSize: response.pageSize,
               historyIncrement: historyCount - historyBeforePage,
+              ...(response.nextCursor ? { nextCursor: response.nextCursor } : {}),
             };
           else delete pages[pageKey];
         }
@@ -279,6 +313,7 @@ export async function syncSubscription(
                 historyCount: complete ? 0 : historyCount,
                 startedAt,
                 completed: complete,
+                ...(!complete && response.nextCursor ? { nextToken: response.nextCursor } : {}),
                 ...(Object.keys(pages).length ? { pages } : {}),
               },
             ],
@@ -302,6 +337,7 @@ export async function syncSubscription(
           return true;
         });
         if (!active) return;
+        nextToken = response.nextCursor;
         if (complete) {
           streamComplete = true;
           break;
@@ -320,18 +356,21 @@ export async function syncSubscription(
           ...(allComplete ? { lastSyncAt: startedAt } : {}),
           error: null,
           retryAt: null,
-          ...(sub.kind === 'author' ? { authorEventWindowCapped: eventWindowCapped } : {}),
+          syncWindowCapped: eventWindowCapped,
+          ...(streams.includes('author-releases')
+            ? { authorEventWindowCapped: eventWindowCapped }
+            : {}),
         }),
       ],
     );
   } catch (error) {
     signal?.throwIfAborted();
-    const message = error instanceof GitHubError ? error.message : '本轮同步未完成，稍后可重试。';
+    const message = error instanceof PlatformError ? error.message : '本轮同步未完成，稍后可重试。';
     const retryAt =
-      error instanceof GitHubError && error.status === 429
+      error instanceof PlatformError && error.status === 429
         ? new Date(Date.now() + error.retryAfter * 1000).toISOString()
         : null;
-    const paused = error instanceof GitHubError && [401, 404].includes(error.status);
+    const paused = error instanceof PlatformError && [401, 404].includes(error.status);
     await getPool().query(
       'UPDATE subscriptions SET data=data || $3::jsonb WHERE user_id=$1 AND id=$2',
       [
@@ -347,4 +386,18 @@ export async function syncSubscription(
     );
     throw error;
   }
+}
+
+async function getAdapter(
+  userId: string,
+  platform: PlatformId,
+  injected?: GitHubConnector | PlatformAdapter,
+  signal?: AbortSignal,
+) {
+  const adapter =
+    injected instanceof GitHubConnector
+      ? new GitHubAdapter(injected)
+      : (injected ?? (await createPlatformAdapter(userId, platform, signal)));
+  if (adapter.platform !== platform) throw new PlatformError('来源平台与连接器不一致。', 400);
+  return adapter;
 }

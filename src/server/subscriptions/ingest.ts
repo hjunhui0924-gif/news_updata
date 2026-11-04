@@ -2,11 +2,12 @@ import { randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import type { FeedItem } from '@/shared/types';
 import { itemSourceIds } from '@/shared/feed';
+import { itemExternalKey } from '@/shared/platforms';
 
 export async function persistUpdates(client: PoolClient, userId: string, updates: FeedItem[]) {
   // Consistent lock order covers concurrent source pages, including rows not inserted yet.
   for (const incoming of [...updates].sort((a, b) => a.id.localeCompare(b.id))) {
-    const key = `${incoming.type}:${incoming.externalId}`;
+    const key = itemExternalKey(incoming);
     await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`item:${userId}:${key}`]);
     const previous = (
       await client.query('SELECT data FROM items WHERE user_id=$1 AND external_key=$2 FOR UPDATE', [
@@ -21,6 +22,20 @@ export async function persistUpdates(client: PoolClient, userId: string, updates
     const changed = !previous || (!older && previous.contentHash !== incoming.contentHash);
     const item: FeedItem = {
       ...(changed ? incoming : previous!),
+      // Provider metadata can change without changing the text used for AI caching.
+      // Keep generated content and user state, but refresh non-stale display metadata.
+      ...(!changed && !older
+        ? {
+            platform: incoming.platform ?? previous?.platform,
+            repo: incoming.repo,
+            sourceName: incoming.sourceName,
+            author: incoming.author,
+            url: incoming.url,
+            contentUrl: incoming.contentUrl,
+            media: incoming.media,
+            publishedAt: incoming.publishedAt,
+          }
+        : {}),
       id: previous?.id ?? incoming.id,
       sourceId: previous?.sourceId ?? incoming.sourceId,
       sourceIds: [

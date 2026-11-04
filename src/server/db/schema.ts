@@ -11,10 +11,11 @@ export const subscriptions = pgTable(
       .notNull()
       .references(() => users.id),
     externalId: text('external_id').notNull(),
+    platform: text().notNull().default('github'),
     kind: text().notNull(),
     data: jsonb().$type<Subscription>().notNull(),
   },
-  (t) => [uniqueIndex('subscription_identity').on(t.userId, t.kind, t.externalId)],
+  (t) => [uniqueIndex('subscription_identity').on(t.userId, t.platform, t.kind, t.externalId)],
 );
 export const items = pgTable(
   'items',

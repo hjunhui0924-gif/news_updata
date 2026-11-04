@@ -1,8 +1,8 @@
 # 知更 / NEWSROOM
 
-在一个网页里查看你关注的 GitHub 项目与开发者更新，阅读中文摘要、对照译文和原文，减少逐个打开仓库检查的时间。当前先把 GitHub 主流程做扎实，并记录 X / RSS 的跨平台扩展路线。
+在一个网页里查看你关注的 GitHub 项目、开发者与 YouTube 频道更新。GitHub 支持中文摘要、对照译文和原文；YouTube 展示公开视频信息和作者简介，并提供原站观看入口。
 
-**当前为可运行的本地 MVP，GitHub 已接入，X / RSS 尚未接入。** 仅读取 GitHub 公开数据；网页内的订阅、已读和收藏只保存在本应用，不会替你 Star 或 Follow。没有邮件功能。
+**当前为本地 Demo：GitHub 已接入，平台适配层与 YouTube 第一版已实现；YouTube 真实接口联调仍待自己的 API Key。Bilibili / X / RSS 尚未接入。** 只读取公开内容；网页内的订阅、已读和收藏只保存在本应用，不会替你 Star、Follow 或订阅源站频道。没有邮件功能。
 
 ![知更桌面阅读器，使用演示数据](docs/assets/reader-demo.png)
 
@@ -14,6 +14,7 @@
 | --- | --- |
 | 项目订阅 | 跟踪正式 Release 和已收录版本说明的修改 |
 | 博主订阅 | 跟踪其新建公开非 fork 仓库，以及本人发布的正式 Release，包含组织项目 |
+| YouTube 频道 | 通过频道 ID、@handle 或规范频道地址添加，批量读取公开已发布视频；展示简介、懒加载封面和原站观看入口，不生成视频全文 AI |
 | Star 导入 | 读取当前账号公开 Star，每 5 分钟发现新 Star 并加入本地订阅；取消 Star 不自动删除订阅 |
 | 关注导入 | 分页读取公开 following，跨页勾选开发者，识别已订阅对象并支持部分失败重试 |
 | 项目搜索 | 在「添加订阅 → 搜索项目」搜索 GitHub 公开仓库，支持排序、分页和本地订阅 |
@@ -61,6 +62,12 @@ pnpm worker:dev
 
 仓库不包含作者的 `.env`、真实账号令牌、模型密钥或数据库，克隆后需要自己的配置。详见 [运行指南](docs/05-operations-and-quality.md)、[授权说明](docs/12-github-auth-renewal.md) 和 [安全边界](SECURITY.md)。
 
+## YouTube 配置
+
+在自己的 Google 项目启用 YouTube Data API v3，将服务端密钥填入 `.env.local` 的 `YOUTUBE_API_KEY`，重启 Web 与 Worker。在「添加订阅 → YouTube 频道」添加来源；未配置密钥时页面会提示并禁用提交。可先运行只读检查 `pnpm youtube:check -- "@GoogleDevelopers"`，不写库、不启动 Worker、不调用模型。后台 Node 进程需要能访问 Google API。
+
+默认每 180 分钟检查，每轮最多 250 项候选；首次仅收录近 30 天最多 20 条历史。不下载字幕或音视频，不把简介当视频全文。完整配置、限制与适配器扩展方式见 [平台适配层与 YouTube](docs/18-platform-adapters.md)。
+
 ## AI 配置
 
 默认可以阅读原文和体验演示译文。开启真实 AI 时，需要在 `.env.local` 设置兼容 Chat Completions 的模型地址、API Key、模型名和实际输入/输出单价，再设 `LLM_ENABLED=true`，重启 Web 与 Worker。
@@ -74,8 +81,10 @@ flowchart LR
   Browser[网页阅读器] --> Web[Next.js Web / API]
   Web --> DB[(PostgreSQL)]
   Web --> GitHub[GitHub 公开 API]
+  Web --> YouTube[YouTube Data API]
   Worker[Node.js Worker] --> DB
   Worker --> GitHub
+  Worker --> YouTube
   Worker --> AI[可选模型服务]
 ```
 
@@ -111,7 +120,7 @@ news_updata/
 │  │     │  ├─ starred/import/route.ts      # 将选中 Star 项目导入本地订阅
 │  │     │  └─ starred/auto/route.ts        # 开关自动跟踪、触发 Star 同步
 │  │     ├─ subscriptions/
-│  │     │  ├─ route.ts                     # 查询、添加项目或博主订阅
+│  │     │  ├─ route.ts                     # 查询、添加项目、博主或频道订阅
 │  │     │  ├─ [id]/route.ts                # 修改订阅偏好、删除订阅
 │  │     │  └─ [id]/sync/route.ts           # 将手动同步请求加入队列
 │  │     ├─ items/[id]/
@@ -167,6 +176,7 @@ news_updata/
 │  │  │  ├─ github-auth.ts                 # 令牌解密、自动续期与失效状态管理
 │  │  │  ├─ github-user.ts                 # 为当前用户创建授权 GitHub 连接
 │  │  │  └─ trending.ts                    # 抓取、解析 GitHub Trending 页面
+│  │  ├─ platforms/                        # 平台契约、注册、GitHub 与 YouTube 适配器
 │  │  ├─ subscriptions/
 │  │  │  ├─ service.ts                     # 订阅增删改、同步与失败处理
 │  │  │  ├─ ingest.ts                      # 更新入库、跨来源去重与内容合并
@@ -193,6 +203,7 @@ news_updata/
 │  │  └─ demo/fixtures.ts                  # 构造演示订阅、更新、摘要与译文
 │  ├─ shared/                              # 前后端共用的数据契约与纯函数
 │  │  ├─ types.ts                          # 更新、订阅、任务与首屏数据类型
+│  │  ├─ platforms.ts                      # 平台身份、来源/条目显示与兼容唯一键
 │  │  ├─ feed.ts                           # 来源匹配、信息流筛选与相对时间
 │  │  ├─ health.ts                         # Worker 心跳有效性
 │  │  ├─ sync-status.ts                    # 将订阅和任务数据转换为同步状态
@@ -210,6 +221,7 @@ news_updata/
 │  ├─ bench-feed.ts                        # 万条数据查询/载荷基准
 │  ├─ database-maintenance.ts              # 一致性备份与隔离恢复演练
 │  ├─ diagnose.ts                          # 脱敏本地运行诊断
+│  ├─ check-youtube.ts                     # 只读检查频道与首屏公开视频元数据
 │  ├─ lib/                                 # 就绪等待、维护与测试安全边界
 │  ├─ start-worker.mjs                     # 加载运行配置并启动生产 Worker
 │  └─ observe-live.ps1                     # 定时记录 Web、数据库、Worker 与任务状态
@@ -217,7 +229,8 @@ news_updata/
 │  ├─ 0001_initial.sql                     # 初始化业务、认证、任务与用量表
 │  ├─ 0002_ai_cache.sql                    # 创建 AI 结果缓存表
 │  ├─ 0003_star_sync.sql                   # 创建 Star 同步状态与排除表
-│  └─ 0004_feed_performance.sql            # 元数据搜索列、trigram 与列表索引
+│  ├─ 0004_feed_performance.sql            # 元数据搜索列、trigram 与列表索引
+│  └─ 0005_platform_sources.sql            # 订阅平台身份与兼容数据回填
 ├─ tests/
 │  ├─ *.test.ts                            # 业务规则、解析、校验与状态转换测试
 │  ├─ *.unit.test.ts                       # Skill 相关单元测试，可独立于数据库运行
@@ -258,12 +271,13 @@ pnpm lint
 pnpm test                # 需要 PostgreSQL，使用独立 news_test 数据库
 pnpm test:e2e            # 完整回归：独立 Demo Web/Worker + news_e2e_test
 pnpm test:e2e:search     # 相同隔离配置下的增量组合
+pnpm test:e2e:youtube    # 缺密钥、频道添加、混合信息流与手机阅读
 pnpm build              # Web + Worker 构建
 ```
 
 浏览器测试每轮重建专用 `news_e2e_test`、迁移并写入示例，关闭真实服务凭据，不复用日常库；勿将有价值的数据放入该库。自定义 E2E_DATABASE_URL 必须是无查询参数的本机 `*_e2e_test`，已有连接会阻止重建。优先使用 Windows Chrome；其他环境可先安装 Chromium。测试与开发约定见 [运行指南](docs/05-operations-and-quality.md)。
 
-2026-11-04 验证：**36 文件、195 项单元/集成测试通过，完整 Playwright Demo 回归 52 项通过，Web/Worker 构建通过**。生产构建本机启动的登录页、静态脚本和 ready 接口也已验证；最终类型、Lint 与逐项 review 见 [八项收尾](docs/16-demo-hardening.md)。模拟测试不等同于真实模型内容质量或长期稳定性验收。[完整验收记录](docs/07-mvp-validation.md)
+2026-11-04 适配层版本验证：**40 文件、226 项单元/集成测试通过，完整 Playwright Demo 回归 56 项通过，类型、Lint 与 Web/Worker 构建通过**。逐阶段 review、手机/桌面检查、日常库 0005 升级与隔离恢复、生产登录页/静态资源/ready 冒烟均完成。YouTube 真实 API Key 和后台网络尚未联调；G4 继续暂缓，自动化不替代真实使用验收。[本轮记录](docs/18-platform-adapters.md) · [历史验收](docs/07-mvp-validation.md)
 
 ## 当前边界与后续
 
@@ -274,7 +288,7 @@ pnpm build              # Web + Worker 构建
 - X/Twitter 和 RSS 目前只完成路线预研说明，尚未接入；也不包含 PR/Issue/提交动态、私有仓库、邮件、浏览器通知或公开注册。
 - 没有完成公开部署、长期连续试用、自动备份计划或正式安全审计；本机隔离恢复演练已验证，步骤见运行指南。
 
-G3 当前约定的站内阅读闭环已完成。项目目前是 Demo，尚无真实用户持续试用，因此 G4（至少 7 天真实使用及源站抽样）继续暂缓。启动就绪、分页与计数、请求轮询、长列表/搜索性能、同步续传、失败恢复和本机备份已补齐；本轮逐项 review 见 [八项收尾](docs/16-demo-hardening.md)。本机 10,000 条数据实测中，30 条预览载荷比完整条目减少约 92.5%，索引后元数据搜索 p95 从约 808 ms 降到 13.5 ms；该结果不是生产 SLA。后续在有真实试用条件后完成 G4，再决定 RSS/X。[开发路线](docs/04-development-plan.md)
+G3 当前约定的站内阅读闭环已完成。项目目前是 Demo，尚无真实用户持续试用，因此 G4（至少 7 天真实使用及源站抽样）继续暂缓。启动就绪、分页与计数、请求轮询、长列表/搜索性能、同步续传、失败恢复和本机备份已补齐；逐项 review 见 [八项收尾](docs/16-demo-hardening.md)。本机 10,000 条数据实测中，30 条预览载荷比完整条目减少约 92.5%，索引后元数据搜索 p95 从约 808 ms 降到 13.5 ms；该结果不是生产 SLA。用户已确认先建公共适配层并实现 YouTube；后续 Bilibili 等平台复用该接口，逐个平台验证，不以 G4 暂缓代替真实接口验收。[开发路线](docs/04-development-plan.md)
 
 ## 文档导航
 
@@ -285,6 +299,7 @@ G3 当前约定的站内阅读闭环已完成。项目目前是 Demo，尚无真
 - [授权自动续期](docs/12-github-auth-renewal.md) · [公开项目搜索](docs/13-github-project-search.md)
 - [跨平台扩展预研](docs/14-platform-expansion.md) · [领域词汇](CONTEXT.md)
 - [Demo 八项收尾](docs/16-demo-hardening.md) · [本地备份恢复与诊断](docs/17-database-maintenance.md)
+- [平台适配层与 YouTube](docs/18-platform-adapters.md)
 - [前端优化方案](docs/frontend-optimization-plan.md) · [基线审计](docs/frontend-optimization-baseline.md)
 - [前端阶段 1–3](docs/frontend-optimization-stage1.md) · [阶段 4–7](docs/frontend-optimization-stage4.md) · [阶段 7 收尾](docs/frontend-optimization-stage7.md)
 - [变更记录](CHANGELOG.md) · [安全说明](SECURITY.md) · [开发贡献](CONTRIBUTING.md)
