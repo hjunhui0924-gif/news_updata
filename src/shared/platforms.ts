@@ -2,7 +2,37 @@ import type { FeedItem, Subscription } from './types';
 
 export type PlatformId = 'github' | 'youtube';
 export type SourceKind = 'repo' | 'author' | 'channel';
-export const platformLabels: Record<PlatformId, string> = { github: 'GitHub', youtube: 'YouTube' };
+export const platformCapabilities: Readonly<
+  Record<
+    PlatformId,
+    {
+      label: string;
+      kinds: readonly SourceKind[];
+      body: 'markdown' | 'description';
+      conditionalRequests: boolean;
+    }
+  >
+> = {
+  github: {
+    label: 'GitHub',
+    kinds: ['repo', 'author'],
+    body: 'markdown',
+    conditionalRequests: true,
+  },
+  youtube: {
+    label: 'YouTube',
+    kinds: ['channel'],
+    body: 'description',
+    conditionalRequests: false,
+  },
+};
+export const platformLabels: Record<PlatformId, string> = {
+  github: platformCapabilities.github.label,
+  youtube: platformCapabilities.youtube.label,
+};
+export function supportsSourceKind(platform: PlatformId, kind: SourceKind) {
+  return platformCapabilities[platform]?.kinds.includes(kind) ?? false;
+}
 
 // Missing platform is the persisted pre-adapter GitHub format, not an unknown provider.
 export function sourcePlatform(source: { platform?: PlatformId }): PlatformId {

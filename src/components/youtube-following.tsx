@@ -13,6 +13,8 @@ import { requestJson } from './reader-app';
 
 export function YouTubeFollowing({
   connection,
+  callbackError,
+  onDismissCallbackError,
   subscriptionCount,
   intervalMinutes,
   onBusyChange,
@@ -20,6 +22,8 @@ export function YouTubeFollowing({
   onRefresh,
 }: {
   connection?: YouTubeConnectionStatus;
+  callbackError?: string;
+  onDismissCallbackError?: () => void;
   subscriptionCount: number;
   intervalMinutes: number;
   onBusyChange: (busy: boolean) => void;
@@ -27,7 +31,7 @@ export function YouTubeFollowing({
   onRefresh: () => Promise<void>;
 }) {
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState(callbackError ?? '');
   const [notice, setNotice] = useState('');
   const [channels, setChannels] = useState<YouTubeFollowingChannel[]>([]);
   const [checked, setChecked] = useState<string[]>([]);
@@ -44,6 +48,7 @@ export function YouTubeFollowing({
   const remaining = Math.max(0, 50 - Math.max(subscriptionCount, imported + initialCount));
   const available = channels.filter((channel) => !channel.subscribed);
   function working(value: boolean) {
+    if (value) onDismissCallbackError?.();
     setBusy(value);
     onBusyChange(value);
   }

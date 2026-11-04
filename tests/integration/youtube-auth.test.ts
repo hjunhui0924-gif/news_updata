@@ -11,6 +11,7 @@ import {
   getYouTubeAuthStatus,
   youtubeAccessToken,
   YOUTUBE_READ_SCOPE,
+  YouTubeOAuthFailure,
 } from '../../src/server/platforms/youtube-auth';
 import { connectTestYouTube, googleFixture } from '../helpers/youtube-oauth';
 
@@ -119,6 +120,28 @@ it('encrypts both credentials, returns no tokens and identifies the Google accou
   expect(parameters.get('code_verifier')).toBeTruthy();
 });
 
+it('identifies the failing OAuth step without retaining provider secrets in diagnostics', async () => {
+  const failedToken: typeof fetch = async () => {
+    throw new Error('private-provider-token');
+  };
+  const error = await connectTestYouTube(user, failedToken).catch((failure: unknown) => failure);
+  expect(error).toBeInstanceOf(YouTubeOAuthFailure);
+  expect(error).toMatchObject({ stage: 'token', recovery: 'temporary' });
+  expect(JSON.stringify(error)).not.toContain('private-provider-token');
+  for (const [path, stage] of [
+    ['/userinfo', 'identity'],
+    ['/channels', 'channel'],
+  ] as const) {
+    const fetcher: typeof fetch = async (input, init) =>
+      String(input).split('?')[0].endsWith(path)
+        ? Response.json({ error: 'private-provider-body' }, { status: 503 })
+        : fixture.fetcher(input, init);
+    const failure = await connectTestYouTube(user, fetcher).catch((failure: unknown) => failure);
+    expect(failure).toMatchObject({ stage, recovery: 'temporary' });
+    expect(JSON.stringify(failure)).not.toContain('private-provider-body');
+  }
+});
+
 it('rejects missing read scope, absent refresh access, expired and cancelled authorization without storing tokens', async () => {
   fixture.state.scopes = 'openid';
   await expect(connectTestYouTube(user, fixture.fetcher)).rejects.toThrow('只读权限');
@@ -126,6 +149,10 @@ it('rejects missing read scope, absent refresh access, expired and cancelled aut
   fixture.state.scopes = `openid ${YOUTUBE_READ_SCOPE}`;
   fixture.state.omitRefresh = true;
   await expect(connectTestYouTube(user, fixture.fetcher)).rejects.toThrow('长期授权');
+  await expect(connectTestYouTube(user, fixture.fetcher)).rejects.toMatchObject({
+    stage: 'storage',
+    recovery: 'reconnect',
+  });
   const expired = await beginYouTubeOAuth(user);
   await getPool().query(
     "UPDATE system_state SET value=jsonb_set(value,'{expiresAt}','0'::jsonb) WHERE value->>'userId'=$1",
@@ -146,6 +173,23 @@ it('rejects missing read scope, absent refresh access, expired and cancelled aut
       fixture.fetcher,
     ),
   ).rejects.toThrow('取消');
+  expect((await row()).access_token).toBeNull();
+});
+
+it('invalidates authorization that loses its connection generation before saving', async () => {
+  const fetcher: typeof fetch = async (input, init) => {
+    const response = await fixture.fetcher(input, init);
+    if (String(input).includes('/channels?'))
+      await getPool().query(
+        "UPDATE platform_connections SET oauth_nonce=$2 WHERE user_id=$1 AND platform='youtube'",
+        [user, randomUUID()],
+      );
+    return response;
+  };
+  await expect(connectTestYouTube(user, fetcher)).rejects.toMatchObject({
+    stage: 'storage',
+    recovery: 'state',
+  });
   expect((await row()).access_token).toBeNull();
 });
 

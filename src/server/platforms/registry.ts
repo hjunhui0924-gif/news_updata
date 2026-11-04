@@ -1,5 +1,10 @@
 import type { Subscription } from '@/shared/types';
-import { sourcePlatform, type PlatformId, type SourceKind } from '@/shared/platforms';
+import {
+  sourcePlatform,
+  supportsSourceKind,
+  type PlatformId,
+  type SourceKind,
+} from '@/shared/platforms';
 import { getConfig } from '../config';
 import { createUserGitHubConnector } from '../connectors/github-user';
 import { GitHubAdapter } from './github';
@@ -8,8 +13,8 @@ import { createUserYouTubeTransport } from './youtube-auth';
 import { PlatformError, type PlatformAdapter } from './contract';
 
 export function assertSourceKind(platform: PlatformId, kind: SourceKind) {
-  const supported = platform === 'github' ? ['repo', 'author'] : ['channel'];
-  if (!supported.includes(kind)) throw new PlatformError('该平台不支持这种订阅类型。', 400);
+  if (!supportsSourceKind(platform, kind))
+    throw new PlatformError('该平台不支持这种订阅类型。', 400);
 }
 
 export async function createPlatformAdapter(

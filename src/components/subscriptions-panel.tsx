@@ -14,7 +14,13 @@ import {
   X,
 } from 'lucide-react';
 import type { Bootstrap, Job, Subscription, StarSyncStatus } from '@/shared/types';
-import { sourcePlatform, platformLabels, subscriptionScope } from '@/shared/platforms';
+import {
+  sourcePlatform,
+  platformLabels,
+  platformCapabilities,
+  subscriptionScope,
+  type SourceKind,
+} from '@/shared/platforms';
 import { getSubscriptionSyncStatus } from '@/shared/sync-status';
 import { Button } from './ui/button';
 import { requestJson } from './reader-app';
@@ -91,21 +97,31 @@ export function SubscriptionsPanel({
         </div>
       )}
       <div className="segmented management-tabs">
-        {[
-          ['all', '全部来源'],
-          ['repo', '项目仓库'],
-          ['author', '开发者'],
-          ['channel', '视频频道'],
-        ].map(([value, label]) => (
-          <button
-            key={value}
-            className={kind === value ? 'selected' : ''}
-            aria-pressed={kind === value}
-            onClick={() => setKind(value)}
-          >
-            {label}
-          </button>
-        ))}
+        {(
+          [
+            ['all', '全部来源'],
+            ['repo', '项目仓库'],
+            ['author', '开发者'],
+            ['channel', '视频频道'],
+          ] as const
+        )
+          .filter(
+            ([value]) =>
+              value === 'all' ||
+              Object.values(platformCapabilities).some((capability) =>
+                capability.kinds.includes(value as SourceKind),
+              ),
+          )
+          .map(([value, label]) => (
+            <button
+              key={value}
+              className={kind === value ? 'selected' : ''}
+              aria-pressed={kind === value}
+              onClick={() => setKind(value)}
+            >
+              {label}
+            </button>
+          ))}
       </div>
       <div className="subscription-list">
         {subscriptions
@@ -260,6 +276,8 @@ export function AddSubscription({
   authorSubscriptionCount,
   platformStatus,
   youtubeAuth,
+  youtubeCallbackError,
+  onDismissYoutubeCallbackError,
   channelSubscriptionCount,
   onRefresh,
   initialMethod = 'repo',
@@ -270,6 +288,8 @@ export function AddSubscription({
   authorSubscriptionCount: number;
   platformStatus?: Bootstrap['services']['platforms'];
   youtubeAuth?: Bootstrap['services']['youtubeAuth'];
+  youtubeCallbackError?: string;
+  onDismissYoutubeCallbackError?: () => void;
   channelSubscriptionCount: number;
   onRefresh: () => Promise<void>;
   initialMethod?: 'repo' | 'channel';
@@ -397,6 +417,8 @@ export function AddSubscription({
               />
             ) : kind === 'channel' ? (
               <YouTubeFollowing
+                callbackError={youtubeCallbackError}
+                onDismissCallbackError={onDismissYoutubeCallbackError}
                 connection={youtubeAuth}
                 subscriptionCount={channelSubscriptionCount}
                 intervalMinutes={platformStatus?.youtube?.intervalMinutes ?? 180}

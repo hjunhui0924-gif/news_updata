@@ -7,11 +7,11 @@ import {
   type UpdatePage,
 } from './contract';
 import type { Subscription } from '@/shared/types';
-import type { SourceKind } from '@/shared/platforms';
+import { platformCapabilities, type SourceKind } from '@/shared/platforms';
 
 export class GitHubAdapter implements PlatformAdapter {
   readonly platform = 'github' as const;
-  readonly kinds = ['repo', 'author'] as const;
+  readonly kinds = platformCapabilities.github.kinds;
   constructor(private readonly connector: GitHubConnector) {}
   resolve(kind: SourceKind, input: string) {
     if (kind !== 'repo' && kind !== 'author')

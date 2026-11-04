@@ -31,6 +31,7 @@ import { requestJson } from './request-json';
 import { startPolling } from './polling';
 import { toFeedPreview } from '@/shared/feed';
 import { sourcePlatform } from '@/shared/platforms';
+import { youtubeOAuthMessage } from '@/shared/youtube-oauth';
 export { requestJson } from './request-json';
 
 const titles: Record<string, string> = {
@@ -106,20 +107,28 @@ export function ReaderApp({
   const [addOpen, setAddOpen] = useState(initialView === 'onboarding');
   const [addMethod, setAddMethod] = useState<'repo' | 'channel'>('repo');
   const [toast, setToast] = useState('');
+  const [youtubeCallbackError, setYoutubeCallbackError] = useState('');
   useEffect(() => {
     const url = new URL(window.location.href);
     const outcome = url.searchParams.get('youtube');
     if (!['connected', 'cancelled', 'failed'].includes(outcome ?? '')) return;
     setAddMethod('channel');
     setAddOpen(true);
+    const diagnostic = url.searchParams.get('youtubeDiagnostic');
+    const failure =
+      youtubeOAuthMessage(url.searchParams.get('youtubeReason')) +
+      (diagnostic && /^[0-9a-f-]{36}$/i.test(diagnostic) ? `（诊断编号：${diagnostic}）` : '');
+    if (outcome === 'failed') setYoutubeCallbackError(failure);
     setToast(
       outcome === 'connected'
         ? 'YouTube 已连接，可以读取我的关注'
         : outcome === 'cancelled'
           ? '已取消 YouTube 授权，可稍后重新连接'
-          : 'YouTube 授权未完成，请重新连接',
+          : failure,
     );
     url.searchParams.delete('youtube');
+    url.searchParams.delete('youtubeReason');
+    url.searchParams.delete('youtubeDiagnostic');
     window.history.replaceState(null, '', url.pathname + url.search + url.hash);
   }, []);
   const [busy, setBusy] = useState('');
@@ -828,6 +837,8 @@ export function ReaderApp({
         initialMethod={addMethod}
         platformStatus={data.services.platforms}
         youtubeAuth={data.services.youtubeAuth}
+        youtubeCallbackError={youtubeCallbackError}
+        onDismissYoutubeCallbackError={() => setYoutubeCallbackError('')}
         channelSubscriptionCount={
           data.subscriptions.filter(
             (subscription) =>
@@ -838,7 +849,10 @@ export function ReaderApp({
           await refresh({ background: true });
         }}
         open={addOpen}
-        onOpenChange={setAddOpen}
+        onOpenChange={(open) => {
+          setAddOpen(open);
+          if (!open) setYoutubeCallbackError('');
+        }}
         authorSubscriptionCount={
           data.subscriptions.filter((subscription) => subscription.kind === 'author').length
         }

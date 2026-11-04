@@ -7,6 +7,7 @@ import { getPool, transaction } from '../db/client';
 import { PlatformError } from './contract';
 import { createYouTubeTransport } from './youtube';
 import type { YouTubeConnectionStatus } from '@/shared/types';
+import type { YouTubeOAuthStage, YouTubeOAuthRecovery } from '@/shared/youtube-oauth';
 
 export const YOUTUBE_READ_SCOPE = 'https://www.googleapis.com/auth/youtube.readonly';
 export const YOUTUBE_OAUTH_COOKIE = 'news_youtube_oauth';
@@ -61,6 +62,16 @@ export class YouTubeAuthError extends PlatformError {
 export class YouTubeOAuthCancelled extends PlatformError {
   constructor() {
     super('你已取消 YouTube 授权，可以重新连接。', 400);
+  }
+}
+export class YouTubeOAuthFailure extends PlatformError {
+  constructor(
+    public stage: YouTubeOAuthStage,
+    public recovery: YouTubeOAuthRecovery,
+    message: string,
+    status: number,
+  ) {
+    super(message, status);
   }
 }
 const expired = (date: Date | null, margin = 0) => !date || date.getTime() <= Date.now() + margin;
@@ -194,6 +205,43 @@ export async function completeYouTubeOAuth(
   fetcher: typeof fetch = fetch,
   signal?: AbortSignal,
 ) {
+  const progress: { stage: YouTubeOAuthStage } = { stage: 'state' };
+  try {
+    return await completeYouTubeOAuthRequest(userId, input, fetcher, signal, (next) => {
+      progress.stage = next;
+    });
+  } catch (error) {
+    if (error instanceof YouTubeOAuthCancelled) throw error;
+    if (error instanceof YouTubeOAuthFailure) throw error;
+    const stage = progress.stage;
+    const recovery: YouTubeOAuthRecovery =
+      error instanceof YouTubeAuthError
+        ? error.state === 'unconfigured'
+          ? 'configuration'
+          : error.state === 'reconnect_required'
+            ? 'reconnect'
+            : 'temporary'
+        : stage === 'state' && error instanceof PlatformError && error.status === 400
+          ? 'state'
+          : stage === 'scope'
+            ? 'permission'
+            : 'temporary';
+    throw new YouTubeOAuthFailure(
+      stage,
+      recovery,
+      error instanceof PlatformError ? error.message : 'YouTube 暂时无法完成授权，请稍后重试。',
+      error instanceof PlatformError ? error.status : 503,
+    );
+  }
+}
+
+async function completeYouTubeOAuthRequest(
+  userId: string,
+  input: { state: string; cookie: string; code?: string | null; error?: string | null },
+  fetcher: typeof fetch,
+  signal: AbortSignal | undefined,
+  setStage: (stage: YouTubeOAuthStage) => void,
+) {
   if (
     !/^[A-Za-z0-9_-]{43}$/.test(input.state) ||
     !/^[A-Za-z0-9_-]{43}$/.test(input.cookie) ||
@@ -222,6 +270,7 @@ export async function completeYouTubeOAuth(
   } catch {
     throw new YouTubeAuthError('reconnect_required');
   }
+  setStage('token');
   const grant = await tokens(
     {
       grant_type: 'authorization_code',
@@ -232,10 +281,12 @@ export async function completeYouTubeOAuth(
     fetcher,
     signal,
   );
+  setStage('scope');
   if (!granted(grant.scope ?? null) || !grant.scope?.split(/\s+/).includes('openid'))
     throw new PlatformError('未获得读取 YouTube 关注的只读权限，请重新授权。', 400);
   let identity: { sub: string };
   let name = '我的 YouTube 账号';
+  setStage('identity');
   try {
     const profile = await fetcher('https://openidconnect.googleapis.com/v1/userinfo', {
       headers: { Authorization: `Bearer ${grant.access_token}` },
@@ -247,6 +298,7 @@ export async function completeYouTubeOAuth(
     });
     if (!profile.ok) throw new Error('identity unavailable');
     identity = z.object({ sub: z.string().min(1).max(255) }).parse(await profile.json());
+    setStage('channel');
     const transport = createYouTubeTransport(signal, fetcher, '', {
       token: async () => grant.access_token,
       reject: async () => {
@@ -262,18 +314,24 @@ export async function completeYouTubeOAuth(
     if (error instanceof PlatformError) throw error;
     throw new YouTubeAuthError('temporary_error');
   }
+  setStage('storage');
   await transaction(async (client) => {
     await connectionLock(client, userId);
     const current = (await client.query<Connection>(`${query} FOR UPDATE`, [userId])).rows[0];
     if (current?.oauth_nonce !== pending.data.nonce)
-      throw new PlatformError('此授权请求已失效，请重新连接。', 400);
+      throw new YouTubeOAuthFailure('storage', 'state', '此授权请求已失效，请重新连接。', 400);
     const refresh = grant.refresh_token
       ? await encrypt(grant.refresh_token)
       : current.external_id === identity.sub && current.client_fingerprint === clientFingerprint()
         ? current.refresh_token
         : null;
     if (!refresh)
-      throw new PlatformError('未取得后台读取所需的长期授权，请重新连接并同意离线访问。', 400);
+      throw new YouTubeOAuthFailure(
+        'storage',
+        'reconnect',
+        '未取得后台读取所需的长期授权，请重新连接并同意离线访问。',
+        400,
+      );
     await client.query(
       "UPDATE platform_connections SET external_id=$2,name=$3,access_token=$4,refresh_token=$5,expires_at=$6,refresh_expires_at=$7,scope=$8,client_fingerprint=$9,generation=$10,oauth_nonce=NULL,state='connected',retry_at=NULL,updated_at=now() WHERE user_id=$1 AND platform='youtube'",
       [

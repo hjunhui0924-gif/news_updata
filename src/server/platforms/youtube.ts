@@ -9,7 +9,7 @@ import {
   type UpdatePage,
 } from './contract';
 import type { Subscription } from '@/shared/types';
-import type { SourceKind } from '@/shared/platforms';
+import { platformCapabilities, type SourceKind } from '@/shared/platforms';
 
 type Resource = 'channels' | 'playlistItems' | 'videos' | 'subscriptions';
 export type YouTubeTransport = (
@@ -224,7 +224,7 @@ export function youtubeThumbnail(value?: string) {
 
 export class YouTubeAdapter implements PlatformAdapter {
   readonly platform = 'youtube' as const;
-  readonly kinds = ['channel'] as const;
+  readonly kinds = platformCapabilities.youtube.kinds;
   constructor(private readonly transport: YouTubeTransport = createYouTubeTransport()) {}
   async resolveMany(ids: string[]) {
     if (!ids.length || ids.length > 50 || ids.some((id) => !channelId.test(id)))

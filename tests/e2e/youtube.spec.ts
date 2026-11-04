@@ -30,6 +30,35 @@ const connected = {
   retryAt: null,
 };
 
+test('temporary OAuth failure remains actionable after its toast expires', async ({ page }) => {
+  await page.clock.install();
+  await mockReaderBootstrap(page, (data) => ({
+    ...data,
+    jobs: [],
+    services: { ...data.services, youtubeAuth: connected },
+  }));
+  await page.route('**/api/platforms/youtube/following/preview', (route) =>
+    route.fulfill({
+      json: { previewId: 'recovered-preview', channels: [], nextCursor: null, truncated: false },
+    }),
+  );
+  await page.goto(
+    '/subscriptions?youtube=failed&youtubeReason=temporary&youtubeDiagnostic=11111111-1111-4111-8111-111111111111',
+  );
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByRole('alert')).toContainText('请稍后重试');
+  await expect(dialog.getByRole('alert')).toContainText('诊断编号');
+  await page.clock.fastForward(31000);
+  await expect(page.locator('.toast')).toHaveCount(0);
+  await expect(dialog.getByRole('alert')).toContainText('已有内容仍可阅读');
+  await expect(page).toHaveURL(/\/subscriptions$/);
+  await dialog.getByRole('button', { name: '读取我的关注', exact: true }).click();
+  await expect(dialog.getByRole('alert')).toHaveCount(0);
+  await dialog.getByRole('tab', { name: '项目仓库', exact: true }).click();
+  await dialog.getByRole('tab', { name: 'YouTube 关注' }).click();
+  await expect(dialog.getByRole('alert')).toHaveCount(0);
+});
+
 async function openYouTube(page: import('@playwright/test').Page) {
   await page.goto('/subscriptions');
   await page.getByRole('button', { name: '刷新内容' }).click();
@@ -72,7 +101,11 @@ test('unconfigured account explains OAuth setup and rejects unsafe or unsupporte
     { maxRedirects: 0 },
   );
   expect(callback.status()).toBe(303);
-  expect(callback.headers().location).toBe(baseURL + '/subscriptions?youtube=failed');
+  const callbackTarget = new URL(callback.headers().location);
+  expect(callbackTarget.origin + callbackTarget.pathname).toBe(baseURL + '/subscriptions');
+  expect(callbackTarget.searchParams.get('youtube')).toBe('failed');
+  expect(callbackTarget.searchParams.get('youtubeReason')).toBe('state');
+  expect(callbackTarget.href).not.toContain('private-code');
   expect(callback.headers()['set-cookie']).toContain('Max-Age=0');
 });
 
