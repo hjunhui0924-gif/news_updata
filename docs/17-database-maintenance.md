@@ -23,3 +23,7 @@ pnpm diagnose   # 配置存在与否、迁移、Worker 心跳、任务数、本�
 ## 2026-11-04 平台身份迁移演练
 
 应用 0005 前先保存 677,008 字节、4 迁移版本备份；应用后保存 684,335 字节、5 迁移版本备份并完成隔离恢复。除迁移计数由 4 增至 5，全部业务及队列表计数一致；36 个订阅、159 条更新，已读 25 / 收藏 3 / 静音 0 及状态指纹保持不变，孤儿条目 0。恢复清单为 `restored: true`、`cleanup: complete`。随后诊断数据库/迁移 ready，Worker 离线，未启动真实采集。详细适配范围见 [平台适配层与 YouTube](18-platform-adapters.md)。
+
+## 2026-11-04 平台账号迁移演练
+
+个人 YouTube 授权版本先备份 684,335 字节、5 迁移版本日常库；应用 `0006_platform_connections.sql` 后备份 686,341 字节、6 迁移版本，并完成隔离恢复与清理。新平台连接表 0 行，其余业务/队列表计数不变，仍为 36 订阅、159 更新，已读 25 / 收藏 3 / 静音 0，状态指纹 `ed5cc0f228fd77c5fe5e14cd5fb93b5d`，孤儿条目 0。`restored: true`、`cleanup: complete`；诊断六个迁移 ready，Worker 离线。没有启动真实采集或保存 Google 账号凭据。详见 [账号与关注](19-youtube-account-following.md)。

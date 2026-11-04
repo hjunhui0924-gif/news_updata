@@ -57,6 +57,7 @@ MVP 采用按用户保存条目的简化模型，身份与阅读状态为关系�
 | --------------------------------------- | ------------------------------------------------------------------------ |
 | app_users                               | 业务用户，演示用户为 demo                                                |
 | subscriptions                           | 用户、平台、来源种类与外部 ID 唯一，JSONB 保存状态和适配器元数据          |
+| platform_connections                    | 用户与平台唯一的加密账号凭据、连接版本、续期与失效状态                    |
 | items                                   | 用户与事件外部 ID 唯一，JSONB 保存原文/摘要/译文，已读/收藏/屏蔽独立字段 |
 | preferences                             | 时区、紧凑列表                                                           |
 | jobs                                    | 任务状态和待投递记录，与业务写入同一事务                                 |
@@ -99,6 +100,8 @@ MVP 采用按用户保存条目的简化模型，身份与阅读状态为关系�
 
 平台无关的 `PlatformAdapter` 负责来源解析、流定义、opaque cursor、条件请求和正文补全；公共同步编排负责事务、用户隔离、去重、历史额度、阅读状态与任务。适配器返回 `sourceName`，仅在兼容旧存储时映射到 `repo`。迁移 0005 回填 GitHub 平台并扩展订阅唯一键，不改变历史条目 ID、阅读状态或摘要。
 
-GitHub 已通过适配层工作，保留双流与 ETag 语义。YouTube 使用服务端密钥和固定 Google API，通过 uploads 分页与最多 50 个视频批量元数据请求读取公开视频；默认 180 分钟、每轮前 5 页/250 项窗口，旧页提前结束，下一轮回首页。 opaque cursor 持久化并在失效时只清理对应来源检查点。简介纯文本、封面懒加载、原站观看；API 和 Worker 都阻止视频全文 AI。
+GitHub 已通过适配层工作，保留双流与 ETag 语义。YouTube 的鉴权由服务端 transport 隔离：个人连接使用加密 OAuth 凭据及自动续期，旧 API Key 仅保留手动来源兼容。迁移 0006 新增按用户 + 平台唯一的 `platform_connections`；连接/撤销/续期串行，generation 隔离旧回调与关注导入。我的关注只读 `subscriptions.list(mine=true)`，分页预览绑定用户、连接版本和有效期，成功后页可缓存重放；最多 50 个频道一次批量解析，再复用订阅事务和 outbox。
 
-用户已确认 G4 暂缓期间推进 YouTube Demo；真实 Key/网络验证、长期使用与公开部署分开验收。Bilibili、X、RSS 尚未实现，后续平台在契约与注册表扩展，不能把平台分页/鉴权规则复制到公共事务。细节见 [适配层与 YouTube](18-platform-adapters.md)；历史 X/RSS 预研见 [跨平台扩展预研](14-platform-expansion.md)。
+频道更新通过 uploads 分页与最多 50 个视频批量元数据请求读取；默认 180 分钟、每轮前 5 页/250 项窗口，旧页提前结束，下一轮回首页。opaque cursor 持久化并在失效时只清理对应来源检查点。简介纯文本、封面懒加载、原站观看；API 和 Worker 都阻止视频全文 AI。
+
+用户已确认 G4 暂缓期间推进 YouTube Demo；真实 OAuth/网络验证、长期使用与公开部署分开验收。Bilibili、X、RSS 尚未实现，后续平台在契约与注册表扩展，不能把平台分页/鉴权规则复制到公共事务。细节见 [适配层与 YouTube](18-platform-adapters.md) 和 [账号与关注](19-youtube-account-following.md)；历史 X/RSS 预研见 [跨平台扩展预研](14-platform-expansion.md)。

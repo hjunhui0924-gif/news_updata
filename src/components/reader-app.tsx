@@ -30,6 +30,7 @@ import { useFeed, feedParams } from './use-feed';
 import { requestJson } from './request-json';
 import { startPolling } from './polling';
 import { toFeedPreview } from '@/shared/feed';
+import { sourcePlatform } from '@/shared/platforms';
 export { requestJson } from './request-json';
 
 const titles: Record<string, string> = {
@@ -103,7 +104,24 @@ export function ReaderApp({
   const [unread, setUnread] = useState(false);
   const [source, setSource] = useState('');
   const [addOpen, setAddOpen] = useState(initialView === 'onboarding');
+  const [addMethod, setAddMethod] = useState<'repo' | 'channel'>('repo');
   const [toast, setToast] = useState('');
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const outcome = url.searchParams.get('youtube');
+    if (!['connected', 'cancelled', 'failed'].includes(outcome ?? '')) return;
+    setAddMethod('channel');
+    setAddOpen(true);
+    setToast(
+      outcome === 'connected'
+        ? 'YouTube 已连接，可以读取我的关注'
+        : outcome === 'cancelled'
+          ? '已取消 YouTube 授权，可稍后重新连接'
+          : 'YouTube 授权未完成，请重新连接',
+    );
+    url.searchParams.delete('youtube');
+    window.history.replaceState(null, '', url.pathname + url.search + url.hash);
+  }, []);
   const [busy, setBusy] = useState('');
   const [pollError, setPollError] = useState('');
   const poller = useRef<ReturnType<typeof startPolling> | null>(null);
@@ -806,7 +824,19 @@ export function ReaderApp({
         </button>
       </nav>
       <AddSubscription
+        key={addMethod}
+        initialMethod={addMethod}
         platformStatus={data.services.platforms}
+        youtubeAuth={data.services.youtubeAuth}
+        channelSubscriptionCount={
+          data.subscriptions.filter(
+            (subscription) =>
+              sourcePlatform(subscription) === 'youtube' && subscription.kind === 'channel',
+          ).length
+        }
+        onRefresh={async () => {
+          await refresh({ background: true });
+        }}
         open={addOpen}
         onOpenChange={setAddOpen}
         authorSubscriptionCount={

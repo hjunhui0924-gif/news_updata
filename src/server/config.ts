@@ -11,6 +11,8 @@ const schema = z.object({
   ALLOWED_GITHUB_USER_IDS: z.string().default(''),
   GITHUB_READ_TOKEN: z.string().default(''),
   YOUTUBE_API_KEY: z.string().default(''),
+  YOUTUBE_CLIENT_ID: z.string().default(''),
+  YOUTUBE_CLIENT_SECRET: z.string().default(''),
   LLM_ENABLED: z.enum(['true', 'false']).default('false'),
   LLM_API_BASE_URL: z.string().default(''),
   LLM_API_KEY: z.string().default(''),

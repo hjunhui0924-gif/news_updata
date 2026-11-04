@@ -2258,6 +2258,40 @@ svg {
 .following-limit-note {
   color: #768aa8;
 }
+.youtube-connection {
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+}
+.youtube-subscription-dialog {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.youtube-subscription-dialog > :not([role='tabpanel']) {
+  flex-shrink: 0;
+}
+.youtube-subscription-dialog > [role='tabpanel'] {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.youtube-connection > strong {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.youtube-connection-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.youtube-following .following-selection-bar {
+  flex-wrap: wrap;
+}
 .following-candidate {
   display: flex;
   align-items: center;

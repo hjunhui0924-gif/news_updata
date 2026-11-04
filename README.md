@@ -2,7 +2,7 @@
 
 在一个网页里查看你关注的 GitHub 项目、开发者与 YouTube 频道更新。GitHub 支持中文摘要、对照译文和原文；YouTube 展示公开视频信息和作者简介，并提供原站观看入口。
 
-**当前为本地 Demo：GitHub 已接入，平台适配层与 YouTube 第一版已实现；YouTube 真实接口联调仍待自己的 API Key。Bilibili / X / RSS 尚未接入。** 只读取公开内容；网页内的订阅、已读和收藏只保存在本应用，不会替你 Star、Follow 或订阅源站频道。没有邮件功能。
+**当前为本地 Demo：GitHub 已接入，YouTube 支持在现有工作空间连接自己的账号、读取关注并导入频道；真实 Google 授权联调仍待自己的 OAuth 客户端配置与人工授权。Bilibili / X / RSS 尚未接入。** 网页内的订阅、已读和收藏保存在本应用，不会替你 Star、Follow 或修改源站频道订阅。没有邮件功能。
 
 ![知更桌面阅读器，使用演示数据](docs/assets/reader-demo.png)
 
@@ -14,7 +14,7 @@
 | --- | --- |
 | 项目订阅 | 跟踪正式 Release 和已收录版本说明的修改 |
 | 博主订阅 | 跟踪其新建公开非 fork 仓库，以及本人发布的正式 Release，包含组织项目 |
-| YouTube 频道 | 通过频道 ID、@handle 或规范频道地址添加，批量读取公开已发布视频；展示简介、懒加载封面和原站观看入口，不生成视频全文 AI |
+| YouTube 关注 | 连接自己的 Google/YouTube 账号，分页读取我的关注、跨页选择、去重导入和部分失败重试；后台检查公开视频，展示简介、懒加载封面和原站观看入口 |
 | Star 导入 | 读取当前账号公开 Star，每 5 分钟发现新 Star 并加入本地订阅；取消 Star 不自动删除订阅 |
 | 关注导入 | 分页读取公开 following，跨页勾选开发者，识别已订阅对象并支持部分失败重试 |
 | 项目搜索 | 在「添加订阅 → 搜索项目」搜索 GitHub 公开仓库，支持排序、分页和本地订阅 |
@@ -64,9 +64,16 @@ pnpm worker:dev
 
 ## YouTube 配置
 
-在自己的 Google 项目启用 YouTube Data API v3，将服务端密钥填入 `.env.local` 的 `YOUTUBE_API_KEY`，重启 Web 与 Worker。在「添加订阅 → YouTube 频道」添加来源；未配置密钥时页面会提示并禁用提交。可先运行只读检查 `pnpm youtube:check -- "@GoogleDevelopers"`，不写库、不启动 Worker、不调用模型。后台 Node 进程需要能访问 Google API。
+1. 在自己的 Google Cloud 项目启用 YouTube Data API v3，配置 OAuth 同意页面；若应用处于测试状态，将自己的 Google 账号加入测试用户。
+2. 创建 **Web application** OAuth 客户端，授权重定向 URI 填写 `<APP_URL>/api/platforms/youtube/callback`。默认本机地址为 `http://127.0.0.1:3000/api/platforms/youtube/callback`，须与 `APP_URL` 完全一致。
+3. 在服务端 `.env.local` 配置 `YOUTUBE_CLIENT_ID`、`YOUTUBE_CLIENT_SECRET`，保留稳定且至少 32 字符的 `BETTER_AUTH_SECRET`。先备份并迁移数据库，再重启 Web 与 Worker。
+4. 打开「添加订阅 → YouTube 关注 → 连接 YouTube 账号」，在 Google 官方页面授权，然后「读取我的关注」，勾选频道导入。这里连接到现有工作空间，不按邮箱合并站内身份。
 
-默认每 180 分钟检查，每轮最多 250 项候选；首次仅收录近 30 天最多 20 条历史。不下载字幕或音视频，不把简介当视频全文。完整配置、限制与适配器扩展方式见 [平台适配层与 YouTube](docs/18-platform-adapters.md)。
+仅申请 `openid` 与 `youtube.readonly`，后台按需续期；账号凭据加密存储。未配置时显示说明并禁用连接，不需要手工复制个人令牌或填写频道地址。自己的关注以后有变化可重新读取，已经导入的频道持续检查新视频；源站取消关注不会自动删除本地订阅和历史。没有新增 YouTube 搜索功能。
+
+个人关注读取不需要 `YOUTUBE_API_KEY`。该旧配置仅保留给原有手动来源兼容和开发只读命令 `pnpm youtube:check -- "@GoogleDevelopers"`，不能用它读取个人关注。后台 Node 进程必须能访问 Google API，浏览器可打开 Google 不代表后台网络已连通。
+
+默认每 180 分钟检查，每轮最多 250 项候选；首次仅收录近 30 天最多 20 条历史。不下载字幕或音视频，不把简介当视频全文。账号配置与边界见 [YouTube 账号与关注](docs/19-youtube-account-following.md)，适配器设计见 [平台适配层](docs/18-platform-adapters.md)。
 
 ## AI 配置
 
@@ -106,6 +113,7 @@ news_updata/
 │  │  └─ api/
 │  │     ├─ auth/[...all]/route.ts          # 登录、会话与 GitHub OAuth 回调
 │  │     ├─ bootstrap/route.ts              # 获取阅读器数据与任务、授权状态
+│  │     ├─ platforms/youtube/              # 连接、回调、断开与我的关注预览/导入
 │  │     ├─ health/live/route.ts            # Web 进程存活检查
 │  │     ├─ health/ready/route.ts           # 数据库、迁移与 Worker 就绪
 │  │     ├─ feed/route.ts                   # 预览分页、筛选计数与轻量状态
@@ -152,6 +160,7 @@ news_updata/
 │  │  ├─ repository-search.tsx              # 搜索、排序、翻页与订阅公开项目
 │  │  ├─ starred-import.tsx                 # 选择 Star 项目、批量导入与失败重试
 │  │  ├─ following-import.tsx               # 跨页选择关注者、导入与失败重试
+│  │  ├─ youtube-following.tsx              # YouTube 账号连接、我的关注与频道导入
 │  │  ├─ star-sync-panel.tsx                # 控制自动跟踪并展示 Star 同步结果
 │  │  ├─ trending-panel.tsx                 # 热门榜单、语言筛选与中文简介
 │  │  ├─ skills-panel.tsx                   # Skill 筛选、详情、AI 摘要与双语阅读
@@ -230,7 +239,8 @@ news_updata/
 │  ├─ 0002_ai_cache.sql                    # 创建 AI 结果缓存表
 │  ├─ 0003_star_sync.sql                   # 创建 Star 同步状态与排除表
 │  ├─ 0004_feed_performance.sql            # 元数据搜索列、trigram 与列表索引
-│  └─ 0005_platform_sources.sql            # 订阅平台身份与兼容数据回填
+│  ├─ 0005_platform_sources.sql            # 订阅平台身份与兼容数据回填
+│  └─ 0006_platform_connections.sql        # 用户与平台隔离的加密账号连接
 ├─ tests/
 │  ├─ *.test.ts                            # 业务规则、解析、校验与状态转换测试
 │  ├─ *.unit.test.ts                       # Skill 相关单元测试，可独立于数据库运行
@@ -277,7 +287,9 @@ pnpm build              # Web + Worker 构建
 
 浏览器测试每轮重建专用 `news_e2e_test`、迁移并写入示例，关闭真实服务凭据，不复用日常库；勿将有价值的数据放入该库。自定义 E2E_DATABASE_URL 必须是无查询参数的本机 `*_e2e_test`，已有连接会阻止重建。优先使用 Windows Chrome；其他环境可先安装 Chromium。测试与开发约定见 [运行指南](docs/05-operations-and-quality.md)。
 
-2026-11-04 适配层版本验证：**40 文件、226 项单元/集成测试通过，完整 Playwright Demo 回归 56 项通过，类型、Lint 与 Web/Worker 构建通过**。逐阶段 review、手机/桌面检查、日常库 0005 升级与隔离恢复、生产登录页/静态资源/ready 冒烟均完成。YouTube 真实 API Key 和后台网络尚未联调；G4 继续暂缓，自动化不替代真实使用验收。[本轮记录](docs/18-platform-adapters.md) · [历史验收](docs/07-mvp-validation.md)
+2026-11-04 账号关注版本验证：**42 文件、245 项单元/集成测试通过，完整 Playwright Demo 回归 58 项通过，类型、Lint 与 Web/Worker 构建通过**；逐阶段 review、手机弹窗检查、日常库 0006 升级与隔离恢复、生产路由鉴权/回调冒烟均通过。自己的 Google OAuth 配置及人工授权仍待完成，真实关注和 G4 未验收。[账号与关注记录](docs/19-youtube-account-following.md)
+
+此前适配层初版的历史快照：**40 文件、226 项单元/集成测试通过，完整 Playwright Demo 回归 56 项通过，类型、Lint 与 Web/Worker 构建通过**。逐阶段 review、手机/桌面检查、日常库 0005 升级与隔离恢复、生产登录页/静态资源/ready 冒烟均完成。YouTube 真实 API Key 和后台网络尚未联调；G4 继续暂缓，自动化不替代真实使用验收。[本轮记录](docs/18-platform-adapters.md) · [历史验收](docs/07-mvp-validation.md)
 
 ## 当前边界与后续
 
@@ -300,6 +312,7 @@ G3 当前约定的站内阅读闭环已完成。项目目前是 Demo，尚无真
 - [跨平台扩展预研](docs/14-platform-expansion.md) · [领域词汇](CONTEXT.md)
 - [Demo 八项收尾](docs/16-demo-hardening.md) · [本地备份恢复与诊断](docs/17-database-maintenance.md)
 - [平台适配层与 YouTube](docs/18-platform-adapters.md)
+- [YouTube 账号与关注导入](docs/19-youtube-account-following.md)
 - [前端优化方案](docs/frontend-optimization-plan.md) · [基线审计](docs/frontend-optimization-baseline.md)
 - [前端阶段 1–3](docs/frontend-optimization-stage1.md) · [阶段 4–7](docs/frontend-optimization-stage4.md) · [阶段 7 收尾](docs/frontend-optimization-stage7.md)
 - [变更记录](CHANGELOG.md) · [安全说明](SECURITY.md) · [开发贡献](CONTRIBUTING.md)

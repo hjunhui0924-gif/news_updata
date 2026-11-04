@@ -12,6 +12,7 @@ import { getStarSync } from '../subscriptions/star-sync';
 import { itemSourceIds } from '@/shared/feed';
 import { getGitHubAuthStatus } from '../connectors/github-auth';
 import { workerIsOnline } from '@/shared/health';
+import { getYouTubeAuthStatus } from '../platforms/youtube-auth';
 
 export async function bootstrap(
   user: {
@@ -22,28 +23,38 @@ export async function bootstrap(
   metadataOnly = false,
 ): Promise<Bootstrap> {
   const config = getConfig();
-  const [feed, subscriptions, preferences, jobs, notifications, heartbeat, usage, githubAccount] =
-    await Promise.all([
-      metadataOnly
-        ? Promise.resolve(undefined)
-        : getFeedPage(user.id, {
-            view: 'feed',
-            type: 'all',
-            search: '',
-            unread: false,
-            source: '',
-          }),
-      getSubscriptions(user.id),
-      getPreferences(user.id),
-      getJobs(user.id),
-      getNotifications(user.id),
-      getPool().query("SELECT value FROM system_state WHERE key='worker-heartbeat'"),
-      getPool().query(
-        "SELECT coalesce(sum(cost),0) cost FROM ai_usage WHERE user_id=$1 AND created_at >= date_trunc('day',now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'",
-        [user.id],
-      ),
-      getGitHubAuthStatus(user.id),
-    ]);
+  const [
+    feed,
+    subscriptions,
+    preferences,
+    jobs,
+    notifications,
+    heartbeat,
+    usage,
+    githubAccount,
+    youtubeAccount,
+  ] = await Promise.all([
+    metadataOnly
+      ? Promise.resolve(undefined)
+      : getFeedPage(user.id, {
+          view: 'feed',
+          type: 'all',
+          search: '',
+          unread: false,
+          source: '',
+        }),
+    getSubscriptions(user.id),
+    getPreferences(user.id),
+    getJobs(user.id),
+    getNotifications(user.id),
+    getPool().query("SELECT value FROM system_state WHERE key='worker-heartbeat'"),
+    getPool().query(
+      "SELECT coalesce(sum(cost),0) cost FROM ai_usage WHERE user_id=$1 AND created_at >= date_trunc('day',now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'",
+      [user.id],
+    ),
+    getGitHubAuthStatus(user.id),
+    getYouTubeAuthStatus(user.id),
+  ]);
   const currentSubscriptions = new Map(subscriptions.map((sub) => [sub.id, sub]));
   const feedStats = feed ? { ...feed, items: undefined } : undefined;
   return {
@@ -70,12 +81,13 @@ export async function bootstrap(
           intervalMinutes: config.SYNC_REPO_INTERVAL_MINUTES,
         },
         youtube: {
-          configured: !!config.YOUTUBE_API_KEY,
+          configured: ['connected', 'refresh_pending'].includes(youtubeAccount.state),
           intervalMinutes: config.SYNC_YOUTUBE_INTERVAL_MINUTES,
         },
       },
       github: ['connected', 'configured', 'refresh_pending'].includes(githubAccount.state),
       githubAuth: githubAccount,
+      youtubeAuth: youtubeAccount,
       ai: config.LLM_ENABLED === 'true',
       workerLastSeen: heartbeat.rows[0]?.value ?? null,
       workerOnline: workerIsOnline(heartbeat.rows[0]?.value),

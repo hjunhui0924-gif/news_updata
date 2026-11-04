@@ -11,7 +11,7 @@ import {
 import type { Subscription } from '@/shared/types';
 import type { SourceKind } from '@/shared/platforms';
 
-type Resource = 'channels' | 'playlistItems' | 'videos';
+type Resource = 'channels' | 'playlistItems' | 'videos' | 'subscriptions';
 export type YouTubeTransport = (
   resource: Resource,
   parameters: Record<string, string>,
@@ -108,15 +108,20 @@ export function createYouTubeTransport(
   signal?: AbortSignal,
   fetcher: typeof fetch = fetch,
   key = getConfig().YOUTUBE_API_KEY,
+  credential?: {
+    token: (rejectedToken?: string) => Promise<string>;
+    reject: (token: string) => Promise<void>;
+  },
 ): YouTubeTransport {
   return async (resource, parameters) => {
     signal?.throwIfAborted();
-    if (!key)
+    if (!key && !credential)
       throw new PlatformError(
         '尚未配置 YouTube API Key，请在服务端设置 YOUTUBE_API_KEY 后重启 Web 和 Worker。',
         503,
       );
-    if (quotaCooldown?.key === key && quotaCooldown.until > Date.now())
+    const quotaKey = credential ? `oauth:${getConfig().YOUTUBE_CLIENT_ID}` : key;
+    if (quotaCooldown?.key === quotaKey && quotaCooldown.until > Date.now())
       throw new PlatformError(
         'YouTube 配额暂不可用，稍后会自动重试。',
         429,
@@ -124,53 +129,80 @@ export function createYouTubeTransport(
       );
     const url = new URL(`https://www.googleapis.com/youtube/v3/${resource}`);
     for (const [name, value] of Object.entries(parameters)) url.searchParams.set(name, value);
-    url.searchParams.set('key', key);
-    try {
-      const response = await fetcher(url, {
-        signal: signal
-          ? AbortSignal.any([signal, AbortSignal.timeout(15000)])
-          : AbortSignal.timeout(15000),
-        cache: 'no-store',
-        redirect: 'error',
-      });
-      const data: unknown = await response.json();
-      if (!response.ok) {
-        const parsed = z
-          .object({
-            error: z.object({ errors: z.array(z.object({ reason: z.string() })).default([]) }),
-          })
-          .safeParse(data);
-        const reasons = parsed.success ? parsed.data.error.errors.map((error) => error.reason) : [];
-        if (reasons.includes('quotaExceeded') || reasons.includes('dailyLimitExceeded')) {
-          quotaCooldown = { key, until: Date.now() + 86400000 };
-          throw new PlatformError('YouTube API 配额不足，已暂停请求，24 小时后再试。', 429, 86400);
+    if (!credential) url.searchParams.set('key', key);
+    let rejected: string | undefined;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const token = credential ? await credential.token(rejected) : undefined;
+      try {
+        const response = await fetcher(url, {
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+          signal: signal
+            ? AbortSignal.any([signal, AbortSignal.timeout(15000)])
+            : AbortSignal.timeout(15000),
+          cache: 'no-store',
+          redirect: 'error',
+        });
+        if (response.status === 401 && credential && token) {
+          await response.body?.cancel();
+          if (attempt === 0) {
+            rejected = token;
+            continue;
+          }
+          await credential.reject(token);
+          throw new PlatformError('YouTube 授权已失效，请重新连接自己的账号。', 503);
         }
-        if (reasons.includes('invalidPageToken')) throw new CursorExpiredError();
-        if (
-          response.status === 429 ||
-          reasons.some((reason) => ['rateLimitExceeded', 'userRateLimitExceeded'].includes(reason))
-        ) {
-          const delay = Math.min(
-            86400,
-            Math.max(60, Number(response.headers.get('retry-after')) || 60),
-          );
-          throw new PlatformError('YouTube 暂时限制请求，请稍后重试。', 429, delay);
+        const data: unknown = await response.json();
+        if (!response.ok) {
+          const parsed = z
+            .object({
+              error: z.object({ errors: z.array(z.object({ reason: z.string() })).default([]) }),
+            })
+            .safeParse(data);
+          const reasons = parsed.success
+            ? parsed.data.error.errors.map((error) => error.reason)
+            : [];
+          if (reasons.includes('quotaExceeded') || reasons.includes('dailyLimitExceeded')) {
+            quotaCooldown = { key: quotaKey, until: Date.now() + 86400000 };
+            throw new PlatformError(
+              'YouTube API 配额不足，已暂停请求，24 小时后再试。',
+              429,
+              86400,
+            );
+          }
+          if (reasons.includes('invalidPageToken')) throw new CursorExpiredError();
+          if (credential && token && reasons.includes('insufficientPermissions')) {
+            await credential.reject(token);
+            throw new PlatformError('缺少读取 YouTube 关注的权限，请重新连接并授权。', 503);
+          }
+          if (
+            response.status === 429 ||
+            reasons.some((reason) =>
+              ['rateLimitExceeded', 'userRateLimitExceeded'].includes(reason),
+            )
+          ) {
+            const delay = Math.min(
+              86400,
+              Math.max(60, Number(response.headers.get('retry-after')) || 60),
+            );
+            throw new PlatformError('YouTube 暂时限制请求，请稍后重试。', 429, delay);
+          }
+          if (response.status === 404)
+            throw new PlatformError('YouTube 频道或上传列表不存在，或已不可公开访问。', 404);
+          if ([400, 401, 403].includes(response.status))
+            throw new PlatformError(
+              'YouTube API 配置不可用，请检查服务端密钥、API 启用状态与限制设置。',
+              503,
+            );
+          throw new PlatformError('YouTube 服务暂时不可用，已有内容仍可阅读。');
         }
-        if (response.status === 404)
-          throw new PlatformError('YouTube 频道或上传列表不存在，或已不可公开访问。', 404);
-        if ([400, 401, 403].includes(response.status))
-          throw new PlatformError(
-            'YouTube API 配置不可用，请检查服务端密钥、API 启用状态与限制设置。',
-            503,
-          );
-        throw new PlatformError('YouTube 服务暂时不可用，已有内容仍可阅读。');
+        return data;
+      } catch (error) {
+        signal?.throwIfAborted();
+        if (error instanceof PlatformError) throw error;
+        throw new PlatformError('暂时无法读取 YouTube，请检查服务器网络后重试；已有内容仍可阅读。');
       }
-      return data;
-    } catch (error) {
-      signal?.throwIfAborted();
-      if (error instanceof PlatformError) throw error;
-      throw new PlatformError('暂时无法读取 YouTube，请检查服务器网络后重试；已有内容仍可阅读。');
     }
+    throw new PlatformError('YouTube 连接暂时失败，请稍后重试。');
   };
 }
 
@@ -194,6 +226,26 @@ export class YouTubeAdapter implements PlatformAdapter {
   readonly platform = 'youtube' as const;
   readonly kinds = ['channel'] as const;
   constructor(private readonly transport: YouTubeTransport = createYouTubeTransport()) {}
+  async resolveMany(ids: string[]) {
+    if (!ids.length || ids.length > 50 || ids.some((id) => !channelId.test(id)))
+      throw new PlatformError('每次最多导入 50 个有效频道。', 400);
+    const response = decode(
+      channelSchema,
+      await this.transport('channels', {
+        part: 'snippet,contentDetails',
+        id: [...new Set(ids)].join(','),
+      }),
+    );
+    return response.items
+      .filter((channel) => ids.includes(channel.id))
+      .map((channel) => ({
+        externalId: channel.id,
+        name: channel.snippet.title,
+        description: channel.snippet.description.slice(0, 1000),
+        url: `https://www.youtube.com/channel/${channel.id}`,
+        adapterData: { uploadsPlaylistId: channel.contentDetails.relatedPlaylists.uploads },
+      }));
+  }
   async resolve(kind: SourceKind, input: string) {
     if (kind !== 'channel') throw new PlatformError('YouTube 当前只支持频道订阅。', 400);
     const parameters = parseYouTubeSource(input);

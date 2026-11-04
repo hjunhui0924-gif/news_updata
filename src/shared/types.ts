@@ -74,6 +74,32 @@ export type Subscription = {
     nextPage: number | null;
   };
 };
+export type YouTubeConnectionStatus = {
+  configured: boolean;
+  state:
+    | 'unconfigured'
+    | 'disconnected'
+    | 'connected'
+    | 'refresh_pending'
+    | 'reconnect_required'
+    | 'temporary_error';
+  name: string | null;
+  message: string;
+  expiresAt: string | null;
+  retryAt: string | null;
+};
+export type YouTubeFollowingChannel = {
+  id: string;
+  name: string;
+  description: string;
+  subscribed: boolean;
+};
+export type YouTubeFollowingPreview = {
+  previewId: string;
+  channels: YouTubeFollowingChannel[];
+  nextCursor: string | null;
+  truncated: boolean;
+};
 export type FeedPreview = Omit<
   FeedItem,
   'body' | 'contentHash' | 'translation' | 'translationBlocks' | 'summary' | 'aiError'
@@ -170,6 +196,7 @@ export type Bootstrap = {
   services: {
     platforms?: Partial<Record<PlatformId, { configured: boolean; intervalMinutes: number }>>;
     githubAuth?: GitHubAuthStatus;
+    youtubeAuth?: YouTubeConnectionStatus;
     github: boolean;
     ai: boolean;
     workerLastSeen: string | null;

@@ -3,7 +3,8 @@ import { sourcePlatform, type PlatformId, type SourceKind } from '@/shared/platf
 import { getConfig } from '../config';
 import { createUserGitHubConnector } from '../connectors/github-user';
 import { GitHubAdapter } from './github';
-import { YouTubeAdapter, createYouTubeTransport } from './youtube';
+import { YouTubeAdapter } from './youtube';
+import { createUserYouTubeTransport } from './youtube-auth';
 import { PlatformError, type PlatformAdapter } from './contract';
 
 export function assertSourceKind(platform: PlatformId, kind: SourceKind) {
@@ -18,7 +19,8 @@ export async function createPlatformAdapter(
 ): Promise<PlatformAdapter> {
   if (platform === 'github')
     return new GitHubAdapter(await createUserGitHubConnector(userId, signal));
-  if (platform === 'youtube') return new YouTubeAdapter(createYouTubeTransport(signal));
+  if (platform === 'youtube')
+    return new YouTubeAdapter(await createUserYouTubeTransport(userId, signal));
   throw new PlatformError('该平台的连接器尚未启用。', 503);
 }
 

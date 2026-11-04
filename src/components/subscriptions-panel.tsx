@@ -22,6 +22,7 @@ import { StarredImport } from './starred-import';
 import { FollowingImport } from './following-import';
 import { StarSyncPanel } from './star-sync-panel';
 import { RepositorySearch } from './repository-search';
+import { YouTubeFollowing } from './youtube-following';
 
 export function SubscriptionsPanel({
   subscriptions,
@@ -258,16 +259,24 @@ export function AddSubscription({
   onAdded,
   authorSubscriptionCount,
   platformStatus,
+  youtubeAuth,
+  channelSubscriptionCount,
+  onRefresh,
+  initialMethod = 'repo',
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   onAdded: () => Promise<void>;
   authorSubscriptionCount: number;
   platformStatus?: Bootstrap['services']['platforms'];
+  youtubeAuth?: Bootstrap['services']['youtubeAuth'];
+  channelSubscriptionCount: number;
+  onRefresh: () => Promise<void>;
+  initialMethod?: 'repo' | 'channel';
 }) {
   const [kind, setKind] = useState<
     'repo' | 'author' | 'following' | 'starred' | 'search' | 'channel'
-  >('repo');
+  >(initialMethod);
   const [value, setValue] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -277,7 +286,7 @@ export function AddSubscription({
     ['starred', '导入 Star'],
     ['author', '开发者'],
     ['following', '导入关注'],
-    ['channel', 'YouTube 频道'],
+    ['channel', 'YouTube 关注'],
   ] as const;
   function handleMethodKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
     const index = addMethods.findIndex(([key]) => key === kind);
@@ -308,7 +317,6 @@ export function AddSubscription({
       await requestJson('/api/subscriptions', 'POST', {
         kind,
         input: value,
-        ...(kind === 'channel' ? { platform: 'youtube' } : {}),
       });
       await onAdded();
       onOpenChange(false);
@@ -328,7 +336,10 @@ export function AddSubscription({
     >
       <Dialog.Portal>
         <Dialog.Overlay className="dialog-overlay" />
-        <Dialog.Content className="dialog-content" aria-busy={busy}>
+        <Dialog.Content
+          className={`dialog-content${kind === 'channel' ? ' youtube-subscription-dialog' : ''}`}
+          aria-busy={busy}
+        >
           <Dialog.Close asChild>
             <button className="dialog-close icon-button" aria-label="关闭添加订阅" disabled={busy}>
               <X size={19} />
@@ -384,14 +395,19 @@ export function AddSubscription({
                 onBusyChange={setBusy}
                 authorSubscriptionCount={authorSubscriptionCount}
               />
+            ) : kind === 'channel' ? (
+              <YouTubeFollowing
+                connection={youtubeAuth}
+                subscriptionCount={channelSubscriptionCount}
+                intervalMinutes={platformStatus?.youtube?.intervalMinutes ?? 180}
+                onBusyChange={setBusy}
+                onAdded={onRefresh}
+                onRefresh={onRefresh}
+              />
             ) : (
               <form onSubmit={submit} aria-busy={busy}>
                 <label className="field-label" htmlFor="source-input">
-                  {kind === 'channel'
-                    ? 'YouTube 频道 ID、@handle 或频道地址'
-                    : kind === 'repo'
-                      ? '仓库地址或 owner/repo'
-                      : 'GitHub 用户名'}
+                  {kind === 'repo' ? '仓库地址或 owner/repo' : 'GitHub 用户名'}
                 </label>
                 <input
                   id="source-input"
@@ -400,32 +416,18 @@ export function AddSubscription({
                   onChange={(e) => {
                     setValue(e.target.value);
                   }}
-                  placeholder={
-                    kind === 'channel'
-                      ? '例如 @GoogleDevelopers 或 UC 开头的频道 ID'
-                      : kind === 'repo'
-                        ? '例如 vercel/next.js'
-                        : '例如 torvalds'
-                  }
+                  placeholder={kind === 'repo' ? '例如 vercel/next.js' : '例如 torvalds'}
                   aria-describedby={`source-input-help${error ? ' source-input-error' : ''}`}
                   required
                   maxLength={200}
                 />
                 <p className="helper" id="source-input-help">
-                  {kind === 'channel'
-                    ? `每 ${platformStatus?.youtube?.intervalMinutes ?? 180} 分钟检查一次，单轮最多最近 250 条；首次导入近 30 天最多 20 条历史视频。仅展示公开简介，跳转原站观看。`
-                    : kind === 'repo'
-                      ? '跟踪正式版本发布，首次导入的历史版本不会作为新提醒。'
-                      : kind === 'author'
-                        ? '跟踪新建公开项目和本人发布的正式版本；版本动态受 GitHub 近期公开活动窗口限制。'
-                        : ''}
+                  {kind === 'repo'
+                    ? '跟踪正式版本发布，首次导入的历史版本不会作为新提醒。'
+                    : kind === 'author'
+                      ? '跟踪新建公开项目和本人发布的正式版本；版本动态受 GitHub 近期公开活动窗口限制。'
+                      : ''}
                 </p>
-                {kind === 'channel' && !platformStatus?.youtube?.configured && (
-                  <p className="form-error" role="status">
-                    尚未配置 YouTube API Key。请在服务端 .env.local 设置 YOUTUBE_API_KEY、启用
-                    YouTube Data API v3，并重启 Web 和 Worker。
-                  </p>
-                )}
                 {error && (
                   <p className="form-error" id="source-input-error" role="alert">
                     {error}
@@ -436,11 +438,7 @@ export function AddSubscription({
                     <Github size={14} />
                     仅访问公开信息
                   </span>
-                  <Button
-                    type="submit"
-                    variant="primary"
-                    disabled={busy || (kind === 'channel' && !platformStatus?.youtube?.configured)}
-                  >
+                  <Button type="submit" variant="primary" disabled={busy}>
                     {busy ? <Loader2 size={15} className="spin" /> : <Check size={15} />} 添加订阅
                   </Button>
                 </div>

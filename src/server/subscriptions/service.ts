@@ -51,6 +51,7 @@ export async function persistSubscription(
     generation?: string;
     signal?: AbortSignal;
     platform?: PlatformId;
+    connectionGeneration?: string;
   } = {},
 ) {
   const platform = options.platform ?? 'github';
@@ -60,6 +61,14 @@ export async function persistSubscription(
   return transaction(async (client) => {
     options.signal?.throwIfAborted();
     await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`subscription:${userId}`]);
+    if (options.connectionGeneration) {
+      const connection = await client.query(
+        "SELECT 1 FROM platform_connections WHERE user_id=$1 AND platform=$2 AND generation=$3 AND state='connected' FOR SHARE",
+        [userId, platform, options.connectionGeneration],
+      );
+      if (!connection.rowCount)
+        throw new PlatformError('平台账号已变化，请重新读取关注后导入。', 409);
+    }
     if (options.automatic) {
       const state = await client.query(
         'SELECT enabled,data FROM star_sync WHERE user_id=$1 FOR SHARE',

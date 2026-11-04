@@ -40,6 +40,8 @@ export default defineConfig({
       LLM_MODEL: '',
       GITHUB_READ_TOKEN: '',
       YOUTUBE_API_KEY: '',
+      YOUTUBE_CLIENT_ID: '',
+      YOUTUBE_CLIENT_SECRET: '',
       GITHUB_CLIENT_ID: '',
       GITHUB_CLIENT_SECRET: '',
       ALLOWED_GITHUB_USER_IDS: '',
