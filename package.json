@@ -25,6 +25,8 @@
     "test": "vitest run",
     "test:integration": "vitest run tests/integration",
     "test:e2e": "playwright test",
+    "bench:feed": "tsx scripts/bench-feed.ts",
+    "test:e2e:performance": "playwright test --config playwright.performance.config.ts",
     "test:e2e:starred": "playwright test --config playwright.starred.config.ts",
     "test:e2e:ai": "playwright test --config playwright.ai.config.ts",
     "test:e2e:discovery": "playwright test --config playwright.discovery.config.ts",

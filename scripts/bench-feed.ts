@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { performance } from 'node:perf_hooks';
+import { cpus, platform, release, totalmem } from 'node:os';
+import { execFileSync } from 'node:child_process';
+import { benchmark } from './benchmarks/statistics';
 import { getPool } from '../src/server/db/client';
 import { migrate } from './migrate';
 import { getFeedPage, getFeedStatus } from '../src/server/db/store';
@@ -16,16 +18,7 @@ const userId = `bench-${randomUUID()}`;
 const rowCount = 10000;
 const filters = { view: 'feed', type: 'all', search: '', unread: false, source: '' };
 const pool = getPool();
-async function measure(run: () => Promise<unknown>) {
-  const samples: number[] = [];
-  for (let index = 0; index < 12; index++) {
-    const start = performance.now();
-    await run();
-    if (index > 1) samples.push(performance.now() - start);
-  }
-  samples.sort((a, b) => a - b);
-  return { medianMs: Number(samples[4].toFixed(2)), p95Ms: Number(samples[9].toFixed(2)) };
-}
+const measure = benchmark;
 try {
   await migrate();
   await pool.query('INSERT INTO app_users(id,name) VALUES($1,$2)', [userId, 'isolated benchmark']);
@@ -35,7 +28,10 @@ try {
       '2026-11-04T00:00:00Z'::timestamptz - (g/10)*interval '1 second',
       $2::jsonb || jsonb_build_object('id',$1||'-'||lpad(g::text,6,'0'),'sourceId','bench-source',
       'sourceIds',jsonb_build_array('bench-source'),'externalId',g::text,
-      'title',CASE WHEN g%10=0 THEN 'needle release ' ELSE 'release ' END||g,
+      'title',CASE WHEN g%10=0 THEN 'needle mixed update ' ELSE 'mixed update ' END||g,
+      'platform',CASE WHEN g%3=0 THEN 'youtube' ELSE 'github' END,
+      'type',CASE WHEN g%3=0 THEN 'video' WHEN g%3=1 THEN 'release' ELSE 'new_repo' END,
+      'description',CASE WHEN g%7=0 THEN repeat('Mixed long description ',50) ELSE 'Public fixture update' END,
       'publishedAt',to_char('2026-11-04T00:00:00Z'::timestamptz - (g/10)*interval '1 second','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
       'body',notes,'translation',reverse(notes)), g%3=0,g%5=0
     FROM generate_series(1,$3::int) g CROSS JOIN LATERAL
@@ -58,7 +54,26 @@ try {
     [userId],
   );
   const report = {
+    schemaVersion: 2,
     recordedAt: new Date().toISOString(),
+    environment: {
+      node: process.version,
+      os: `${platform()} ${release()}`,
+      cpu: cpus()[0]?.model,
+      memoryGiB: Number((totalmem() / 1024 ** 3).toFixed(1)),
+      commit: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
+      workingTreeDirty: !!execFileSync('git', ['status', '--porcelain'], {
+        encoding: 'utf8',
+      }).trim(),
+    },
+    method: {
+      samplesPerRound: 30,
+      rounds: 3,
+      warmupPerRound: 2,
+      cache: 'warm; PostgreSQL buffers not reset',
+      scope: 'store functions, not HTTP/browser latency',
+      failures: 'abort and fail report',
+    },
     rowCount,
     pageSize: page.items.length,
     previewBytes: Buffer.byteLength(JSON.stringify(page)),
@@ -81,7 +96,18 @@ try {
     ? 'work/feed-benchmark-baseline.json'
     : 'work/feed-benchmark.json';
   await writeFile(name, JSON.stringify(report, null, 2));
-  console.log(JSON.stringify({ ...report, plan: undefined, searchPlan: undefined, report: name }));
+  const timings = Object.fromEntries(
+    ['firstPage', 'nextPage', 'savedUnread', 'search', 'status'].map((key) => {
+      const value = report[key as keyof typeof report] as Awaited<ReturnType<typeof measure>>;
+      return [
+        key,
+        { sampleCount: value.sampleCount, medianMs: value.medianMs, p95Ms: value.p95Ms },
+      ];
+    }),
+  );
+  console.log(
+    JSON.stringify({ rowCount, previewBytes: report.previewBytes, ...timings, report: name }),
+  );
 } finally {
   await pool.query('DELETE FROM items WHERE user_id=$1', [userId]);
   await pool.query('DELETE FROM app_users WHERE id=$1', [userId]);
