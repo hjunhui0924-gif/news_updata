@@ -10,18 +10,26 @@
 
 ## 第一次使用：访问已经部署好的站点
 
-普通使用者不需要安装项目、填写 API Key 或配置服务器。向部署者获取站点地址并确认自己的 GitHub 账号已受邀，然后按以下步骤操作。
+普通使用者登录、订阅和阅读不需要安装项目、填写 API Key 或配置服务器；可选的个人 AI 服务可以使用自己的模型密钥。向部署者获取站点地址并确认自己的 GitHub 账号已受邀，然后按以下步骤操作。
 
 1. **登录**：打开站点，点击 GitHub 登录，在 GitHub 官方页面完成授权后返回。应用不接收你的 GitHub 密码；若提示未获准访问，请让部署者核对你的 GitHub 稳定数字 ID，不能用用户名代替。
 2. **添加第一批关注**：打开右上角「添加订阅」或左侧「订阅管理」。可以输入 `owner/repo` 添加项目、添加开发者，或从自己的 Star / 关注列表中选择导入。第一次建议先添加少量来源。
 3. **等待首次同步**：在订阅管理查看同步进度。同步由后台 Worker 执行，不是添加后立即有内容；项目没有符合范围的正式 Release 时也可能为空。刷新页面或「刷新内容」只更新站内显示，不会替代后台采集。
 4. **开始阅读**：进入「全部更新」，先用 GitHub / YouTube 平台筛选缩小范围，再按类型、未读或关键词查找。点击条目查看详情，可以切换列表 / 分栏布局，标记已读或收藏。手机端使用底部导航与返回入口。
 5. **可选：连接 YouTube**：进入「添加订阅 → YouTube 关注 → 连接 YouTube 账号」，在 Google 官方页面授权，返回后读取自己的关注、选择频道并导入。需要站点运营者先配置 Google OAuth；普通用户不填写客户端密钥。连接成功不等于已导入频道，导入后才会进入同步流程。
-6. **调整阅读偏好**：打开「偏好设置」，调整紧凑列表和显示时区，再点击「保存偏好」。摘要、全文译文和视频简介译文取决于站点是否启用 AI；未启用时仍可阅读原文及访问源站。
+6. **调整个人设置**：点击左侧栏底部账号，选择「阅读偏好」调整紧凑列表和时区；「账号与连接」管理平台授权；「个人 AI 服务」选择站点模型、自己的模型或停用。个人模型是可选项，未配置时仍可阅读原文及访问源站。手机上先打开顶部导航。
+
+登录后进入工作空间首页，集中展示首次使用步骤、平台连接和同步状态；之后随时从侧栏或账号菜单返回。今日精选仍位于“更多工具”。
 
 站内订阅、已读和收藏只保存在本应用，不会替你 Star、Follow 或修改源站频道订阅。退出网页登录不等于撤销平台授权；YouTube 连接可以在其连接入口断开。没有邮件或浏览器推送。
 
 ## 界面预览
+
+### 首页与账号菜单
+
+![工作空间首页：首次使用步骤、平台连接、同步状态与可选个人 AI](docs/assets/home-demo.png)
+
+![底部账号菜单：阅读偏好、账号连接、个人 AI、帮助与退出](docs/assets/account-menu-demo.png)
 
 ### 分栏阅读
 
@@ -116,7 +124,9 @@ YouTube: https://你的域名/api/platforms/youtube/callback
 
 ## AI 配置
 
-普通用户无需提供模型密钥。部署者可配置兼容 Chat Completions 的模型地址、API Key、模型名、实际输入 / 输出单价，再开启 `LLM_ENABLED=true` 并重启 Web 与 Worker。本机使用 `.env.local`，服务器使用 `deploy/server.env`。
+AI 为可选功能。使用站点 AI 的用户无需提供模型密钥；部署者配置兼容 Chat Completions 的模型地址、API Key、模型名、实际输入 / 输出单价，再开启 `LLM_ENABLED=true` 并重启 Web 与 Worker。本机使用 `.env.local`，服务器使用 `deploy/server.env`。
+
+支持用户自带模型密钥：管理员先配置 `LLM_PERSONAL_ALLOWED_BASE_URLS` 为允许的完整 HTTPS API 基地址（多个以逗号分隔），再重启 Web / Worker。用户从「账号菜单 → 个人 AI 服务」填写自己的模型、密钥、单价和预算，保存后可测试连接，费用由该密钥对应的模型账号承担。个人密钥加密保存且不回显；删除后停用 AI，不自动回退到站点付费服务。Demo 不接收真实密钥。升级需执行新增 0008 迁移。[个人配置与边界](docs/28-home-account-personal-ai.md)
 
 模型关闭、预算不足或服务失败时仍保留原文阅读。启用后相关公开正文会发送到所配置的模型服务；预算为应用估算，不能替代供应商账户硬额度。视频简介翻译只处理作者文字，不代表字幕或视频全文。[模型设置与费用](docs/05-operations-and-quality.md#模型配置)
 
@@ -148,7 +158,7 @@ pnpm worker:check      # 仅检查现有 Worker 产物，不调用外部服务
 
 测试库可被清理，不能保存有价值的数据；浏览器测试关闭真实 OAuth 与模型凭据。Windows 优先使用已安装 Chrome；其他环境先安装 Playwright Chromium。浏览器套件、类型检查与构建按顺序运行，避免争用生成目录。[贡献与测试约定](CONTRIBUTING.md)
 
-本轮文档发布前验证：289 项单元 / 数据库测试、完整 110 项浏览器测试、类型、Lint 和 Linux 生产镜像构建通过，5 张公开截图已更新。此前的服务器准备还完成了隔离部署与恢复演练；这些结果不是远程上线或长期使用验收。范围和结果见 [文档发布记录](docs/27-documentation-release.md) 与 [服务器试用验收](docs/26-server-invitation-trial.md)。
+本轮首页与个人配置发布前验证：300 项单元 / 数据库测试、完整 123 项浏览器测试、类型、Lint 和 Linux 生产镜像构建通过，7 张公开截图已更新。此前的服务器准备还完成了隔离部署与恢复演练；这些结果不是远程上线、真实个人模型输出质量或长期使用验收。最新范围和结果见 [首页与个人配置验收](docs/28-home-account-personal-ai.md)、[文档发布记录](docs/27-documentation-release.md) 与 [服务器试用验收](docs/26-server-invitation-trial.md)。
 
 ### 目录导航
 
@@ -157,7 +167,7 @@ pnpm worker:check      # 仅检查现有 Worker 产物，不调用外部服务
 | `src/app/`、`src/components/`        | 页面、阅读器、订阅、账号连接与设置           |
 | `src/server/`、`src/worker/`         | 用户鉴权、平台适配、同步、AI、队列与后台进程 |
 | `src/shared/`                        | 前后端共用类型、平台及信息流规则             |
-| `drizzle/`                           | 0001–0007 数据库迁移                         |
+| `drizzle/`                           | 0001–0008 数据库迁移                         |
 | `deploy/`、`compose.production.yaml` | 生产配置生成、HTTPS、健康检查、备份及恢复    |
 | `scripts/`、`tests/`                 | 启动、维护、构建和隔离测试                   |
 | `docs/assets/`                       | README 当前应用截图，全部使用演示数据        |
@@ -177,6 +187,7 @@ pnpm worker:check      # 仅检查现有 Worker 产物，不调用外部服务
 - [产品需求](docs/01-product-requirements.md) · [技术架构](docs/02-architecture.md) · [界面规范](docs/03-ui-design.md) · [领域词汇](CONTEXT.md)
 - [开发路线](docs/04-development-plan.md) · [本地运行与模型设置](docs/05-operations-and-quality.md) · [安全与数据](SECURITY.md) · [变更记录](CHANGELOG.md)
 - [服务器邀请试用与上线](docs/26-server-invitation-trial.md) · [文档与截图发布](docs/27-documentation-release.md) · [开发贡献](CONTRIBUTING.md)
+- [首页、账号菜单与个人 AI](docs/28-home-account-personal-ai.md)
 - [聚合阅读器重构](docs/23-aggregation-reader-redesign.md) · [阅读体验复核](docs/24-reader-polish-review.md)
 - [YouTube 账号配置](docs/19-youtube-account-following.md) · [真实闭环与生命周期验收](docs/25-youtube-live-acceptance.md) · [数据生命周期边界](docs/22-data-lifecycle-and-recovery.md)
 - [平台适配层](docs/18-platform-adapters.md) · [优化路线](docs/20-aggregation-optimization-roadmap.md) · [历史实施与性能证据](docs/21-aggregation-optimization-progress.md)

@@ -10,6 +10,7 @@ export class RequestLimitError extends Error {
 
 export function requestLimitScope(request: Request): Scope {
   const path = new URL(request.url).pathname;
+  if (path === '/api/settings/ai/test' && request.method === 'POST') return 'ai';
   if (
     (request.method === 'POST' && path === '/api/subscriptions') ||
     (request.method === 'DELETE' && path === '/api/platforms/youtube/connection')

@@ -23,7 +23,7 @@ export async function getItems(userId: string): Promise<FeedItem[]> {
     .from(items)
     .where(eq(items.userId, userId))
     .orderBy(desc(items.publishedAt), desc(items.id));
-  const versions = currentArtifactVersions();
+  const versions = await currentArtifactVersions(userId);
   return rows.map((row) =>
     withCurrentArtifacts(
       { ...row.data, read: row.read, saved: row.saved, muted: row.muted },
@@ -139,7 +139,7 @@ export async function getFeedPage(userId: string, input: FeedQuery): Promise<Fee
   const currentSubscriptions = new Map(
     (await getSubscriptions(userId)).map((subscription) => [subscription.id, subscription]),
   );
-  const versions = currentArtifactVersions();
+  const versions = await currentArtifactVersions(userId);
   const pageItems = pageRows.map((row) => {
     const item = { ...row.data, read: row.read, saved: row.saved, muted: row.muted };
     const sourceIds = itemSourceIds(item);
@@ -185,7 +185,7 @@ export async function getItem(userId: string, id: string) {
   if (!rows[0]) return null;
   const item = withCurrentArtifacts(
     { ...rows[0].data, read: rows[0].read, saved: rows[0].saved, muted: rows[0].muted },
-    currentArtifactVersions(),
+    await currentArtifactVersions(userId),
   );
   const sources = new Map((await getSubscriptions(userId)).map((source) => [source.id, source]));
   const ids = itemSourceIds(item);

@@ -1,18 +1,18 @@
 import { createHash, randomUUID } from 'node:crypto';
 import {
   AiError,
-  callModel,
+  createModelCall,
   reserveBudget,
   validateTranslation,
   type ModelCall,
 } from '../ai/service';
 import { prepareTranslation, assembleTranslation } from '../ai/translation';
 import { getConfig } from '../config';
+import { resolveAiConfig, type AiConfig } from '../ai/settings';
 import { getPool } from '../db/client';
 import type { TrendingRepository } from '@/shared/trending';
 
-export function descriptionCacheKey(repo: TrendingRepository) {
-  const config = getConfig();
+export function descriptionCacheKey(repo: TrendingRepository, config: AiConfig = getConfig()) {
   return createHash('sha256')
     .update(
       JSON.stringify([
@@ -22,14 +22,16 @@ export function descriptionCacheKey(repo: TrendingRepository) {
         config.LLM_MODEL,
         config.LLM_API_BASE_URL,
         config.LLM_ENABLE_THINKING,
+        ...(config.LLM_CACHE_SCOPE ? [config.LLM_CACHE_SCOPE] : []),
       ]),
     )
     .digest('hex');
 }
 
-export async function withChineseDescriptions(repositories: TrendingRepository[]) {
+export async function withChineseDescriptions(repositories: TrendingRepository[], userId?: string) {
   if (!repositories.length) return [];
-  const keys = repositories.map(descriptionCacheKey);
+  const config = userId ? await resolveAiConfig(userId) : getConfig();
+  const keys = repositories.map((repo) => descriptionCacheKey(repo, config));
   const result = await getPool().query(
     'SELECT key,result FROM ai_cache WHERE key=ANY($1::text[])',
     [keys],
@@ -44,11 +46,11 @@ export async function withChineseDescriptions(repositories: TrendingRepository[]
 export async function translateDescription(
   userId: string,
   repo: TrendingRepository,
-  model: ModelCall = callModel,
+  model?: ModelCall,
 ) {
   if (!repo.description) throw new AiError('项目暂无简介可供翻译。');
-  const config = getConfig();
-  const key = descriptionCacheKey(repo);
+  const config = await resolveAiConfig(userId);
+  const key = descriptionCacheKey(repo, config);
   const client = getPool();
   const cached = await client.query('SELECT result FROM ai_cache WHERE key=$1', [key]);
   if (cached.rows[0]) return cached.rows[0].result as string;
@@ -72,9 +74,14 @@ export async function translateDescription(
       ((Buffer.byteLength(system + user) + 2000) * config.LLM_INPUT_USD_PER_MILLION +
         outputLimit * config.LLM_OUTPUT_USD_PER_MILLION) /
       1000000;
-    const reservation = await reserveBudget(userId, reserved);
+    const reservation = await reserveBudget(userId, reserved, new Date(), config);
     try {
-      const response = await model({ system, user, kind: 'translation', outputLimit });
+      const response = await (model ?? createModelCall(config))({
+        system,
+        user,
+        kind: 'translation',
+        outputLimit,
+      });
       const cost =
         response.inputTokens !== undefined && response.outputTokens !== undefined
           ? (response.inputTokens * config.LLM_INPUT_USD_PER_MILLION +

@@ -5,7 +5,7 @@ import {
   Inbox,
   Bookmark,
   PanelsTopLeft,
-  Settings2,
+  Home,
   Plus,
   ChevronDown,
   Circle,
@@ -16,6 +16,7 @@ import {
   Play,
 } from 'lucide-react';
 import type { Bootstrap } from '@/shared/types';
+import { AccountMenu } from './account-menu';
 const nav = [
   { id: 'saved', label: '已收藏', icon: Bookmark },
   { id: 'subscriptions', label: '订阅管理', icon: PanelsTopLeft },
@@ -48,7 +49,7 @@ export function Sidebar({
   const enabledSources = data.subscriptions.filter((source) => source.enabled);
   return (
     <aside className="sidebar">
-      <button className="brand" onClick={() => navigate('today')} aria-label="知更首页">
+      <button className="brand" onClick={() => navigate('home')} aria-label="知更首页">
         <span className="brand-icon">
           <Radio size={23} />
         </span>
@@ -56,13 +57,21 @@ export function Sidebar({
           知更<span className="brand-sub">NEWSROOM</span>
         </span>
       </button>
-      <button className="workspace-switch" onClick={() => navigate('settings')}>
+      <button className="workspace-switch" onClick={() => navigate('home')}>
         <span className="workspace-avatar">我</span>
         <span>我的工作空间</span>
         <ChevronDown size={14} />
       </button>
       <div className="nav-caption">工作空间</div>
       <nav className="main-nav" aria-label="主导航">
+        <button
+          className={`nav-item ${view === 'home' ? 'active' : ''}`}
+          aria-current={view === 'home' ? 'page' : undefined}
+          onClick={() => navigate('home')}
+        >
+          <Home size={18} />
+          <span>工作空间首页</span>
+        </button>
         <button
           className={`nav-item ${view === 'feed' && !unread ? 'active' : ''}`}
           aria-current={view === 'feed' && !unread ? 'page' : undefined}
@@ -208,23 +217,7 @@ export function Sidebar({
             </div>
           )}
         </div>
-        <button
-          className={`nav-item ${view === 'settings' ? 'active' : ''}`}
-          aria-current={view === 'settings' ? 'page' : undefined}
-          onClick={() => navigate('settings')}
-        >
-          <Settings2 size={18} />
-          <span>偏好设置</span>
-          <ArrowUpRight size={14} />
-        </button>
-        <div className="user-row">
-          <span className="user-avatar">N</span>
-          <div>
-            <strong>{data.mode === 'demo' ? '体验工作空间' : data.user.name}</strong>
-            <span>{data.mode === 'demo' ? '本地演示 · 数据已标注' : 'GitHub 已连接'}</span>
-          </div>
-          <span className="online-dot" />
-        </div>
+        <AccountMenu data={data} idPrefix={idPrefix} navigate={navigate} />
       </div>
     </aside>
   );

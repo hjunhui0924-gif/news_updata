@@ -2,6 +2,8 @@
 
 更新日期：2026-11-05。
 
+2026-11-05 首页与个人 AI 增量：升级增加 `0008_personal_ai.sql`，需先备份再迁移；可选个人模型默认关闭，由管理员通过 `LLM_PERSONAL_ALLOWED_BASE_URLS` 明确开放可信服务地址。配置、计费和验证边界见 [首页与个人配置](28-home-account-personal-ai.md)。
+
 2026-11-05 服务器邀请试用增量：新的生产 Compose、权限边界、随机配置生成、备份/隔离恢复与上线步骤以 [服务器邀请试用版](26-server-invitation-trial.md) 为准；下方本地运行、历史构建与本机备份记录保留原适用范围。
 
 ## 本地运行：Docker 可选
@@ -79,7 +81,7 @@ pnpm youtube:check -- "@GoogleDevelopers"
 
 该命令只读频道和第一页公开元数据，不写数据库、不启动 Worker、不调用模型，不代表个人授权流程已验证。网页不再以手填频道为主入口；不支持 YouTube 搜索或推荐流。配额不足持久化来源等待时间，同一进程共享项目冷却；跨实例共享配额仍需后续专项设计。
 
-升级前先 `pnpm db:backup`，再 `pnpm db:migrate` 应用所有未执行迁移（最新 0007 用户限频与整站预算索引）；保持 Web/Worker 停止后升级，避免旧进程写入旧契约。完成后运行 `pnpm db:drill` 验证临时库恢复，再重启应用。公开内容窗口见 [适配层](18-platform-adapters.md)，个人账号授权与关注见 [19 文档](19-youtube-account-following.md)。
+升级前先 `pnpm db:backup`，再 `pnpm db:migrate` 应用所有未执行迁移（最新 0008 个人 AI 配置与计费归属）；保持 Web/Worker 停止后升级，避免旧进程写入旧契约。完成后运行 `pnpm db:drill` 验证临时库恢复，再重启应用。公开内容窗口见 [适配层](18-platform-adapters.md)，个人账号授权与关注见 [19 文档](19-youtube-account-following.md)。
 
 ## 模型配置
 
@@ -199,13 +201,13 @@ pnpm build
 
 前端优化阶段 0–7 已完成，相关基线、状态矩阵和阶段记录见 [前端优化方案](frontend-optimization-plan.md)。本次交付前重新核对以下门禁：
 
-| 检查 | 实际结果 |
-| --- | --- |
-| `pnpm typecheck` | 通过 |
-| `pnpm lint` | 通过 |
-| `pnpm test` | 29 个测试文件，159 项通过 |
-| `pnpm test:e2e` | 37 项 demo 浏览器测试通过 |
-| `pnpm build` | Next.js Web 与 tsup Worker 构建通过 |
+| 检查              | 实际结果                                           |
+| ----------------- | -------------------------------------------------- |
+| `pnpm typecheck`  | 通过                                               |
+| `pnpm lint`       | 通过                                               |
+| `pnpm test`       | 29 个测试文件，159 项通过                          |
+| `pnpm test:e2e`   | 37 项 demo 浏览器测试通过                          |
+| `pnpm build`      | Next.js Web 与 tsup Worker 构建通过                |
 | Docker PostgreSQL | `news_updata-db-1` healthy，映射 `127.0.0.1:54329` |
 
 浏览器回归覆盖桌面与窄屏阅读、订阅导入、GitHub 连接、Trending、Skill、设置和同步状态；真实 GitHub OAuth、外部 API 限流、模型服务、公开部署和长期观察仍不在 demo 门禁内。

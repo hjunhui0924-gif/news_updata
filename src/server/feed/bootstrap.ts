@@ -13,6 +13,7 @@ import { itemSourceIds } from '@/shared/feed';
 import { getGitHubAuthStatus } from '../connectors/github-auth';
 import { workerIsOnline } from '@/shared/health';
 import { getYouTubeAuthStatus } from '../platforms/youtube-auth';
+import { getPersonalAiSettings } from '../ai/settings';
 
 export async function bootstrap(
   user: {
@@ -33,6 +34,7 @@ export async function bootstrap(
     usage,
     githubAccount,
     youtubeAccount,
+    aiSettings,
   ] = await Promise.all([
     metadataOnly
       ? Promise.resolve(undefined)
@@ -54,6 +56,7 @@ export async function bootstrap(
     ),
     getGitHubAuthStatus(user.id),
     getYouTubeAuthStatus(user.id),
+    getPersonalAiSettings(user.id),
   ]);
   const currentSubscriptions = new Map(subscriptions.map((sub) => [sub.id, sub]));
   const feedStats = feed ? { ...feed, items: undefined } : undefined;
@@ -89,7 +92,8 @@ export async function bootstrap(
       github: ['connected', 'configured', 'refresh_pending'].includes(githubAccount.state),
       githubAuth: githubAccount,
       youtubeAuth: youtubeAccount,
-      ai: config.LLM_ENABLED === 'true',
+      ai: aiSettings.effectiveMode !== 'disabled',
+      aiMode: aiSettings.effectiveMode,
       workerLastSeen: heartbeat.rows[0]?.value ?? null,
       workerOnline: workerIsOnline(heartbeat.rows[0]?.value),
       costToday: Number(usage.rows[0].cost),

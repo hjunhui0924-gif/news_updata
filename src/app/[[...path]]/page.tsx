@@ -9,10 +9,14 @@ export const dynamic = 'force-dynamic';
 export default async function Page({ params }: { params: Promise<{ path?: string[] }> }) {
   const { path = [] } = await params;
   if (path[0] === 'login') return <Login configured={!!getConfig().GITHUB_CLIENT_ID} />;
-  if (!path.length) redirect('/today');
+  if (!path.length) redirect('/home');
   if (
     ![
       'today',
+      'home',
+      'help',
+      'connections',
+      'ai-settings',
       'feed',
       'saved',
       'skills',

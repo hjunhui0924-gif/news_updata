@@ -3,7 +3,10 @@ import { getTrending } from '@/server/discovery/service';
 import { withChineseDescriptions } from '@/server/discovery/translation';
 
 export const GET = (request: Request) =>
-  api(request, async () => {
+  api(request, async (viewer) => {
     const snapshot = await getTrending(new URL(request.url).searchParams.get('language') ?? '');
-    return { ...snapshot, repositories: await withChineseDescriptions(snapshot.repositories) };
+    return {
+      ...snapshot,
+      repositories: await withChineseDescriptions(snapshot.repositories, viewer.id),
+    };
   });

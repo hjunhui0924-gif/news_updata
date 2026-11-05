@@ -188,6 +188,14 @@ try {
     await page.screenshot({ path: resolve(output, name), animations: 'disabled' });
   }
 
+  await navigate('/home');
+  await expect(page.getByRole('heading', { name: '首次使用，四步就好' })).toBeVisible();
+  await capture('home-demo.png');
+  await page.getByRole('button', { name: '账号菜单', exact: true }).click();
+  await expect(page.getByRole('menu', { name: '个人账号' })).toBeVisible();
+  await capture('account-menu-demo.png');
+  await page.keyboard.press('Escape');
+
   await navigate('/feed');
   await page.getByRole('button', { name: '列表布局', exact: true }).click();
   await expect(page.getByTestId('item-docs-video-item')).toBeVisible();
@@ -222,7 +230,7 @@ try {
   expect(errors).toEqual([]);
   expect(unexpected).toEqual([]);
   console.log(
-    'Captured 5 Demo-only README screenshots; no page errors, unexpected APIs or horizontal overflow.',
+    'Captured 7 Demo-only README screenshots; no page errors, unexpected APIs or horizontal overflow.',
   );
 } finally {
   await browser.close();

@@ -15,18 +15,21 @@ import type { Bootstrap, Preferences } from '@/shared/types';
 import { Button } from './ui/button';
 import { Markdown } from './markdown';
 import { GitHubConnection } from './github-connection';
+import { PersonalSettingsNav } from './personal-settings-nav';
 export function SettingsPanel({
   data,
   busy,
   save,
   preview,
   onAuthChecked,
+  navigate,
 }: {
   data: Bootstrap;
   busy: string;
   save: (v: Preferences) => Promise<void>;
   preview: () => Promise<void>;
   onAuthChecked: () => Promise<unknown>;
+  navigate: (view: string) => void;
   notify: (m: string) => void;
 }) {
   const [preferences, setPreferences] = useState(data.preferences);
@@ -36,6 +39,7 @@ export function SettingsPanel({
     preferences.timezone !== data.preferences.timezone;
   return (
     <section className="management-page settings-page">
+      <PersonalSettingsNav view="settings" navigate={navigate} />
       <div className="management-heading">
         <div>
           <span className="eyebrow">MAKE IT YOURS</span>

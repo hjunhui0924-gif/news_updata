@@ -18,7 +18,7 @@ import {
 import { getPool, transaction } from '../db/client';
 import { getSubscription } from '../db/store';
 import { enqueue } from '../jobs/queue';
-import { getConfig } from '../config';
+import { resolveAiConfig } from '../ai/settings';
 import { persistUpdates } from './ingest';
 import type { FeedItem, Subscription } from '@/shared/types';
 
@@ -191,6 +191,7 @@ export async function syncSubscription(
     return;
   }
   const startedAt = new Date().toISOString();
+  const aiEnabled = (await resolveAiConfig(userId)).LLM_ENABLED === 'true';
   try {
     const platform = sourcePlatform(sub);
     const adapter = await getAdapter(userId, platform, connector, signal);
@@ -291,7 +292,7 @@ export async function syncSubscription(
               update.type === 'video'
                 ? 'insufficient'
                 : update.body
-                  ? getConfig().LLM_ENABLED === 'true'
+                  ? aiEnabled
                     ? 'pending'
                     : 'disabled'
                   : 'insufficient',

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { getConfig, localSkillsEnabled } from '../config';
+import { resolveAiConfig } from '../ai/settings';
 import { getPool } from '../db/client';
 import { GitHubError } from '../connectors/github';
 import { createUserGitHubConnector } from '../connectors/github-user';
@@ -180,7 +181,7 @@ export async function enqueueUserSkillAi(
   const detail = await getUserSkillDetails(userId, id, signal);
   if (!detail) throw new AccessError('Skill 不存在或已不可读取。', 404);
   if (detail.ai[`${kind}Status`] === 'ready') return { status: 'completed', ai: detail.ai };
-  if (getConfig().APP_MODE !== 'demo' && getConfig().LLM_ENABLED !== 'true')
+  if (getConfig().APP_MODE !== 'demo' && (await resolveAiConfig(userId)).LLM_ENABLED !== 'true')
     throw new AccessError('尚未配置 AI 服务，原文仍可阅读。', 400);
   const job = await enqueue(userId, kind === 'summary' ? 'skill-summary' : 'skill-translation', id);
   return { status: job.status, job, ai: detail.ai };

@@ -27,6 +27,9 @@ import { SettingsPanel } from './settings-panel';
 import { TrendingPanel } from './trending-panel';
 import { GitHubConnection } from './github-connection';
 import { SkillsPanel } from './skills-panel';
+import { HomePanel } from './home-panel';
+import { ConnectionsPanel } from './connections-panel';
+import { PersonalAiPanel } from './personal-ai-panel';
 import { useFeed, feedParams } from './use-feed';
 
 import { requestJson } from './request-json';
@@ -37,6 +40,10 @@ import { youtubeOAuthMessage } from '@/shared/youtube-oauth';
 export { requestJson } from './request-json';
 
 const titles: Record<string, string> = {
+  home: '工作空间首页',
+  help: '使用帮助',
+  connections: '账号与连接',
+  'ai-settings': '个人 AI 服务',
   today: '今日精选',
   feed: '全部更新',
   saved: '已收藏',
@@ -65,7 +72,7 @@ const emptyFeedContext = (): FeedContext => ({
 });
 function normalizeView(path: string) {
   if (path === 'items' || path === 'onboarding') return path === 'items' ? 'feed' : 'subscriptions';
-  return path || 'today';
+  return path || 'home';
 }
 function isFeedView(view: string): view is FeedView {
   return view === 'feed' || view === 'saved';
@@ -101,6 +108,7 @@ export function ReaderApp({
   const [selectedId, setSelectedId] = useState<string | null>(initialItemId ?? null);
   const selectedRef = useRef(selectedId);
   const mutationVersion = useRef(0);
+  const historyPosition = useRef({ index: 0, url: '', restoring: false });
   useEffect(() => {
     selectedRef.current = selectedId;
   }, [selectedId]);
@@ -383,9 +391,46 @@ export function ReaderApp({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId]);
   useEffect(() => {
-    const pop = () => {
+    const existing = window.history.state?.newsroomIndex;
+    historyPosition.current = {
+      index: Number.isSafeInteger(existing) ? existing : 0,
+      url: location.href,
+      restoring: false,
+    };
+    window.history.replaceState(
+      { ...window.history.state, newsroomIndex: historyPosition.current.index },
+      '',
+      location.href,
+    );
+    const pop = (event: PopStateEvent) => {
+      const destination = event.state?.newsroomIndex;
+      const position = historyPosition.current;
+      if (position.restoring) {
+        if (destination === position.index) position.restoring = false;
+        else if (Number.isSafeInteger(destination)) history.go(position.index - destination);
+        return;
+      }
+      if (!window.dispatchEvent(new Event('newsroom:navigate', { cancelable: true }))) {
+        if (Number.isSafeInteger(destination) && destination !== position.index) {
+          position.restoring = true;
+          history.go(position.index - destination);
+        } else {
+          // Preserve the draft even for an entry created outside this reader.
+          history.replaceState(
+            { ...history.state, newsroomIndex: position.index },
+            '',
+            position.url,
+          );
+        }
+        return;
+      }
+      historyPosition.current = {
+        index: Number.isSafeInteger(destination) ? destination : 0,
+        url: location.href,
+        restoring: false,
+      };
       const parts = location.pathname.split('/').filter(Boolean);
-      const route = parts[0] || 'today';
+      const route = parts[0] || 'home';
       const nextView = normalizeView(route);
       setView(nextView);
       setSelectedId(parts[0] === 'items' ? parts[1] : null);
@@ -398,7 +443,17 @@ export function ReaderApp({
   const filtered = feedPage.items;
   const selected = detail?.id === selectedId ? detail : null;
   const selectedJobs = data.jobs.filter((job) => job.targetId === selectedId);
+  function pushHistory(path: string) {
+    const index = historyPosition.current.index + 1;
+    history.pushState({ newsroomIndex: index }, '', path);
+    historyPosition.current = { index, url: location.href, restoring: false };
+  }
   function navigate(next: string) {
+    if (
+      next !== view &&
+      !window.dispatchEvent(new Event('newsroom:navigate', { cancelable: true }))
+    )
+      return;
     setNavigationOpen(false);
     captureFeedContext();
     const nextView = normalizeView(next);
@@ -415,7 +470,7 @@ export function ReaderApp({
       setUnread(false);
     }
     setNoticeOpen(false);
-    history.pushState({}, '', `/${next}`);
+    pushHistory(`/${next}`);
   }
   async function patchItem(id: string, patch: Partial<Pick<FeedItem, 'read' | 'saved' | 'muted'>>) {
     mutationVersion.current++;
@@ -458,7 +513,7 @@ export function ReaderApp({
     const preview = feedPage.items.find((item) => item.id === id);
     if (preview) itemCache.current.set(id, preview);
     setSelectedId(id);
-    history.pushState({}, '', `/items/${id}`);
+    pushHistory(`/items/${id}`);
   }
   async function execute(key: string, action: () => Promise<unknown>, message?: string) {
     setBusy(key);
@@ -644,7 +699,29 @@ export function ReaderApp({
             onChecked={refresh}
           />
         )}
-        {view === 'skills' ? (
+        {view === 'home' || view === 'help' ? (
+          <HomePanel
+            data={{ ...data, feed: feedPage }}
+            help={view === 'help'}
+            navigate={navigate}
+            onAdd={(method) => {
+              setAddMethod(method);
+              setAddOpen(true);
+            }}
+          />
+        ) : view === 'connections' ? (
+          <ConnectionsPanel
+            data={data}
+            navigate={navigate}
+            onChecked={refresh}
+            onYouTube={() => {
+              setAddMethod('channel');
+              setAddOpen(true);
+            }}
+          />
+        ) : view === 'ai-settings' ? (
+          <PersonalAiPanel demo={data.mode === 'demo'} navigate={navigate} onChanged={refresh} />
+        ) : view === 'skills' ? (
           <SkillsPanel localEnabled={data.services.localSkills ?? false} />
         ) : view === 'today' ? (
           <TrendingPanel
@@ -788,7 +865,7 @@ export function ReaderApp({
               back={() => {
                 setSelectedId(null);
                 if (isFeedView(view)) restoreFeedContext(view);
-                history.pushState({}, '', `/${view}`);
+                pushHistory(`/${view}`);
               }}
             />
           </div>
@@ -842,6 +919,7 @@ export function ReaderApp({
           />
         ) : (
           <SettingsPanel
+            navigate={navigate}
             onAuthChecked={refresh}
             data={data}
             busy={busy}

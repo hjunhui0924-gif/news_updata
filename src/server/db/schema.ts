@@ -6,11 +6,22 @@ import {
   jsonb,
   uniqueIndex,
   primaryKey,
+  integer,
 } from 'drizzle-orm/pg-core';
 import type { FeedItem, Subscription, Preferences } from '@/shared/types';
 import { sql } from 'drizzle-orm';
 
 export const users = pgTable('app_users', { id: text().primaryKey(), name: text().notNull() });
+export const personalAiSettings = pgTable('personal_ai_settings', {
+  userId: text('user_id')
+    .primaryKey()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  mode: text().notNull(),
+  revision: integer().notNull().default(1),
+  encryptedKey: text('encrypted_key'),
+  data: jsonb().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
 export const platformConnections = pgTable(
   'platform_connections',
   {

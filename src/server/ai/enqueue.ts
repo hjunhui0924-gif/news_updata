@@ -1,6 +1,6 @@
 import { getItem } from '../db/store';
 import { AccessError } from '../auth/errors';
-import { getConfig } from '../config';
+import { resolveAiConfig } from './settings';
 import { enqueue } from '../jobs/queue';
 export async function enqueueAi(userId: string, id: string, kind: 'summary' | 'translation') {
   const item = await getItem(userId, id);
@@ -14,7 +14,7 @@ export async function enqueueAi(userId: string, id: string, kind: 'summary' | 't
   if (kind === 'summary' && item.summary) return { status: 'completed' };
   if (
     !item.demo &&
-    getConfig().LLM_ENABLED !== 'true' &&
+    (await resolveAiConfig(userId)).LLM_ENABLED !== 'true' &&
     !(kind === 'translation' && item.language === 'zh')
   )
     throw new AccessError('尚未配置 AI 服务，原文可直接阅读。', 400);

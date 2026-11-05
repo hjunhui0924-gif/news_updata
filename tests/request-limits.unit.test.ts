@@ -15,6 +15,8 @@ it('keeps external lookups and paid work separate from local reading and state m
     ['POST', '/api/items/fixture/summary/retry', 'ai'],
     ['POST', '/api/trending/translation', 'ai'],
     ['POST', '/api/skills/ai', 'ai'],
+    ['POST', '/api/settings/ai/test', 'ai'],
+    ['PUT', '/api/settings/ai', 'write'],
   ])
     expect(requestLimitScope(new Request(`https://app.example.test${path}`, { method }))).toBe(
       scope,

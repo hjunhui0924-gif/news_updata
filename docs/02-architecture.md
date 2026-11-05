@@ -18,7 +18,9 @@ flowchart LR
 
 Web 和 Worker 是两个进程，共享 TypeScript 类型、数据库访问及服务配置。pg-boss 使用同一个 PostgreSQL 的独立 schema，不引入 Redis。本地 `compose.yaml` 只负责 PostgreSQL，已有数据库时可不用 Docker；服务器使用 `compose.production.yaml`，包含数据库、一次性迁移、Web、Worker、HTTPS 代理和备份。
 
-邀请试用采用单 Web / 单 Worker：数据库不发布外部端口，应用账号不具有超级用户、建库或建角色权限。业务 API 每次校验用户准入，按用户/固定操作类别原子限频；AI 全局锁与用户锁按固定顺序共同约束整站及用户预算。公网服务层拒绝本机 Skill 读取和共享 GitHub 令牌。
+邀请试用采用单 Web / 单 Worker：数据库不发布外部端口，应用账号不具有超级用户、建库或建角色权限。业务 API 每次校验用户准入，按用户/固定操作类别原子限频；站点 AI 先全局锁再用户锁共同约束整站及用户预算，个人 AI 使用用户锁和独立计费范围。公网服务层拒绝本机 Skill 读取和共享 GitHub 令牌。
+
+0008 增加用户级模型设置和费用来源标识。个人密钥加密且不回显，Web / Worker 统一解析用户配置，个人模型缓存按用户隔离；管理员维护 HTTPS 服务允许名单。页面入口集中到首页和账号菜单，见 [个人配置](28-home-account-personal-ai.md)。
 
 2026-11-05 聚合优化增量：同一持久队列按精确优先级为 AI、GitHub、YouTube 各保留一个消费者，总并发 3，outbox 每类最多发布 16 个。调度使用一次订阅/检查点 join；YouTube 项目配额冷却持久化并按配置身份隔离，不将账号 401 泛化为全局冷却。
 

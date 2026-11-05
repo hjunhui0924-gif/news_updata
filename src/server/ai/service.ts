@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { getConfig } from '../config';
+import { resolveAiConfig, type AiConfig } from './settings';
 import { getPool, transaction } from '../db/client';
 import { getItem } from '../db/store';
 import { claimSummaryVersion } from '../jobs/completion';
@@ -103,6 +104,7 @@ export function cacheKey(
   model: string,
   baseUrl: string,
   thinking = 'auto',
+  scope = '',
 ) {
   return createHash('sha256')
     .update(
@@ -116,26 +118,34 @@ export function cacheKey(
         thinking,
         model,
         baseUrl,
+        ...(scope ? { scope } : {}),
       }),
     )
     .digest('hex');
 }
 
-export async function reserveBudget(userId: string, reservation: number, now = new Date()) {
-  const config = getConfig();
+export async function reserveBudget(
+  userId: string,
+  reservation: number,
+  now = new Date(),
+  settings?: AiConfig,
+) {
+  const config = settings ?? (await resolveAiConfig(userId));
+  const billingScope = config.billingScope ?? 'site';
   const id = randomUUID();
   await transaction(async (client) => {
     // Acquire the global lock first: all AI entry points share the same site-wide ceiling.
-    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['budget:global']);
+    if (billingScope === 'site')
+      await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['budget:global']);
     await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`budget:${userId}`]);
     const day = now.toISOString().slice(0, 10);
     const month = `${day.slice(0, 7)}-01`;
     const { rows } = await client.query(
-      `SELECT coalesce(sum(cost) FILTER (WHERE user_id=$1 AND created_at >= $2::timestamptz),0) daily,
-        coalesce(sum(cost) FILTER (WHERE user_id=$1),0) monthly,
-        coalesce(sum(cost) FILTER (WHERE created_at >= $2::timestamptz),0) global_daily,
-        coalesce(sum(cost),0) global_monthly FROM ai_usage WHERE created_at >= $3::timestamptz`,
-      [userId, `${day}T00:00:00Z`, `${month}T00:00:00Z`],
+      `SELECT coalesce(sum(cost) FILTER (WHERE user_id=$1 AND billing_scope=$4 AND created_at >= $2::timestamptz),0) daily,
+        coalesce(sum(cost) FILTER (WHERE user_id=$1 AND billing_scope=$4),0) monthly,
+        coalesce(sum(cost) FILTER (WHERE billing_scope='site' AND created_at >= $2::timestamptz),0) global_daily,
+        coalesce(sum(cost) FILTER (WHERE billing_scope='site'),0) global_monthly FROM ai_usage WHERE created_at >= $3::timestamptz`,
+      [userId, `${day}T00:00:00Z`, `${month}T00:00:00Z`, billingScope],
     );
     if (
       Number(rows[0].daily) + reservation > config.LLM_DAILY_BUDGET_USD ||
@@ -143,13 +153,14 @@ export async function reserveBudget(userId: string, reservation: number, now = n
     )
       throw new AiError('已达到 AI 预算上限，原文仍可阅读。');
     if (
-      Number(rows[0].global_daily) + reservation > config.LLM_GLOBAL_DAILY_BUDGET_USD ||
-      Number(rows[0].global_monthly) + reservation > config.LLM_GLOBAL_MONTHLY_BUDGET_USD
+      billingScope === 'site' &&
+      (Number(rows[0].global_daily) + reservation > config.LLM_GLOBAL_DAILY_BUDGET_USD ||
+        Number(rows[0].global_monthly) + reservation > config.LLM_GLOBAL_MONTHLY_BUDGET_USD)
     )
       throw new AiError('本站 AI 用量已达上限，原文仍可阅读，请稍后再试。');
     await client.query(
-      'INSERT INTO ai_usage(id,user_id,cost,status,created_at) VALUES($1,$2,$3,$4,$5)',
-      [id, userId, reservation, 'reserved', now],
+      'INSERT INTO ai_usage(id,user_id,cost,status,created_at,billing_scope) VALUES($1,$2,$3,$4,$5,$6)',
+      [id, userId, reservation, 'reserved', now, billingScope],
     );
   });
   return id;
@@ -164,77 +175,84 @@ export type ModelCall = (input: {
   responseSchema?: z.ZodType;
   schemaName?: string;
 }) => Promise<ModelResponse>;
-export const callModel: ModelCall = async (input) => {
-  const config = getConfig();
-  const url = new URL(config.LLM_API_BASE_URL);
-  if (url.protocol !== 'https:' && !['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname))
-    throw new AiError('模型服务必须使用 HTTPS 或本地地址。');
-  const response = await fetch(`${config.LLM_API_BASE_URL.replace(/\/$/, '')}/chat/completions`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${config.LLM_API_KEY}`, 'Content-Type': 'application/json' },
-    signal: AbortSignal.timeout(45000),
-    body: JSON.stringify({
-      model: config.LLM_MODEL,
-      ...(config.LLM_ENABLE_THINKING === 'auto'
-        ? {}
-        : { enable_thinking: config.LLM_ENABLE_THINKING === 'true' }),
-      messages: [
-        { role: 'system', content: input.system },
-        { role: 'user', content: input.user },
-      ],
-      max_completion_tokens: input.outputLimit,
-      response_format: {
-        type: 'json_schema',
-        json_schema: {
-          name: input.schemaName ?? input.kind,
-          strict: true,
-          schema: z.toJSONSchema(
-            input.responseSchema ??
-              (input.kind === 'summary' ? summarySchema : translationResponseSchema),
-          ),
-        },
+export function createModelCall(config: AiConfig, timeoutMs = 45000): ModelCall {
+  return async (input) => {
+    const url = new URL(config.LLM_API_BASE_URL);
+    if (url.protocol !== 'https:' && !['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname))
+      throw new AiError('模型服务必须使用 HTTPS 或本地地址。');
+    const response = await fetch(`${config.LLM_API_BASE_URL.replace(/\/$/, '')}/chat/completions`, {
+      method: 'POST',
+      redirect: 'error',
+      headers: {
+        Authorization: `Bearer ${config.LLM_API_KEY}`,
+        'Content-Type': 'application/json',
       },
-    }),
-  });
-  if (!response.ok) {
-    const detail = await response.json().catch(() => null);
-    // Match known codes only; provider messages may contain request data or credentials.
-    if (detail?.error?.code === 'AllocationQuota.FreeTierOnly')
-      throw new AiError(
-        '模型免费额度已耗尽，当前账号仅允许使用免费额度。请在百炼控制台恢复可用额度或更换有额度的模型。',
-      );
-    if (response.status === 401) throw new AiError('模型服务授权失败，请检查 API Key。');
-    if (response.status === 429) throw new AiError('模型服务请求受限，请稍后重试或检查账户额度。');
-    throw new AiError(`模型服务返回 ${response.status}，请检查配置或稍后重试。`);
-  }
-  const body = z
-    .object({
-      choices: z
-        .array(
-          z.object({
-            message: z.object({ content: z.string().nullable() }),
-            finish_reason: z.string().nullable().optional(),
-          }),
-        )
-        .min(1),
-      usage: z
-        .object({
-          prompt_tokens: z.number().nonnegative(),
-          completion_tokens: z.number().nonnegative(),
-        })
-        .optional(),
-    })
-    .parse(await response.json());
-  if (body.choices[0].finish_reason === 'length')
-    throw new AiError('模型输出达到长度限制，本次结果未保存。');
-  const content = body.choices[0].message.content;
-  if (!content) throw new AiError('模型未返回可用内容。');
-  return {
-    value: JSON.parse(content),
-    inputTokens: body.usage?.prompt_tokens,
-    outputTokens: body.usage?.completion_tokens,
+      signal: AbortSignal.timeout(timeoutMs),
+      body: JSON.stringify({
+        model: config.LLM_MODEL,
+        ...(config.LLM_ENABLE_THINKING === 'auto'
+          ? {}
+          : { enable_thinking: config.LLM_ENABLE_THINKING === 'true' }),
+        messages: [
+          { role: 'system', content: input.system },
+          { role: 'user', content: input.user },
+        ],
+        max_completion_tokens: input.outputLimit,
+        response_format: {
+          type: 'json_schema',
+          json_schema: {
+            name: input.schemaName ?? input.kind,
+            strict: true,
+            schema: z.toJSONSchema(
+              input.responseSchema ??
+                (input.kind === 'summary' ? summarySchema : translationResponseSchema),
+            ),
+          },
+        },
+      }),
+    });
+    if (!response.ok) {
+      const detail = await response.json().catch(() => null);
+      // Match known codes only; provider messages may contain request data or credentials.
+      if (detail?.error?.code === 'AllocationQuota.FreeTierOnly')
+        throw new AiError(
+          '模型免费额度已耗尽，当前账号仅允许使用免费额度。请在百炼控制台恢复可用额度或更换有额度的模型。',
+        );
+      if (response.status === 401) throw new AiError('模型服务授权失败，请检查 API Key。');
+      if (response.status === 429)
+        throw new AiError('模型服务请求受限，请稍后重试或检查账户额度。');
+      throw new AiError(`模型服务返回 ${response.status}，请检查配置或稍后重试。`);
+    }
+    const body = z
+      .object({
+        choices: z
+          .array(
+            z.object({
+              message: z.object({ content: z.string().nullable() }),
+              finish_reason: z.string().nullable().optional(),
+            }),
+          )
+          .min(1),
+        usage: z
+          .object({
+            prompt_tokens: z.number().nonnegative(),
+            completion_tokens: z.number().nonnegative(),
+          })
+          .optional(),
+      })
+      .parse(await response.json());
+    if (body.choices[0].finish_reason === 'length')
+      throw new AiError('模型输出达到长度限制，本次结果未保存。');
+    const content = body.choices[0].message.content;
+    if (!content) throw new AiError('模型未返回可用内容。');
+    return {
+      value: JSON.parse(content),
+      inputTokens: body.usage?.prompt_tokens,
+      outputTokens: body.usage?.completion_tokens,
+    };
   };
-};
+}
+export const callModel: ModelCall = (input) => createModelCall(getConfig())(input);
 
 async function applyArtifact(
   userId: string,
@@ -263,7 +281,7 @@ export async function runAi(
   userId: string,
   itemId: string,
   kind: 'summary' | 'translation',
-  modelCall: ModelCall = callModel,
+  modelCall?: ModelCall,
 ) {
   const item = await getItem(userId, itemId);
   if (!item) throw new AiError('更新不存在');
@@ -286,7 +304,7 @@ export async function runAi(
     await applyArtifact(userId, item, kind, item.body);
     return;
   }
-  const config = getConfig();
+  const config = await resolveAiConfig(userId);
   if (config.LLM_ENABLED !== 'true') throw new AiError('尚未配置 AI 服务，原文可直接阅读。');
   const version = artifactVersions(config)[kind];
   const key = cacheKey(
@@ -295,6 +313,7 @@ export async function runAi(
     config.LLM_MODEL,
     config.LLM_API_BASE_URL,
     config.LLM_ENABLE_THINKING,
+    config.LLM_CACHE_SCOPE,
   );
   const cached = await getPool().query('SELECT result FROM ai_cache WHERE key=$1', [key]);
   if (cached.rows[0]) {
@@ -326,8 +345,13 @@ export async function runAi(
     (outputLimit / 1000000) * config.LLM_OUTPUT_USD_PER_MILLION;
   let reservation: string | undefined;
   try {
-    reservation = await reserveBudget(userId, reserved);
-    const response = await modelCall({ system, user, kind, outputLimit });
+    reservation = await reserveBudget(userId, reserved, new Date(), config);
+    const response = await (modelCall ?? createModelCall(config))({
+      system,
+      user,
+      kind,
+      outputLimit,
+    });
     const cost =
       response.inputTokens !== undefined && response.outputTokens !== undefined
         ? (response.inputTokens * config.LLM_INPUT_USD_PER_MILLION +

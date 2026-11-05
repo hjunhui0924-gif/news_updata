@@ -7,4 +7,5 @@ export const migrationNames = [
   '0005_platform_sources.sql',
   '0006_platform_connections.sql',
   '0007_service_guards.sql',
+  '0008_personal_ai.sql',
 ];

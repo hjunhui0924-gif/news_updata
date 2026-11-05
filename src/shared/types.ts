@@ -201,6 +201,7 @@ export type Bootstrap = {
     youtubeAuth?: YouTubeConnectionStatus;
     github: boolean;
     ai: boolean;
+    aiMode?: 'site' | 'personal' | 'disabled';
     workerLastSeen: string | null;
     workerOnline: boolean;
     costToday: number;

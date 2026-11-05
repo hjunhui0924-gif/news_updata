@@ -1,13 +1,14 @@
 import { createHash } from 'node:crypto';
 import type { FeedItem, FeedPreview } from '@/shared/types';
 import { getConfig } from '../config';
+import { resolveAiConfig, type AiConfig } from './settings';
 
 export const promptVersions = {
   summary: '2026-09-13-v2-zh-complete',
   translation: '2026-09-13-v4-bilingual',
 } as const;
 
-export function artifactVersions(config = getConfig()) {
+export function artifactVersions(config: AiConfig = getConfig()) {
   return Object.fromEntries(
     (['summary', 'translation'] as const).map((kind) => [
       kind,
@@ -20,6 +21,7 @@ export function artifactVersions(config = getConfig()) {
             model: config.LLM_MODEL,
             baseUrl: config.LLM_API_BASE_URL,
             thinking: config.LLM_ENABLE_THINKING,
+            ...(config.LLM_CACHE_SCOPE ? { scope: config.LLM_CACHE_SCOPE } : {}),
           }),
         )
         .digest('hex'),
@@ -28,14 +30,14 @@ export function artifactVersions(config = getConfig()) {
 }
 
 // A disabled provider can still display historical artifacts. Reading never queues paid work.
-export function currentArtifactVersions() {
-  const config = getConfig();
+export async function currentArtifactVersions(userId: string) {
+  const config = await resolveAiConfig(userId);
   return config.LLM_ENABLED === 'true' ? artifactVersions(config) : null;
 }
 
 export function withCurrentArtifacts<T extends FeedItem | FeedPreview>(
   item: T,
-  versions: ReturnType<typeof currentArtifactVersions>,
+  versions: Awaited<ReturnType<typeof currentArtifactVersions>>,
 ): T {
   if (!versions || item.demo) return item;
   const next = { ...item };

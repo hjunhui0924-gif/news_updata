@@ -11,7 +11,7 @@ export function Login({ configured }: { configured: boolean }) {
       const response = await fetch('/api/auth/sign-in/social', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ provider: 'github', callbackURL: '/today' }),
+        body: JSON.stringify({ provider: 'github', callbackURL: '/home' }),
       });
       const data = await response.json();
       if (response.ok && data.url) {
@@ -48,7 +48,11 @@ export function Login({ configured }: { configured: boolean }) {
           <ArrowRight size={16} />
         </button>
         {!configured && <p className="helper">登录尚未配置。本地体验请按 README 启动演示模式。</p>}
-        {error && <p role="alert" aria-live="assertive">{error}</p>}
+        {error && (
+          <p role="alert" aria-live="assertive">
+            {error}
+          </p>
+        )}
         <span className="login-footnote">你的关注，你来决定。</span>
       </div>
     </main>

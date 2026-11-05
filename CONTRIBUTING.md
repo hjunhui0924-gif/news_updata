@@ -40,6 +40,6 @@ pnpm build
 
 ## 更新公开截图
 
-在专用 Demo 环境启动应用后执行 `pnpm screenshots http://127.0.0.1:3000`，端口可替换为自己的 Demo 地址。脚本拒绝 live 账号和非本机地址，使用合成数据与模拟搜索，不调用真实提供方或付费模型，生成 `docs/assets/` 下的五张 README 图片。需要本机安装 Chrome 或 Playwright Chromium。
+在专用 Demo 环境启动应用后执行 `pnpm screenshots http://127.0.0.1:3000`，端口可替换为自己的 Demo 地址。脚本拒绝 live 账号和非本机地址，使用合成数据与模拟搜索，不调用真实提供方或付费模型，生成 `docs/assets/` 下的七张 README 图片，含首页和账号菜单。需要本机安装 Chrome 或 Playwright Chromium。
 
 逐张查看截图，确认无真实账号、密钥、错误浮层、横向溢出或过渡状态。不要用设计草图替代当前应用截图。README、功能边界、最新验收、截图和源代码必须在同一次发布中保持一致。
