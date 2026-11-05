@@ -1,6 +1,8 @@
 # 运行与质量指南
 
-更新日期：2026-11-04。
+更新日期：2026-11-05。
+
+2026-11-05 服务器邀请试用增量：新的生产 Compose、权限边界、随机配置生成、备份/隔离恢复与上线步骤以 [服务器邀请试用版](26-server-invitation-trial.md) 为准；下方本地运行、历史构建与本机备份记录保留原适用范围。
 
 ## 本地运行：Docker 可选
 
@@ -19,7 +21,7 @@ pnpm demo
 pnpm demo --no-docker
 ```
 
-数据库默认连接：`postgresql://news:news_local_only@127.0.0.1:54329/news`。Compose 端口仅绑定本机，密码仅适用于本地演示。Ctrl+C 停止启动器创建的应用进程，不删除数据库卷；停止本地数据库可用 `docker compose stop db`。当前不是整个应用的 Docker 部署。
+数据库默认连接：`postgresql://news:news_local_only@127.0.0.1:54329/news`。本地 Compose 端口仅绑定本机，密码仅适用于本地演示。Ctrl+C 停止启动器创建的应用进程，不删除数据库卷；停止本地数据库可用 `docker compose stop db`。整套应用的服务器容器部署使用独立生产配置，见 [邀请试用指南](26-server-invitation-trial.md)。
 
 需要热更新 Worker 时用独立终端：
 
@@ -77,7 +79,7 @@ pnpm youtube:check -- "@GoogleDevelopers"
 
 该命令只读频道和第一页公开元数据，不写数据库、不启动 Worker、不调用模型，不代表个人授权流程已验证。网页不再以手填频道为主入口；不支持 YouTube 搜索或推荐流。配额不足持久化来源等待时间，同一进程共享项目冷却；跨实例共享配额仍需后续专项设计。
 
-升级前先 `pnpm db:backup`，再 `pnpm db:migrate` 应用所有未执行迁移（最新 0006 平台连接）；保持 Web/Worker 停止后升级，避免旧进程写入旧契约。完成后运行 `pnpm db:drill` 验证临时库恢复，再重启应用。公开内容窗口见 [适配层](18-platform-adapters.md)，个人账号授权与关注见 [19 文档](19-youtube-account-following.md)。
+升级前先 `pnpm db:backup`，再 `pnpm db:migrate` 应用所有未执行迁移（最新 0007 用户限频与整站预算索引）；保持 Web/Worker 停止后升级，避免旧进程写入旧契约。完成后运行 `pnpm db:drill` 验证临时库恢复，再重启应用。公开内容窗口见 [适配层](18-platform-adapters.md)，个人账号授权与关注见 [19 文档](19-youtube-account-following.md)。
 
 ## 模型配置
 
@@ -177,7 +179,7 @@ pnpm build
 
 浏览器测试自动启动 3002 端口的 Demo Web/Worker，关闭真实 GitHub/YouTube/模型凭据，默认使用独立 `news_e2e_test`。每轮重建该专用库再迁移/seed；不复用日常库或单元测试库。可设置 E2E_DATABASE_URL，但只接受无查询参数的本机连接、库名以 `_e2e_test` 结尾；已有连接会阻止重建，不强行终止其他进程。勿将有价值的数据放入该专用测试库。各增量配置复用相同启动方式，不能同时运行占用同一端口的组合。默认使用 Windows Chrome，可设置 CHROME_PATH；其他环境安装 Chromium：`pnpm exec playwright install chromium`。
 
-`/api/health/live` 用于存活检查；`/api/health/ready` 检查数据库和迁移，Worker 离线返回 degraded 并允许阅读。`pnpm diagnose` 生成忽略目录中的脱敏报告。Web 在运行不代表 Worker 正在同步，应检查后台状态。升级本轮代码先运行 `pnpm db:backup`、`pnpm db:migrate` 依次应用尚未执行的迁移（当前最新 `0006_platform_connections.sql`）；备份恢复步骤见 [维护说明](17-database-maintenance.md)。
+`/api/health/live` 用于存活检查；`/api/health/ready` 检查数据库和迁移，Worker 离线返回 degraded 并允许阅读。`pnpm diagnose` 生成忽略目录中的脱敏报告。Web 在运行不代表 Worker 正在同步，应检查后台状态。升级本轮代码先运行 `pnpm db:backup`、`pnpm db:migrate` 依次应用尚未执行的迁移（当前最新 `0007_service_guards.sql`）；备份恢复步骤见 [维护说明](17-database-maintenance.md)。
 
 ## 2026-11-04 最新验证
 

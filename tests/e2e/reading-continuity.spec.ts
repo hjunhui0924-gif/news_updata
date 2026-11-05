@@ -133,6 +133,7 @@ test('a pending read mutation keeps keyboard focus when a card crosses a layout 
     await route.fulfill({ json: { ok: true } });
   });
   await page.goto('/feed');
+  await page.getByRole('button', { name: '分栏阅读', exact: true }).click();
   await page.getByRole('button', { name: '刷新内容' }).click();
   const panel = page.getByRole('region', { name: '更新列表' });
   await panel.getByRole('button', { name: '未读', exact: true }).click();

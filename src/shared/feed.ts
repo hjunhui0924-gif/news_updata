@@ -1,4 +1,5 @@
 import type { FeedItem, FeedPreview } from './types';
+import { sourcePlatform } from './platforms';
 export function toFeedPreview(item: FeedItem | FeedPreview): FeedPreview {
   const rest = { ...item };
   for (const key of ['body', 'contentHash', 'translation', 'translationBlocks', 'aiError'] as const)
@@ -17,6 +18,7 @@ export function filterItems<T extends FeedPreview>(
   filters: {
     view: string;
     type: string;
+    platform?: string;
     search: string;
     unread: boolean;
     source: string;
@@ -30,6 +32,8 @@ export function filterItems<T extends FeedPreview>(
     if (filters.view === 'today') return false; // Discovery has its own Trending data source.
     if (filters.unread && item.read) return false;
     if (filters.type !== 'all' && item.type !== filters.type) return false;
+    if (filters.platform && filters.platform !== 'all' && sourcePlatform(item) !== filters.platform)
+      return false;
     if (filters.source && !itemSourceIds(item).includes(filters.source)) return false;
     return (
       !query ||

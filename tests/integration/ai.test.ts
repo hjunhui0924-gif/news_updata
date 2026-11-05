@@ -116,6 +116,62 @@ it('does not save or cache a partial translation, and caches a complete retry', 
     { original: source.split('\n\n')[1].trim(), translation: translated.split('\n\n')[1].trim() },
   ]);
 });
+it('translates only video descriptions on demand, caches them and still rejects full-video summaries', async () => {
+  const current = {
+    ...item,
+    id: randomUUID(),
+    externalId: randomUUID(),
+    contentHash: randomUUID(),
+    platform: 'youtube' as const,
+    type: 'video' as const,
+    language: 'en' as const,
+    body: 'Read this first.\n\nWatch more here.\nhttps://example.com/watch',
+    translation: null,
+  };
+  await saveItem(userId, current);
+  const model = vi.fn(async () => ({
+    value: {
+      segments: [
+        { id: 'l0', text: '请先阅读这里。' },
+        { id: 'l2', text: '在这里观看更多。' },
+      ],
+    },
+    inputTokens: 10,
+    outputTokens: 20,
+  }));
+  await expect(enqueueAi(userId, current.id, 'summary')).rejects.toThrow('视频内容摘要');
+  await expect(runAi(userId, current.id, 'summary', model)).rejects.toThrow('视频内容摘要');
+  expect(model).not.toHaveBeenCalled();
+  expect((await enqueueAi(userId, current.id, 'translation')).status).not.toBe('completed');
+  await getPool().query('DELETE FROM jobs WHERE user_id=$1 AND target_id=$2', [userId, current.id]);
+  await runAi(userId, current.id, 'translation', model);
+  await runAi(userId, current.id, 'translation', model);
+  expect(model).toHaveBeenCalledTimes(1);
+  expect((await getItem(userId, current.id))?.translationBlocks).toEqual([
+    { original: 'Read this first.', translation: '请先阅读这里。' },
+    {
+      original: 'Watch more here.\nhttps://example.com/watch',
+      translation: '在这里观看更多。\nhttps://example.com/watch',
+    },
+  ]);
+  vi.stubEnv('LLM_MODEL', 'fixture-next');
+  expect((await getItem(userId, current.id))?.translation).toBeNull();
+  vi.stubEnv('LLM_MODEL', 'fixture');
+  for (const body of ['', '  \n  ', 'x'.repeat(16001)]) {
+    const invalid = {
+      ...current,
+      id: randomUUID(),
+      externalId: randomUUID(),
+      contentHash: randomUUID(),
+      body,
+    };
+    await saveItem(userId, invalid);
+    await expect(enqueueAi(userId, invalid.id, 'translation')).rejects.toThrow();
+    await expect(runAi(userId, invalid.id, 'translation', model)).rejects.toThrow();
+  }
+  expect(model).toHaveBeenCalledTimes(1);
+});
+
 it('model changes invalidate attached results without spending or automatically scheduling a retry', async () => {
   const current = {
     ...item,

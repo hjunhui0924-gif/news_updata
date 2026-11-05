@@ -7,6 +7,7 @@ import { requestJson } from './request-json';
 export type FeedFilters = {
   view: string;
   type: string;
+  platform?: string;
   search: string;
   unread: boolean;
   source: string;

@@ -1,6 +1,6 @@
 # 技术架构 · 当前实现
 
-更新日期：2026-11-04。
+更新日期：2026-11-05。服务器部署、权限边界和运行验收以 [邀请试用上线指南](26-server-invitation-trial.md) 为准。
 
 ## 运行组成
 
@@ -16,7 +16,9 @@ flowchart LR
   Worker --> AI[可选模型服务]
 ```
 
-Web 和 Worker 是两个进程，共享 TypeScript 类型、数据库访问及服务配置。pg-boss 使用同一个 PostgreSQL 的独立 schema，不引入 Redis。Docker Compose 只负责本地 PostgreSQL，已有数据库时可完全不用 Docker。
+Web 和 Worker 是两个进程，共享 TypeScript 类型、数据库访问及服务配置。pg-boss 使用同一个 PostgreSQL 的独立 schema，不引入 Redis。本地 `compose.yaml` 只负责 PostgreSQL，已有数据库时可不用 Docker；服务器使用 `compose.production.yaml`，包含数据库、一次性迁移、Web、Worker、HTTPS 代理和备份。
+
+邀请试用采用单 Web / 单 Worker：数据库不发布外部端口，应用账号不具有超级用户、建库或建角色权限。业务 API 每次校验用户准入，按用户/固定操作类别原子限频；AI 全局锁与用户锁按固定顺序共同约束整站及用户预算。公网服务层拒绝本机 Skill 读取和共享 GitHub 令牌。
 
 2026-11-05 聚合优化增量：同一持久队列按精确优先级为 AI、GitHub、YouTube 各保留一个消费者，总并发 3，outbox 每类最多发布 16 个。调度使用一次订阅/检查点 join；YouTube 项目配额冷却持久化并按配置身份隔离，不将账号 401 泛化为全局冷却。
 
@@ -62,15 +64,16 @@ MVP 采用按用户保存条目的简化模型，身份与阅读状态为关系�
 | 表                                      | 内容                                                                     |
 | --------------------------------------- | ------------------------------------------------------------------------ |
 | app_users                               | 业务用户，演示用户为 demo                                                |
-| subscriptions                           | 用户、平台、来源种类与外部 ID 唯一，JSONB 保存状态和适配器元数据          |
-| platform_connections                    | 用户与平台唯一的加密账号凭据、连接版本、续期与失效状态                    |
+| subscriptions                           | 用户、平台、来源种类与外部 ID 唯一，JSONB 保存状态和适配器元数据         |
+| platform_connections                    | 用户与平台唯一的加密账号凭据、连接版本、续期与失效状态                   |
 | items                                   | 用户与事件外部 ID 唯一，JSONB 保存原文/摘要/译文，已读/收藏/屏蔽独立字段 |
 | preferences                             | 时区、紧凑列表                                                           |
 | jobs                                    | 任务状态和待投递记录，与业务写入同一事务                                 |
 | star_sync / star_sync_exclusions        | 每用户自动 Star 检查开关、分页检查点、重试期限与应用内取消订阅的排除记录 |
 | ai_usage / ai_cache                     | 预算预留、实际用量或不确定费用、按内容与模型缓存                         |
+| request_limits                          | 每用户固定操作类别的共享限频计数与窗口，由迁移 0007 创建                 |
 | notifications                           | 站内 Markdown 简报                                                       |
-| system_state                            | 扫描游标、调度时间、Trending 快照、授权错误指纹和 Worker 心跳                           |
+| system_state                            | 扫描游标、调度时间、Trending 快照、授权错误指纹和 Worker 心跳            |
 | app_migrations                          | 已执行的 SQL 文件                                                        |
 | user / session / account / verification | Better Auth 会话与 OAuth 数据                                            |
 
@@ -98,7 +101,7 @@ MVP 采用按用户保存条目的简化模型，身份与阅读状态为关系�
 
 模型端点由服务端环境变量控制，前端不可指定任意目标。使用 `/chat/completions`、`response_format: json_schema` 与 `max_completion_tokens`；供应商必须支持这些字段。原文作为不可信内容传入，没有工具调用或发消息权限。
 
-缓存包含内容 hash、仓库、事件类型、任务种类、语言、提示版本、模型与服务地址。生成完成前再次匹配原文 hash，避免旧结果覆盖新正文。预算使用数据库锁预留；请求超时保留保守费用，不能当作退款。
+缓存包含内容 hash、仓库、事件类型、任务种类、语言、提示版本、模型与服务地址。生成完成前再次匹配原文 hash，避免旧结果覆盖新正文。预算按整站、用户的固定锁序预留，分别检查 UTC 日/月估算额度；请求超时保留保守费用，不能当作退款。
 
 业务查询包含 user_id；写请求验证 Origin。OAuth token 在 Better Auth 内加密，登录密钥不交给浏览器。演示模式在生产环境或公网 APP_URL 下拒绝运行。
 

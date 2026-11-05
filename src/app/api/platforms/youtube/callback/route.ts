@@ -52,6 +52,9 @@ export async function GET(request: NextRequest) {
         status:
           error instanceof AccessError || error instanceof YouTubeOAuthFailure ? error.status : 503,
         elapsedMs: Math.round(performance.now() - started),
+        ...(error instanceof YouTubeOAuthFailure && error.diagnostic
+          ? { causeCode: error.diagnostic.code, upstreamStatus: error.diagnostic.upstreamStatus }
+          : {}),
       });
     }
     // Never reflect OAuth codes, state, provider descriptions or arbitrary return URLs.

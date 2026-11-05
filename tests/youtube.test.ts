@@ -85,6 +85,31 @@ it('resolves aliases to stable source identities and the uploads playlist withou
   });
   await expect(adapter.resolve('repo', '@one')).rejects.toThrow('频道订阅');
 });
+it('treats explicit zero results as empty for channels, uploads and deleted videos without accepting malformed payloads', async () => {
+  const empty = { pageInfo: { totalResults: 0 } };
+  const transport = vi.fn(async () => empty);
+  const adapter = new YouTubeAdapter(transport);
+  await expect(adapter.resolve('channel', channel)).rejects.toMatchObject({ status: 404 });
+  expect(await adapter.resolveMany([channel])).toEqual([]);
+  expect((await adapter.readPage(source, 'uploads', { page: 1 })).items).toEqual([]);
+  const deleted = new YouTubeAdapter(async (resource) =>
+    resource === 'playlistItems'
+      ? { items: [{ contentDetails: { videoId: 'abcdefghijk' } }] }
+      : empty,
+  );
+  expect((await deleted.readPage(source, 'uploads', { page: 1 })).items).toEqual([]);
+  for (const payload of [
+    {},
+    { pageInfo: { totalResults: 1 } },
+    { pageInfo: { totalResults: 0 }, nextPageToken: 'unexpected' },
+    { items: null },
+  ]) {
+    await expect(
+      new YouTubeAdapter(async () => payload).readPage(source, 'uploads', { page: 1 }),
+    ).rejects.toThrow('数据格式');
+  }
+});
+
 it('batches details, preserves opaque page tokens and excludes private, live and unrelated videos', async () => {
   const transport = vi.fn(async (resource: string) =>
     resource === 'playlistItems'

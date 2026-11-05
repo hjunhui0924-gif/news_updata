@@ -17,6 +17,7 @@ beforeAll(async () => {
   boss = await createBoss(schema);
 });
 afterAll(async () => {
+  await getPool().query('DELETE FROM system_state WHERE key LIKE $1', [`queue-turn:${user}:%`]);
   await boss?.stop();
   await getPool().query(`DROP SCHEMA "${schema}" CASCADE`);
   await getPool().query('DELETE FROM jobs WHERE user_id=$1', [user]);

@@ -2,6 +2,7 @@ import { z } from 'zod';
 export const feedQuerySchema = z.object({
   view: z.enum(['feed', 'saved']).default('feed'),
   type: z.enum(['all', 'release', 'new_repo', 'video']).default('all'),
+  platform: z.enum(['all', 'github', 'youtube']).default('all'),
   search: z.string().max(200).default(''),
   unread: z
     .enum(['true', 'false'])

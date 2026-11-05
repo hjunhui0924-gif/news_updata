@@ -470,7 +470,8 @@ for (const width of [1440, 390]) {
       'aria-selected',
       'true',
     );
-    await expect(detail.getByRole('tab')).toHaveCount(1);
+    await expect(detail.getByRole('tab')).toHaveCount(2);
+    await expect(detail.getByRole('tab', { name: '简介对照翻译' })).toBeVisible();
     await expect(detail.getByText('简介较长', { exact: true })).toHaveCount(1);
     await expect(detail.getByText(/按 Markdown 结构阅读/)).toHaveCount(0);
     await expect(detail.getByText('作者提供的视频简介，请以原视频为准')).toHaveCount(1);

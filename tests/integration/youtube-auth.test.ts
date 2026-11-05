@@ -142,6 +142,53 @@ it('identifies the failing OAuth step without retaining provider secrets in diag
   }
 });
 
+it('accepts an explicitly empty owned-channel response without requiring a creator channel', async () => {
+  const fetcher: typeof fetch = async (input, init) =>
+    new URL(String(input)).pathname.endsWith('/channels')
+      ? Response.json({
+          kind: 'youtube#channelListResponse',
+          pageInfo: { totalResults: 0, resultsPerPage: 0 },
+        })
+      : fixture.fetcher(input, init);
+  await expect(connectTestYouTube(user, fetcher)).resolves.toMatchObject({
+    state: 'connected',
+    name: '我的 YouTube 账号',
+  });
+  expect((await row()).access_token).not.toBeNull();
+});
+
+it('preserves an allowlisted channel failure cause and rejects malformed successful responses', async () => {
+  const unavailable: typeof fetch = async (input, init) =>
+    new URL(String(input)).pathname.endsWith('/channels')
+      ? Response.json(
+          {
+            error: {
+              errors: [{ reason: 'accessNotConfigured', message: 'private-provider-body' }],
+            },
+          },
+          { status: 403 },
+        )
+      : fixture.fetcher(input, init);
+  const error = await connectTestYouTube(user, unavailable).catch((failure: unknown) => failure);
+  expect(error).toMatchObject({
+    stage: 'channel',
+    recovery: 'configuration',
+    diagnostic: { code: 'api_not_enabled', upstreamStatus: 403 },
+  });
+  expect(JSON.stringify(error)).not.toContain('private-provider-body');
+  expect((await row()).access_token).toBeNull();
+
+  const malformed: typeof fetch = async (input, init) =>
+    new URL(String(input)).pathname.endsWith('/channels')
+      ? Response.json({})
+      : fixture.fetcher(input, init);
+  await expect(connectTestYouTube(user, malformed)).rejects.toMatchObject({
+    stage: 'channel',
+    diagnostic: { code: 'invalid_response', upstreamStatus: 200 },
+  });
+  expect((await row()).access_token).toBeNull();
+});
+
 it('rejects missing read scope, absent refresh access, expired and cancelled authorization without storing tokens', async () => {
   fixture.state.scopes = 'openid';
   await expect(connectTestYouTube(user, fixture.fetcher)).rejects.toThrow('只读权限');

@@ -81,18 +81,23 @@ export function SettingsPanel({
           </select>
         </div>
         <div className="settings-save">
+          <span
+            className={dirty ? 'warning-text' : 'helper'}
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            {busy === 'settings' ? '正在保存偏好…' : dirty ? '有未保存修改' : '偏好已同步'}
+          </span>
           <Button
             variant="primary"
             size="small"
             onClick={() => save(preferences)}
-            disabled={busy === 'settings'}
+            loading={busy === 'settings'}
           >
             {busy === 'settings' ? <Loader2 size={15} className="spin" /> : <Save size={15} />}
             保存偏好
           </Button>
-          <span className={dirty ? 'warning-text' : 'helper'} role="status" aria-live="polite">
-            {dirty ? '有未保存修改' : '偏好已同步'}
-          </span>
         </div>
       </section>
       <section className="settings-card">

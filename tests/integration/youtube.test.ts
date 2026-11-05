@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, expect, it } from 'vitest';
+import { afterAll, beforeAll, expect, it, vi } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { migrate } from '../../scripts/migrate';
 import { getPool } from '../../src/server/db/client';
@@ -115,7 +115,12 @@ it('preserves saved/read state after description changes and does not enqueue fu
     ).rows,
   ).toEqual([]);
   await expect(enqueueAi(user, first.id, 'summary')).rejects.toThrow('视频简介');
-  await expect(enqueueAi(user, first.id, 'translation')).rejects.toThrow('视频简介');
+  vi.stubEnv('LLM_ENABLED', 'false');
+  try {
+    await expect(enqueueAi(user, first.id, 'translation')).rejects.toThrow('尚未配置 AI 服务');
+  } finally {
+    vi.unstubAllEnvs();
+  }
   let called = false;
   await expect(
     runAi(user, first.id, 'summary', async () => {

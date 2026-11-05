@@ -10,14 +10,14 @@ export const translationResponseSchema = z
   })
   .strict();
 
-export function prepareTranslation(source: string) {
+export function prepareTranslation(source: string, format: 'markdown' | 'text' = 'markdown') {
   const lines = source.split(/\r?\n/);
   const segments: { id: string; text: string; prefix: string; line: number }[] = [];
   let fence: { char: string; length: number } | null = null;
   for (let line = 0; line < lines.length; line++) {
     const text = lines[line];
     const marker = text.match(/^\s*(`{3,}|~{3,})/);
-    if (marker) {
+    if (format === 'markdown' && marker) {
       if (!fence) fence = { char: marker[1][0], length: marker[1].length };
       else if (
         marker[1][0] === fence.char &&
@@ -32,7 +32,7 @@ export function prepareTranslation(source: string) {
     if (!match[2]) continue;
     segments.push({ id: `l${line}`, text: match[2], prefix: match[1], line });
   }
-  return { lines, segments };
+  return { lines, segments, format };
 }
 
 export function assembleTranslation(value: unknown, plan: ReturnType<typeof prepareTranslation>) {
@@ -72,6 +72,29 @@ export function buildTranslationBlocks(
   );
   const segments = new Map(plan.segments.map((s) => [s.line, s]));
   const source = plan.lines.join('\n');
+  if (plan.format === 'text') {
+    const blocks: TranslationBlock[] = [];
+    let start = 0;
+    for (let line = 0; line <= plan.lines.length; line++) {
+      if (line < plan.lines.length && plan.lines[line].trim()) continue;
+      if (line > start) {
+        const original = plan.lines.slice(start, line);
+        let hasTranslation = false;
+        const chinese = original.map((text, offset) => {
+          const segment = segments.get(start + offset);
+          if (!segment) return text;
+          hasTranslation = true;
+          return segment.prefix + translated.get(segment.id)! + (text.match(/ {2,}$/)?.[0] ?? '');
+        });
+        blocks.push({
+          original: original.join('\n'),
+          translation: hasTranslation ? chinese.join('\n') : null,
+        });
+      }
+      start = line + 1;
+    }
+    return blocks;
+  }
   const tree = unified().use(remarkParse).use(remarkGfm).parse(source);
   // Reference links and footnotes can depend on definitions anywhere in the document.
   // Keep their full parsing context instead of inventing independent fragments.

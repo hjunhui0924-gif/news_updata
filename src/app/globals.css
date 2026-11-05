@@ -2074,8 +2074,21 @@ svg {
 }
 .settings-save {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   justify-content: flex-end;
+  gap: 12px;
   margin-top: 12px;
+}
+.settings-save > [role='status'] {
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.settings-save > .button {
+  flex-shrink: 0;
+  min-height: 40px;
 }
 .service-grid {
   display: grid;
@@ -2802,6 +2815,14 @@ svg {
   }
   .settings-card {
     padding: 20px 17px;
+  }
+  .settings-save {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .settings-save > .button {
+    width: 100%;
+    min-height: 44px;
   }
   .service-grid {
     grid-template-columns: 1fr;

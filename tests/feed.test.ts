@@ -25,4 +25,16 @@ describe('reader filters', () => {
       ),
     ).toEqual([]);
   });
+  it('filters explicit platforms and treats legacy items as GitHub', () => {
+    const mixed = [
+      { ...items[0], platform: undefined },
+      { ...items[1], platform: 'youtube' as const },
+    ];
+    expect(filterItems(mixed, { ...filters, platform: 'github' }).map((item) => item.id)).toEqual([
+      items[0].id,
+    ]);
+    expect(filterItems(mixed, { ...filters, platform: 'youtube' }).map((item) => item.id)).toEqual([
+      items[1].id,
+    ]);
+  });
 });

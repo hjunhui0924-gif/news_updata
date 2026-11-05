@@ -79,3 +79,25 @@ it('preserves explicit reconnect and invalid-state actions from credential stora
     );
   }
 });
+
+it('logs only fixed channel diagnostic codes and keeps upstream details out of the redirect', async () => {
+  vi.mocked(completeYouTubeOAuth).mockRejectedValue(
+    new YouTubeOAuthFailure('channel', 'configuration', 'private-provider-body', 503, {
+      code: 'api_not_enabled',
+      upstreamStatus: 403,
+    }),
+  );
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  const response = await GET(
+    new NextRequest('http://127.0.0.1:3000/api/platforms/youtube/callback?code=private-code'),
+  );
+  expect(warn.mock.calls[0][1]).toMatchObject({
+    stage: 'channel',
+    causeCode: 'api_not_enabled',
+    upstreamStatus: 403,
+  });
+  const target = new URL(response.headers.get('location')!);
+  expect(target.searchParams.get('youtubeReason')).toBe('configuration');
+  expect(target.href).not.toMatch(/private-|upstreamStatus|causeCode/);
+  expect(JSON.stringify(warn.mock.calls)).not.toContain('private-');
+});

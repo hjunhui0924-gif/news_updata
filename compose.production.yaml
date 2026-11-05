@@ -1,0 +1,158 @@
+name: newsroom
+x-app: &app
+  image: newsroom-app:${APP_IMAGE_TAG:-local}
+  build:
+    context: .
+    dockerfile: Dockerfile
+  environment:
+    NODE_ENV: production
+    APP_MODE: live
+    APP_URL: https://${APP_DOMAIN:?Run server:init and configure deploy/server.env}
+    DATABASE_URL: postgresql://news:${DATABASE_PASSWORD:?Application database password required}@db:5432/news
+    BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Authentication secret required}
+    ALLOWED_GITHUB_USER_IDS: ${ALLOWED_GITHUB_USER_IDS:?Invitation allowlist required}
+    GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+    GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+    LOCAL_SKILLS_ENABLED: 'false'
+    GITHUB_READ_TOKEN: ''
+    YOUTUBE_CLIENT_ID: ${YOUTUBE_CLIENT_ID:-}
+    YOUTUBE_CLIENT_SECRET: ${YOUTUBE_CLIENT_SECRET:-}
+    YOUTUBE_API_KEY: ''
+    LLM_ENABLED: ${LLM_ENABLED:-false}
+    LLM_API_BASE_URL: ${LLM_API_BASE_URL:-}
+    LLM_API_KEY: ${LLM_API_KEY:-}
+    LLM_MODEL: ${LLM_MODEL:-}
+    LLM_ENABLE_THINKING: ${LLM_ENABLE_THINKING:-auto}
+    LLM_INPUT_USD_PER_MILLION: ${LLM_INPUT_USD_PER_MILLION:-0}
+    LLM_OUTPUT_USD_PER_MILLION: ${LLM_OUTPUT_USD_PER_MILLION:-0}
+    LLM_DAILY_BUDGET_USD: ${LLM_DAILY_BUDGET_USD:-0.5}
+    LLM_MONTHLY_BUDGET_USD: ${LLM_MONTHLY_BUDGET_USD:-5}
+    LLM_GLOBAL_DAILY_BUDGET_USD: ${LLM_GLOBAL_DAILY_BUDGET_USD:-5}
+    LLM_GLOBAL_MONTHLY_BUDGET_USD: ${LLM_GLOBAL_MONTHLY_BUDGET_USD:-50}
+    API_READ_LIMIT_PER_MINUTE: ${API_READ_LIMIT_PER_MINUTE:-600}
+    API_WRITE_LIMIT_PER_MINUTE: ${API_WRITE_LIMIT_PER_MINUTE:-60}
+    API_EXTERNAL_LIMIT_PER_MINUTE: ${API_EXTERNAL_LIMIT_PER_MINUTE:-30}
+    API_AI_LIMIT_PER_MINUTE: ${API_AI_LIMIT_PER_MINUTE:-10}
+    SYNC_REPO_INTERVAL_MINUTES: ${SYNC_REPO_INTERVAL_MINUTES:-15}
+    SYNC_AUTHOR_INTERVAL_MINUTES: ${SYNC_AUTHOR_INTERVAL_MINUTES:-30}
+    SYNC_STAR_INTERVAL_MINUTES: ${SYNC_STAR_INTERVAL_MINUTES:-5}
+    SYNC_YOUTUBE_INTERVAL_MINUTES: ${SYNC_YOUTUBE_INTERVAL_MINUTES:-180}
+    LOG_LEVEL: ${LOG_LEVEL:-info}
+  init: true
+  read_only: true
+  tmpfs:
+    - /tmp:mode=1777
+    - /app/.next/cache:uid=1000,gid=1000,mode=0770
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  networks: [backend, edge]
+  logging:
+    driver: json-file
+    options: {max-size: 10m, max-file: '3'}
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: news
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Production password required}
+      NEWS_DATABASE_PASSWORD: ${DATABASE_PASSWORD:?Application database password required}
+    volumes:
+      - database:/var/lib/postgresql/data
+      - ./deploy/init-database.sh:/docker-entrypoint-initdb.d/10-newsroom.sh:ro
+    networks: [backend]
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U postgres -d news']
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: '3'}
+  migrate:
+    <<: *app
+    restart: 'no'
+    command: [node, dist/migrate/migrate-production.js]
+    depends_on:
+      db: {condition: service_healthy}
+  web:
+    <<: *app
+    restart: unless-stopped
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+    healthcheck:
+      test: [CMD, node, deploy/healthcheck.mjs, web]
+      interval: 20s
+      timeout: 8s
+      start_period: 30s
+      retries: 3
+  worker:
+    <<: *app
+    restart: unless-stopped
+    command: [node, dist/worker/main.js]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+    healthcheck:
+      test: [CMD, node, deploy/healthcheck.mjs, worker]
+      interval: 20s
+      timeout: 8s
+      start_period: 30s
+      retries: 3
+  proxy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?Production domain required}
+    ports: ['80:80', '443:443', '443:443/udp']
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - certificates:/data
+      - proxy_config:/config
+    networks: [edge]
+    depends_on:
+      web: {condition: service_healthy}
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: '3'}
+  backup:
+    image: newsroom-backup:${APP_IMAGE_TAG:-local}
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: backup
+    restart: unless-stopped
+    user: postgres
+    environment:
+      PGHOST: db
+      PGUSER: postgres
+      PGDATABASE: news
+      PGPASSWORD: ${POSTGRES_PASSWORD:?Production password required}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-7}
+    volumes:
+      - ./deploy/backup.sh:/opt/backup.sh:ro
+      - ./deploy/restore-drill.sh:/opt/restore-drill.sh:ro
+      - backups:/backups
+    networks: [backend]
+    entrypoint: [sh, /opt/backup.sh]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+    healthcheck:
+      test: [CMD-SHELL, 'test -f /backups/.last-success && test "$$(($$(date +%s) - $$(cat /backups/.last-success)))" -lt 108000']
+      interval: 5m
+      timeout: 5s
+      start_period: 2m
+      retries: 2
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: '3'}
+
+networks:
+  backend: {internal: true}
+  edge: {}
+volumes:
+  database: {}
+  certificates: {}
+  proxy_config: {}
+  backups: {}

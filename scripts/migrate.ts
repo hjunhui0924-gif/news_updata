@@ -1,8 +1,7 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { getPool, transaction } from '../src/server/db/client';
 
-export async function migrate() {
-  const directory = new URL('../drizzle/', import.meta.url);
+export async function migrate(directory = new URL('../drizzle/', import.meta.url)) {
   const files = (await readdir(directory)).filter((name) => /^\d+.*\.sql$/.test(name)).sort();
   await transaction(async (client) => {
     await client.query('SELECT pg_advisory_xact_lock(739105)');

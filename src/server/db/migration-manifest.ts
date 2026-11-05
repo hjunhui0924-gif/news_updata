@@ -6,4 +6,5 @@ export const migrationNames = [
   '0004_feed_performance.sql',
   '0005_platform_sources.sql',
   '0006_platform_connections.sql',
+  '0007_service_guards.sql',
 ];

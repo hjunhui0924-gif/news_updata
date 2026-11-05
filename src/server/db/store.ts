@@ -34,6 +34,7 @@ export async function getItems(userId: string): Promise<FeedItem[]> {
 type FeedQuery = {
   view: string;
   type: string;
+  platform?: string;
   search: string;
   unread: boolean;
   source: string;
@@ -43,6 +44,10 @@ function feedConditions(userId: string, input: FeedQuery) {
   const conditions = [eq(items.userId, userId), eq(items.muted, false)];
   if (input.view === 'saved') conditions.push(eq(items.saved, true));
   if (input.type !== 'all') conditions.push(sql`${items.data}->>'type' = ${input.type}` as never);
+  if (input.platform && input.platform !== 'all')
+    conditions.push(
+      sql`coalesce(${items.data}->>'platform', 'github') = ${input.platform}` as never,
+    );
   if (input.unread) conditions.push(eq(items.read, false));
   if (input.source)
     conditions.push(

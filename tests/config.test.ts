@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getConfig, isLocalHost } from '../src/server/config';
+import { getConfig, isLocalHost, localSkillsEnabled } from '../src/server/config';
 
 describe('local demo boundary', () => {
   it('never bypasses authentication in production', () => {
@@ -34,5 +34,36 @@ describe('local demo boundary', () => {
         ALLOWED_GITHUB_USER_IDS: '1',
       }),
     ).toThrow('HTTPS');
+  });
+});
+
+describe('public invitation deployment', () => {
+  const production = {
+    APP_MODE: 'live',
+    NODE_ENV: 'production',
+    APP_URL: 'https://news.example.test',
+    DATABASE_URL: `postgresql://news:${'a'.repeat(64)}@db:5432/news`,
+    BETTER_AUTH_SECRET: 'test-only-strong-configuration-secret-123456789',
+    GITHUB_CLIENT_ID: 'fixture-client',
+    GITHUB_CLIENT_SECRET: 'fixture-secret',
+    ALLOWED_GITHUB_USER_IDS: '123,456',
+  };
+  it('accepts explicit production settings and blocks server-local files', () => {
+    expect(localSkillsEnabled(getConfig(production))).toBe(false);
+    expect(localSkillsEnabled(getConfig({ APP_MODE: 'demo' }))).toBe(true);
+    expect(localSkillsEnabled(getConfig({ LOCAL_SKILLS_ENABLED: 'false' }))).toBe(false);
+  });
+  it('rejects shared credentials, local file opt-in, malformed admission and URL paths', () => {
+    for (const change of [
+      { GITHUB_READ_TOKEN: 'shared-test-token' },
+      { LOCAL_SKILLS_ENABLED: 'true' },
+      { ALLOWED_GITHUB_USER_IDS: '*' },
+      { ALLOWED_GITHUB_USER_IDS: '123,' },
+      { APP_URL: 'https://news.example.test/path' },
+      { APP_URL: 'https://news.example.test/?token=x' },
+      { GITHUB_CLIENT_SECRET: '' },
+      { DATABASE_URL: 'postgresql://news:news_local_only@db/news' },
+    ])
+      expect(() => getConfig({ ...production, ...change })).toThrow();
   });
 });

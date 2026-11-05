@@ -1,7 +1,9 @@
 import type { NextConfig } from 'next';
 
 const config: NextConfig = {
-  distDir: process.env.STARRED_E2E === 'true' ? '.next-e2e' : '.next',
+  distDir: process.env.STARRED_E2E === 'true'
+    ? process.env.E2E_ISOLATED_BUILD === 'server-trial' ? '.next-trial-e2e' : '.next-e2e'
+    : '.next',
   output: 'standalone',
   // Environment files must be supplied at runtime and must not be copied into
   // the standalone artifact (a local .env may contain unrelated credentials).

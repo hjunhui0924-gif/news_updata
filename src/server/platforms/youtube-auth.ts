@@ -5,8 +5,13 @@ import { z } from 'zod';
 import { getConfig } from '../config';
 import { getPool, transaction } from '../db/client';
 import { PlatformError } from './contract';
-import { createYouTubeTransport } from './youtube';
+import {
+  createYouTubeTransport,
+  YouTubeRequestFailure,
+  type YouTubeRequestDiagnostic,
+} from './youtube';
 import { persistentYouTubeQuota } from './youtube-quota';
+import { youtubeListSchema } from './youtube-list';
 import type { YouTubeConnectionStatus } from '@/shared/types';
 import type { YouTubeOAuthStage, YouTubeOAuthRecovery } from '@/shared/youtube-oauth';
 
@@ -71,6 +76,7 @@ export class YouTubeOAuthFailure extends PlatformError {
     public recovery: YouTubeOAuthRecovery,
     message: string,
     status: number,
+    public diagnostic?: YouTubeRequestDiagnostic,
   ) {
     super(message, status);
   }
@@ -216,22 +222,27 @@ export async function completeYouTubeOAuth(
     if (error instanceof YouTubeOAuthFailure) throw error;
     const stage = progress.stage;
     const recovery: YouTubeOAuthRecovery =
-      error instanceof YouTubeAuthError
-        ? error.state === 'unconfigured'
-          ? 'configuration'
-          : error.state === 'reconnect_required'
-            ? 'reconnect'
-            : 'temporary'
-        : stage === 'state' && error instanceof PlatformError && error.status === 400
-          ? 'state'
-          : stage === 'scope'
-            ? 'permission'
-            : 'temporary';
+      error instanceof YouTubeRequestFailure && error.diagnostic.code === 'api_not_enabled'
+        ? 'configuration'
+        : error instanceof YouTubeRequestFailure && error.diagnostic.code === 'permission'
+          ? 'permission'
+          : error instanceof YouTubeAuthError
+            ? error.state === 'unconfigured'
+              ? 'configuration'
+              : error.state === 'reconnect_required'
+                ? 'reconnect'
+                : 'temporary'
+            : stage === 'state' && error instanceof PlatformError && error.status === 400
+              ? 'state'
+              : stage === 'scope'
+                ? 'permission'
+                : 'temporary';
     throw new YouTubeOAuthFailure(
       stage,
       recovery,
       error instanceof PlatformError ? error.message : 'YouTube 暂时无法完成授权，请稍后重试。',
       error instanceof PlatformError ? error.status : 503,
+      error instanceof YouTubeRequestFailure ? error.diagnostic : undefined,
     );
   }
 }
@@ -312,10 +323,16 @@ async function completeYouTubeOAuthRequest(
       },
       persistentYouTubeQuota('oauth', getConfig().YOUTUBE_CLIENT_ID),
     );
-    const channels = z
-      .object({ items: z.array(z.object({ snippet: z.object({ title: z.string() }) })) })
-      .parse(await transport('channels', { part: 'snippet', mine: 'true' }));
-    if (channels.items.length === 1) name = channels.items[0].snippet.title.slice(0, 200);
+    const channels = youtubeListSchema(
+      z.object({ snippet: z.object({ title: z.string() }) }),
+    ).safeParse(await transport('channels', { part: 'snippet', mine: 'true' }));
+    if (!channels.success)
+      throw new YouTubeRequestFailure(
+        { code: 'invalid_response', upstreamStatus: 200 },
+        'YouTube 返回的账号频道信息格式暂不可读取，请稍后重试。',
+      );
+    if (channels.data.items?.length === 1)
+      name = channels.data.items[0].snippet.title.slice(0, 200);
   } catch (error) {
     signal?.throwIfAborted();
     if (error instanceof PlatformError) throw error;

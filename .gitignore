@@ -1,13 +1,16 @@
 node_modules/
 .next/
 .next-e2e/
+.next-trial-e2e/
 dist/
 .env*
 !.env.example
+deploy/*.env
 *.tsbuildinfo
 work/
 test-results/
 playwright-report/
+output/
 .playwright-cli/
 coverage/
 .data/

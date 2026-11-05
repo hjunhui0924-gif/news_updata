@@ -37,7 +37,7 @@ export function withCurrentArtifacts<T extends FeedItem | FeedPreview>(
   item: T,
   versions: ReturnType<typeof currentArtifactVersions>,
 ): T {
-  if (!versions || item.demo || item.type === 'video') return item;
+  if (!versions || item.demo) return item;
   const next = { ...item };
   if (item.summary && item.aiVersions?.summary !== versions.summary) {
     next.summary = null;

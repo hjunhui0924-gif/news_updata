@@ -22,6 +22,7 @@ beforeAll(async () => {
   for (let i = 0; i < 65; i++)
     await saveItem(userId, {
       ...template,
+      platform: i % 2 === 1 ? 'youtube' : 'github',
       id: `${userId}-${String(i).padStart(3, '0')}`,
       externalId: `${i}`,
       publishedAt: '2026-11-04T00:00:00.000Z',
@@ -127,4 +128,22 @@ it('uses each cached row state when a PATCH response arrives after an authoritat
     { read: true },
   );
   expect(result).toMatchObject({ items: [], total: 64, matchingUnread: 64 });
+});
+it('filters mixed platform pages and status counts before pagination', async () => {
+  await getPool().query('UPDATE items SET read=false WHERE user_id=$1', [userId]);
+  const youtube = await getFeedPage(userId, { ...filters, platform: 'youtube' });
+  const github = await getFeedPage(userId, { ...filters, platform: 'github' });
+  expect(youtube.total).toBe(32);
+  expect(youtube.items.every((item) => item.platform === 'youtube')).toBe(true);
+  expect(github.total).toBe(33);
+  expect(github.items.every((item) => item.platform === 'github')).toBe(true);
+  const status = await getFeedStatus(userId, { ...filters, platform: 'youtube' });
+  expect(status).toMatchObject({ total: 32, matchingUnread: 32, unread: 65, saved: 33, all: 65 });
+  expect(await markFeedRead(userId, { ...filters, platform: 'youtube', unread: true })).toBe(32);
+  expect((await getFeedPage(userId, { ...filters, platform: 'youtube', unread: true })).total).toBe(
+    0,
+  );
+  expect((await getFeedPage(userId, { ...filters, platform: 'github', unread: true })).total).toBe(
+    33,
+  );
 });

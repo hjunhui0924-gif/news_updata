@@ -1,4 +1,4 @@
-import { getConfig } from '../config';
+import { getConfig, localSkillsEnabled } from '../config';
 import { getPool } from '../db/client';
 import {
   getFeedPage,
@@ -75,6 +75,7 @@ export async function bootstrap(
     starSync: await getStarSync(user.id),
     notifications,
     services: {
+      localSkills: localSkillsEnabled(config),
       platforms: {
         github: {
           configured: ['connected', 'configured', 'refresh_pending'].includes(githubAccount.state),

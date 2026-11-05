@@ -1,325 +1,182 @@
 # 知更 / NEWSROOM
 
-在一个网页里查看你关注的 GitHub 项目、开发者与 YouTube 频道更新。GitHub 支持中文摘要、对照译文和原文；YouTube 展示公开视频信息和作者简介，并提供原站观看入口。
+在一个网页里查看你关注的 GitHub 项目、开发者与 YouTube 频道更新。按平台筛选、阅读原文、保存已读和收藏；需要时再使用中文摘要或对照译文。
 
-**当前为本地 Demo：GitHub 已接入，YouTube 的账号连接、关注读取与频道导入代码已实现，但真实 Google 授权处理失败，联调按用户要求暂停，尚未验收为可用闭环。Bilibili / X / RSS 尚未接入。** 网页内的订阅、已读和收藏保存在本应用，不会替你 Star、Follow 或修改源站频道订阅。没有邮件功能。
+**当前阶段：服务器邀请试用准备完成。** 多用户边界与生产容器已通过本机隔离验证，实际服务器的域名、HTTPS 和 OAuth 回调仍需部署后确认。YouTube 已验证真实账号连接、关注读取、频道导入、首次同步和访问凭据自动续期；完整内容生命周期仍未验收，持续同步、真实简介翻译及撤销后重连仍待验证。G4 持续使用验收暂缓。[上线与验收范围](docs/26-server-invitation-trial.md) · [YouTube 真实验收](docs/25-youtube-live-acceptance.md)
 
-![知更桌面阅读器，使用演示数据](docs/assets/reader-demo.png)
+![全部更新：统一时间线、平台筛选与来源标识](docs/assets/reader-feed-demo.png)
 
-> 截图使用演示内容，展示双来源更新和阅读布局，不代表真实项目的发布记录。
+> 本页截图由当前应用实际渲染，全部使用标明的演示数据，不包含真实用户信息，不代表源站发布记录或真实 OAuth、模型服务验收。
 
-## 已实现
+## 第一次使用：访问已经部署好的站点
 
-| 功能 | 当前行为 |
-| --- | --- |
-| 项目订阅 | 跟踪正式 Release 和已收录版本说明的修改 |
-| 博主订阅 | 跟踪其新建公开非 fork 仓库，以及本人发布的正式 Release，包含组织项目 |
-| YouTube 关注 | 连接自己的 Google/YouTube 账号，分页读取我的关注、跨页选择、去重导入和部分失败重试；后台检查公开视频，展示简介、懒加载封面和原站观看入口 |
-| Star 导入 | 读取当前账号公开 Star，每 5 分钟发现新 Star 并加入本地订阅；取消 Star 不自动删除订阅 |
-| 关注导入 | 分页读取公开 following，跨页勾选开发者，识别已订阅对象并支持部分失败重试 |
-| 项目搜索 | 在「添加订阅 → 搜索项目」搜索 GitHub 公开仓库，支持排序、分页和本地订阅 |
-| Trending | 独立于个人 Star 的热门发现，支持常用编程语言榜单和按需中文简介 |
-| 站内阅读 | 多来源去重、搜索与筛选、已读、收藏、上下对照翻译、作者发现项目后直接订阅、桌面和手机布局 |
-| AI 辅助 | 中文摘要、原文依据、按需翻译、缓存和用量预算；超长全文翻译会明确提示，模型可关闭 |
-| 授权与同步 | GitHub OAuth、账号允许名单、访问令牌自动续期、后台轮询和失败提示 |
-| 站内简报 | 整理近期未读更新，网页内阅读，不发送邮件或推送 |
-| Skill 目录 | 浏览本机已安装 Skill 与 GitHub Star 项目中的 Skill；查看原始简介、项目/源文件链接、AI 教程式摘要和连续中英文对照 |
+普通使用者不需要安装项目、填写 API Key 或配置服务器。向部署者获取站点地址并确认自己的 GitHub 账号已受邀，然后按以下步骤操作。
 
-## 快速体验
+1. **登录**：打开站点，点击 GitHub 登录，在 GitHub 官方页面完成授权后返回。应用不接收你的 GitHub 密码；若提示未获准访问，请让部署者核对你的 GitHub 稳定数字 ID，不能用用户名代替。
+2. **添加第一批关注**：打开右上角「添加订阅」或左侧「订阅管理」。可以输入 `owner/repo` 添加项目、添加开发者，或从自己的 Star / 关注列表中选择导入。第一次建议先添加少量来源。
+3. **等待首次同步**：在订阅管理查看同步进度。同步由后台 Worker 执行，不是添加后立即有内容；项目没有符合范围的正式 Release 时也可能为空。刷新页面或「刷新内容」只更新站内显示，不会替代后台采集。
+4. **开始阅读**：进入「全部更新」，先用 GitHub / YouTube 平台筛选缩小范围，再按类型、未读或关键词查找。点击条目查看详情，可以切换列表 / 分栏布局，标记已读或收藏。手机端使用底部导航与返回入口。
+5. **可选：连接 YouTube**：进入「添加订阅 → YouTube 关注 → 连接 YouTube 账号」，在 Google 官方页面授权，返回后读取自己的关注、选择频道并导入。需要站点运营者先配置 Google OAuth；普通用户不填写客户端密钥。连接成功不等于已导入频道，导入后才会进入同步流程。
+6. **调整阅读偏好**：打开「偏好设置」，调整紧凑列表和显示时区，再点击「保存偏好」。摘要、全文译文和视频简介译文取决于站点是否启用 AI；未启用时仍可阅读原文及访问源站。
 
-准备 **Node.js 24+、pnpm 11、PostgreSQL 17**。推荐用 Docker Desktop 运行数据库，Web 和 Worker 在本机运行。
+站内订阅、已读和收藏只保存在本应用，不会替你 Star、Follow 或修改源站频道订阅。退出网页登录不等于撤销平台授权；YouTube 连接可以在其连接入口断开。没有邮件或浏览器推送。
+
+## 界面预览
+
+### 分栏阅读
+
+![桌面分栏阅读：左侧扫描更新，右侧阅读摘要和原文](docs/assets/reader-demo.png)
+
+### 添加来源与项目搜索
+
+![添加订阅弹窗：不同订阅方式保持稳定尺寸](docs/assets/project-search-demo.png)
+
+### 阅读偏好与手机布局
+
+![偏好设置：阅读选项、保存状态和按钮清晰分隔](docs/assets/settings-demo.png)
+
+<img src="docs/assets/reader-mobile-demo.png" alt="手机端全部更新，使用演示数据" width="390" />
+
+## 功能与范围
+
+| 功能            | 当前行为                                                                                                                                        |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| GitHub 项目     | 跟踪正式 Release 及已收录版本说明的修改，不包括普通提交、PR 或 Issue                                                                            |
+| GitHub 开发者   | 跟踪其新建公开非 fork 仓库，以及本人发布的正式 Release，包含组织项目                                                                            |
+| Star / 关注导入 | 分页选择、去重导入、部分失败重试；可每 5 分钟发现新增公开 Star，取消 Star 不自动删除站内订阅                                                    |
+| YouTube 关注    | 使用自己的 Google 账号连接、读取关注并导入频道；展示公开视频信息、作者提供的视频简介、按需简介对照翻译及原站观看入口，不搜索或推荐 YouTube 内容 |
+| 聚合阅读        | 统一时间线、日期分组、平台和来源标识、筛选、搜索、已读、收藏、桌面分栏及手机导航                                                                |
+| AI 辅助         | 中文摘要、原文依据、按需译文、缓存、用户及整站预算；默认关闭真实模型                                                                            |
+| 更多工具        | GitHub Trending、站内未读简报、账号自己 Star 项目中的 Skill；服务器不向用户开放本机 Skill 文件目录                                              |
+| 邀请试用        | GitHub 数字 ID 准入、用户数据隔离、操作限频、后台队列轮次、生产容器、健康检查及自动备份                                                         |
+
+## 本地快速体验：无需账号或密钥
+
+准备 **Node.js 24+、pnpm 11、Docker Desktop / Docker Compose v2**。Docker 运行 PostgreSQL 17，Web 和 Worker 在本机运行。
 
 ```powershell
 git clone https://github.com/hjunhui0924-gif/news_updata.git
 cd news_updata
 pnpm install --frozen-lockfile
-# 先启动 Docker Desktop
+# 先打开 Docker Desktop，或确认 Docker Engine 正在运行
 pnpm demo
 ```
 
-打开 [http://127.0.0.1:3000](http://127.0.0.1:3000)。首次启动自动创建 `.env.local`、生成本地随机密钥、启动数据库、执行迁移并写入 24 条明确标识的演示内容，再启动 Web 和 Worker。**演示不需要 GitHub 登录或模型密钥，真实 AI 默认关闭。**
+打开 [http://127.0.0.1:3000](http://127.0.0.1:3000)，按照上方阅读流程体验。首次启动自动创建 `.env.local`、生成本机随机密钥、启动数据库、执行迁移并写入 24 条标记的演示内容，再启动 Web 与 Worker。演示内容和译文是预编样本，不是实时 AI 输出；真实 AI 默认关闭，不需要 GitHub 登录。
 
-Ctrl+C 停止此次启动的应用进程，保留数据库。已有 `.env.local` 不会被覆盖；如果其中是 `APP_MODE=live`，请使用下方真实模式流程，不要用演示启动器。
+Ctrl+C 停止本次启动的应用进程，数据库保留。再次运行 `pnpm demo` 可继续使用；已有 `.env.local` 不会被覆盖。如果该文件已经设为 `APP_MODE=live`，请使用下一节的真实账号流程。
 
-已有 PostgreSQL 时，复制 `.env.example` 为 `.env.local`，设置自己的 `DATABASE_URL`、保持 `APP_MODE=demo`，执行 `pnpm demo --no-docker`。Docker Compose 只运行数据库，并非整套应用的容器镜像。
+已有 PostgreSQL 17 时，复制 `.env.example` 为 `.env.local`，填写自己的 `DATABASE_URL`、保持 `APP_MODE=demo`，执行 `pnpm demo --no-docker`。本地 `compose.yaml` 只负责数据库；整套服务器部署使用独立的 `compose.production.yaml`。
 
-## 使用自己的 GitHub 账号
+## 本机连接自己的账号
 
-1. 复制 `.env.example` 为 `.env.local`，设 `APP_MODE=live`，填写数据库连接与随机 `BETTER_AUTH_SECRET`。
-2. 在 GitHub 创建自己的 OAuth App，设置 Homepage URL 为 `http://127.0.0.1:3000`，回调为 `http://127.0.0.1:3000/api/auth/callback/github`。
-3. 填写 `GITHUB_CLIENT_ID`、`GITHUB_CLIENT_SECRET` 和 `ALLOWED_GITHUB_USER_IDS`。允许名单使用 GitHub 的**稳定数字 ID**，不是用户名。
-4. 启动数据库、迁移、Web 和 Worker：
+1. 复制 `.env.example` 为 `.env.local`，设置 `APP_MODE=live`、数据库连接和随机 `BETTER_AUTH_SECRET`（至少 32 字符）。不要提交该文件。
+2. 在 GitHub 创建自己的 OAuth App，Homepage URL 设置为 `http://127.0.0.1:3000`，回调设置为 `http://127.0.0.1:3000/api/auth/callback/github`。
+3. 填写 `GITHUB_CLIENT_ID`、`GITHUB_CLIENT_SECRET`、`ALLOWED_GITHUB_USER_IDS`。允许名单使用稳定数字 ID，多个 ID 以逗号分隔。`GITHUB_READ_TOKEN` 可留空；公网部署拒绝共享令牌。
+4. 启动数据库、迁移、Web 与 Worker：
 
 ```powershell
-docker compose up -d --wait db # 使用现有 PostgreSQL 可跳过
+docker compose up -d --wait db # 已有自己的 PostgreSQL 时可跳过
 pnpm db:migrate
 pnpm dev
 # 另开一个终端
 pnpm worker:dev
 ```
 
-通过网页跳转到 GitHub 官方页面登录。应用不接收 GitHub 密码；令牌服务端加密保存，按需自动续期。网页会话到期与 GitHub 授权失效是两回事。`GITHUB_READ_TOKEN` 是可选的服务端覆盖配置，普通个人使用可以留空。
+然后打开本机网页，用 GitHub 登录，添加来源并等待同步。真实模式不需要执行 `pnpm db:seed`；建议为 Demo 和真实模式使用不同数据库。
 
-仓库不包含作者的 `.env`、真实账号令牌、模型密钥或数据库，克隆后需要自己的配置。详见 [运行指南](docs/05-operations-and-quality.md)、[授权说明](docs/12-github-auth-renewal.md) 和 [安全边界](SECURITY.md)。
+需要连接 YouTube 时，在 Google Cloud 启用 YouTube Data API v3，创建 Web 应用 OAuth 客户端，配置回调 `http://127.0.0.1:3000/api/platforms/youtube/callback`，将客户端 ID / Secret 填入 `.env.local`，重启 Web 和 Worker，再从网页连接。个人关注读取不需要 `YOUTUBE_API_KEY`。若 OAuth 应用处于测试状态，需允许相应 Google 测试用户；后台服务器也必须能访问 Google API。[完整配置与边界](docs/19-youtube-account-following.md)
 
-## YouTube 配置
+## 部署到服务器供其他人试用
 
-1. 在自己的 Google Cloud 项目启用 YouTube Data API v3，配置 OAuth 同意页面；若应用处于测试状态，将自己的 Google 账号加入测试用户。
-2. 创建 **Web application** OAuth 客户端，授权重定向 URI 填写 `<APP_URL>/api/platforms/youtube/callback`。默认本机地址为 `http://127.0.0.1:3000/api/platforms/youtube/callback`，须与 `APP_URL` 完全一致。
-3. 在服务端 `.env.local` 配置 `YOUTUBE_CLIENT_ID`、`YOUTUBE_CLIENT_SECRET`，保留稳定且至少 32 字符的 `BETTER_AUTH_SECRET`。先备份并迁移数据库，再重启 Web 与 Worker。
-4. 打开「添加订阅 → YouTube 关注 → 连接 YouTube 账号」，在 Google 官方页面授权，然后「读取我的关注」，勾选频道导入。这里连接到现有工作空间，不按邮箱合并站内身份。
+使用生产配置，不复制开发者个人 `.env.local`、数据库、备份或 `work/`。新服务器从空库开始，各受邀用户登录后自行导入关注。
 
-仅申请 `openid` 与 `youtube.readonly`，后台按需续期；账号凭据加密存储。未配置时显示说明并禁用连接，不需要手工复制个人令牌或填写频道地址。自己的关注以后有变化可重新读取，已经导入的频道持续检查新视频；源站取消关注不会自动删除本地订阅和历史。没有新增 YouTube 搜索功能。
+准备域名、可访问外部平台的 Linux 服务器、Docker Engine / Compose v2，以及服务器专用的 OAuth 客户端。Node.js 24 用于运行配置生成器，也可用 Node 24 容器运行。
 
-个人关注读取不需要 `YOUTUBE_API_KEY`。该旧配置仅保留给原有手动来源兼容和开发只读命令 `pnpm youtube:check -- "@GoogleDevelopers"`，不能用它读取个人关注。后台 Node 进程必须能访问 Google API，浏览器可打开 Google 不代表后台网络已连通。
+```bash
+# 替换为自己的 HTTPS 域名和受邀 GitHub 数字 ID
+node deploy/prepare-env.mjs https://news.your-domain.example 123456,789012
+# 在服务器编辑 deploy/server.env，填写 OAuth 配置，保管好生成的秘密
 
-默认每 180 分钟检查，每轮最多 250 项候选；首次仅收录近 30 天最多 20 条历史。不下载字幕或音视频，不把简介当视频全文。账号配置与边界见 [YouTube 账号与关注](docs/19-youtube-account-following.md)，适配器设计见 [平台适配层](docs/18-platform-adapters.md)。
+docker compose --env-file deploy/server.env -f compose.production.yaml config --quiet
+docker compose --env-file deploy/server.env -f compose.production.yaml build
+docker compose --env-file deploy/server.env -f compose.production.yaml up -d --wait
+```
+
+配置生成器不会覆盖已有文件。生产配置包含独立数据库、迁移、Web、Worker、Caddy HTTPS 和每日备份；数据库不发布公网端口。先配置域名解析和 80/443，再核对生产回调：
+
+```text
+GitHub:  https://你的域名/api/auth/callback/github
+YouTube: https://你的域名/api/platforms/youtube/callback
+```
+
+启动后从服务器外访问 HTTPS，用两个受邀账号检查登录、来源导入、同步和阅读状态隔离，再开始小范围邀请。备份仍在同一台主机，异机备份与健康告警需另外配置。单 Web / 单 Worker 为当前验证范围，不作生产容量承诺。
+
+**完整步骤、邀请变更、备份恢复、更新和回滚要求见 [服务器邀请试用版上线指南](docs/26-server-invitation-trial.md)。** 不要随意更换已用的认证密钥，也不要用 `down -v` 处理普通重启。
 
 ## AI 配置
 
-默认可以阅读原文和体验演示译文。开启真实 AI 时，需要在 `.env.local` 设置兼容 Chat Completions 的模型地址、API Key、模型名和实际输入/输出单价，再设 `LLM_ENABLED=true`，重启 Web 与 Worker。
+普通用户无需提供模型密钥。部署者可配置兼容 Chat Completions 的模型地址、API Key、模型名、实际输入 / 输出单价，再开启 `LLM_ENABLED=true` 并重启 Web 与 Worker。本机使用 `.env.local`，服务器使用 `deploy/server.env`。
 
-当前开发环境已联调 `qwen3.8-flash`；这不是仓库默认启用的付费服务。其他兼容模型需要验证结构化输出支持。摘要自动生成、全文翻译按需触发；原文会上送你配置的模型服务。预算为应用估算，不能替代供应商账户硬额度。见 [模型配置与费用](docs/05-operations-and-quality.md#模型配置)。
+模型关闭、预算不足或服务失败时仍保留原文阅读。启用后相关公开正文会发送到所配置的模型服务；预算为应用估算，不能替代供应商账户硬额度。视频简介翻译只处理作者文字，不代表字幕或视频全文。[模型设置与费用](docs/05-operations-and-quality.md#模型配置)
 
-## 技术架构
+## 常见问题
 
-```mermaid
-flowchart LR
-  Browser[网页阅读器] --> Web[Next.js Web / API]
-  Web --> DB[(PostgreSQL)]
-  Web --> GitHub[GitHub 公开 API]
-  Web --> YouTube[YouTube Data API]
-  Worker[Node.js Worker] --> DB
-  Worker --> GitHub
-  Worker --> YouTube
-  Worker --> AI[可选模型服务]
-```
-
-Next.js 16 / React 19 / TypeScript 5.9、Tailwind 4、Radix Dialog、PostgreSQL 17、Drizzle + pg、pg-boss、Better Auth、Octokit、Vitest 和 Playwright。精确版本以 `package.json` 与 `pnpm-lock.yaml` 为准；不需要 Redis 或向量数据库。
-
-## 目录结构
-
-源码与脚本按文件列出；同类测试和配置用通配符合并，文档用途见下方「文档导航」。
-
-```text
-news_updata/
-├─ src/
-│  ├─ app/                                  # 页面入口与 HTTP 接口
-│  │  ├─ layout.tsx                         # 根布局、页面元信息与全局样式入口
-│  │  ├─ globals.css                        # 全局主题、组件样式与响应式布局
-│  │  ├─ icon.svg                           # 应用图标
-│  │  ├─ error.tsx                          # 页面错误边界与重试
-│  │  ├─ [[...path]]/page.tsx                # 路由分发、登录校验与首屏数据加载
-│  │  └─ api/
-│  │     ├─ auth/[...all]/route.ts          # 登录、会话与 GitHub OAuth 回调
-│  │     ├─ bootstrap/route.ts              # 获取阅读器数据与任务、授权状态
-│  │     ├─ platforms/youtube/              # 连接、回调、断开与我的关注预览/导入
-│  │     ├─ health/live/route.ts            # Web 进程存活检查
-│  │     ├─ health/ready/route.ts           # 数据库、迁移与 Worker 就绪
-│  │     ├─ feed/route.ts                   # 预览分页、筛选计数与轻量状态
-│  │     ├─ feed/read/route.ts              # 按当前筛选批量已读
-│  │     ├─ settings/route.ts               # 读取、保存时区与紧凑布局偏好
-│  │     ├─ github/
-│  │     │  ├─ connection/route.ts          # 检查 GitHub 连接并更新授权状态
-│  │     │  ├─ repositories/search/route.ts # 搜索公开仓库
-│  │     │  ├─ following/preview/route.ts   # 分页预览关注列表与订阅状态
-│  │     │  ├─ following/import/route.ts    # 将选中开发者导入本地订阅
-│  │     │  ├─ starred/preview/route.ts     # 预览公开 Star 与订阅状态
-│  │     │  ├─ starred/import/route.ts      # 将选中 Star 项目导入本地订阅
-│  │     │  └─ starred/auto/route.ts        # 开关自动跟踪、触发 Star 同步
-│  │     ├─ subscriptions/
-│  │     │  ├─ route.ts                     # 查询、添加项目、博主或频道订阅
-│  │     │  ├─ [id]/route.ts                # 修改订阅偏好、删除订阅
-│  │     │  └─ [id]/sync/route.ts           # 将手动同步请求加入队列
-│  │     ├─ items/[id]/
-│  │     │  ├─ route.ts                     # 按用户读取完整详情
-│  │     │  ├─ state/route.ts               # 更新已读、收藏与静音状态
-│  │     │  ├─ summary/retry/route.ts       # 重新提交摘要任务
-│  │     │  └─ translation/route.ts         # 提交全文翻译任务
-│  │     ├─ trending/
-│  │     │  ├─ route.ts                     # 获取语言榜单与已有中文简介
-│  │     │  └─ translation/route.ts         # 按需翻译榜单项目简介
-│  │     ├─ skills/
-│  │     │  ├─ local/route.ts               # 获取本机 Skill 目录
-│  │     │  ├─ starred/route.ts             # 分页获取 Star 项目中的 Skill
-│  │     │  ├─ detail/route.ts              # 获取 Skill 正文与 AI 状态
-│  │     │  └─ ai/route.ts                  # 提交 Skill 摘要或翻译任务
-│  │     └─ notifications/preview/route.ts  # 生成并保存站内简报预览
-│  ├─ components/                          # 页面交互与可复用界面
-│  │  ├─ reader-app.tsx                     # 阅读器主界面、视图切换与数据刷新
-│  │  ├─ sidebar.tsx                        # 导航、订阅入口与未读计数
-│  │  ├─ feed-list.tsx                      # 更新列表、选中状态与阅读标记
-│  │  ├─ use-feed.ts                        # 分页缓存、状态差量与请求竞态保护
-│  │  ├─ polling.ts                        # 轮询去重、后台暂停与失败退避
-│  │  ├─ request-json.ts                   # 请求超时、取消与中文错误
-│  │  ├─ item-detail.tsx                    # 更新详情、摘要、原文与阅读操作
-│  │  ├─ item-sources.tsx                   # 展示同一更新的多个订阅来源
-│  │  ├─ markdown.tsx                       # 渲染 Markdown、处理链接与图片回退
-│  │  ├─ bilingual-translation.tsx          # 展示原文与中文译文对照
-│  │  ├─ subscriptions-panel.tsx            # 添加、管理订阅并展示同步状态
-│  │  ├─ repository-search.tsx              # 搜索、排序、翻页与订阅公开项目
-│  │  ├─ starred-import.tsx                 # 选择 Star 项目、批量导入与失败重试
-│  │  ├─ following-import.tsx               # 跨页选择关注者、导入与失败重试
-│  │  ├─ youtube-following.tsx              # YouTube 账号连接、我的关注与频道导入
-│  │  ├─ star-sync-panel.tsx                # 控制自动跟踪并展示 Star 同步结果
-│  │  ├─ trending-panel.tsx                 # 热门榜单、语言筛选与中文简介
-│  │  ├─ skills-panel.tsx                   # Skill 筛选、详情、AI 摘要与双语阅读
-│  │  ├─ settings-panel.tsx                 # 阅读偏好、任务状态与简报预览
-│  │  ├─ github-connection.tsx              # 授权状态、连接检查与重新授权入口
-│  │  ├─ login.tsx                          # GitHub 登录与配置提示
-│  │  └─ ui/button.tsx                      # 统一按钮样式与交互状态
-│  ├─ server/                              # 服务端业务、外部连接与持久化
-│  │  ├─ config.ts                         # 校验环境变量与运行模式约束
-│  │  ├─ http.ts                           # 统一接口鉴权、来源校验与错误响应
-│  │  ├─ health.ts                         # 数据库、迁移与 Worker 健康派生
-│  │  ├─ feed/query.ts                     # 统一读取/批量写入的筛选校验
-│  │  ├─ auth/index.ts                     # OAuth、会话、允许名单与写请求校验
-│  │  ├─ db/
-│  │  │  ├─ client.ts                      # PostgreSQL 连接池、Drizzle 与事务
-│  │  │  ├─ schema.ts                      # 定义核心业务表的 Drizzle 映射
-│  │  │  ├─ pool.ts                        # 连接池的闲置错误保护
-│  │  │  ├─ migration-manifest.ts          # 就绪检查要求的迁移清单
-│  │  │  └─ store.ts                       # 按用户读写更新、订阅、偏好等数据
-│  │  ├─ connectors/
-│  │  │  ├─ github.ts                      # GitHub 请求、数据校验与更新提取
-│  │  │  ├─ github-auth.ts                 # 令牌解密、自动续期与失效状态管理
-│  │  │  ├─ github-user.ts                 # 为当前用户创建授权 GitHub 连接
-│  │  │  └─ trending.ts                    # 抓取、解析 GitHub Trending 页面
-│  │  ├─ platforms/                        # 平台契约、注册、GitHub 与 YouTube 适配器
-│  │  ├─ subscriptions/
-│  │  │  ├─ service.ts                     # 订阅增删改、同步与失败处理
-│  │  │  ├─ ingest.ts                      # 更新入库、跨来源去重与内容合并
-│  │  │  ├─ search.ts                      # 搜索仓库并标注本地订阅状态
-│  │  │  ├─ starred.ts                     # Star 预览、导入校验与逐项结果
-│  │  │  ├─ following.ts                   # 关注列表分页、校验与订阅导入
-│  │  │  └─ star-sync.ts                   # 自动发现新 Star、调度与排除管理
-│  │  ├─ feed/bootstrap.ts                 # 汇总首屏数据、同步与授权状态
-│  │  ├─ ai/
-│  │  │  ├─ enqueue.ts                     # 检查内容权限并提交摘要、翻译任务
-│  │  │  ├─ service.ts                     # 模型调用、结果校验、缓存与预算控制
-│  │  │  └─ translation.ts                 # Markdown 分块翻译、结构校验与重组
-│  │  ├─ discovery/
-│  │  │  ├─ service.ts                     # 榜单缓存、刷新与过期数据回退
-│  │  │  └─ translation.ts                 # 项目简介翻译、缓存与费用控制
-│  │  ├─ skills/
-│  │  │  ├─ service.ts                     # 统一 Skill 查询、权限与 AI 任务入口
-│  │  │  ├─ local.ts                       # 扫描本机 Skill、读取正文与附属文件信息
-│  │  │  ├─ github.ts                      # 发现 Star 仓库中的 Skill 并读取正文
-│  │  │  ├─ metadata.ts                    # 解析 SKILL.md 的名称与简介
-│  │  │  └─ ai.ts                          # Skill 摘要、翻译、依据校验与缓存
-│  │  ├─ jobs/queue.ts                     # 任务去重入队、发布与队列状态对账
-│  │  ├─ notifications/digest.ts           # 筛选近期未读更新并保存站内简报
-│  │  └─ demo/fixtures.ts                  # 构造演示订阅、更新、摘要与译文
-│  ├─ shared/                              # 前后端共用的数据契约与纯函数
-│  │  ├─ types.ts                          # 更新、订阅、任务与首屏数据类型
-│  │  ├─ platforms.ts                      # 平台身份、来源/条目显示与兼容唯一键
-│  │  ├─ feed.ts                           # 来源匹配、信息流筛选与相对时间
-│  │  ├─ health.ts                         # Worker 心跳有效性
-│  │  ├─ sync-status.ts                    # 将订阅和任务数据转换为同步状态
-│  │  ├─ markdown.ts                       # 解析相对链接并限制 URL 协议
-│  │  ├─ bilingual.ts                      # 按 Markdown 结构交错排列原文与译文
-│  │  ├─ trending.ts                       # 榜单语言选项与数据类型
-│  │  ├─ skills.ts                         # Skill 目录、详情与 AI 状态类型
-│  │  └─ skill-taxonomy.ts                 # Skill 分类、标签与自动归类规则
-│  └─ worker/main.ts                       # 消费后台任务、周期调度与心跳上报
-├─ scripts/
-│  ├─ demo.ts                              # 准备演示环境并启动数据库、Web 与 Worker
-│  ├─ migrate.ts                           # 按序执行 SQL 迁移并记录版本
-│  ├─ seed.ts                              # 向演示数据库写入样本数据
-│  ├─ e2e-web.ts                           # 独立 E2E 数据库与测试进程管理
-│  ├─ bench-feed.ts                        # 万条数据查询/载荷基准
-│  ├─ database-maintenance.ts              # 一致性备份与隔离恢复演练
-│  ├─ diagnose.ts                          # 脱敏本地运行诊断
-│  ├─ check-youtube.ts                     # 只读检查频道与首屏公开视频元数据
-│  ├─ lib/                                 # 就绪等待、维护与测试安全边界
-│  ├─ start-worker.mjs                     # 加载运行配置并启动生产 Worker
-│  └─ observe-live.ps1                     # 定时记录 Web、数据库、Worker 与任务状态
-├─ drizzle/
-│  ├─ 0001_initial.sql                     # 初始化业务、认证、任务与用量表
-│  ├─ 0002_ai_cache.sql                    # 创建 AI 结果缓存表
-│  ├─ 0003_star_sync.sql                   # 创建 Star 同步状态与排除表
-│  ├─ 0004_feed_performance.sql            # 元数据搜索列、trigram 与列表索引
-│  ├─ 0005_platform_sources.sql            # 订阅平台身份与兼容数据回填
-│  └─ 0006_platform_connections.sql        # 用户与平台隔离的加密账号连接
-├─ tests/
-│  ├─ *.test.ts                            # 业务规则、解析、校验与状态转换测试
-│  ├─ *.unit.test.ts                       # Skill 相关单元测试，可独立于数据库运行
-│  ├─ setup-db.ts                          # 准备独立测试数据库并执行迁移
-│  ├─ integration/*.test.ts                # 验证真实数据库下的业务与持久化流程
-│  └─ e2e/*.spec.ts                        # 验证浏览器阅读、订阅、授权与 AI 交互
-├─ docs/                                   # 产品、架构、路线、运行与验收文档
-│  └─ assets/reader-demo.png               # README 使用的演示界面截图
-├─ .env.example                            # 本地环境配置模板，不含真实凭据
-├─ compose.yaml                            # PostgreSQL 容器、数据卷与健康检查
-├─ package.json                            # 项目依赖、运行要求与开发命令
-├─ pnpm-lock.yaml                          # 锁定依赖版本，保证安装一致性
-├─ pnpm-workspace.yaml                     # 依赖版本覆盖、构建许可与安装策略
-├─ next.config.ts                          # Next.js 构建、服务端依赖与安全响应头
-├─ next-env.d.ts                           # Next.js 自动生成的类型声明入口
-├─ tsconfig.json                           # TypeScript 检查、编译范围与路径别名
-├─ postcss.config.mjs                      # 接入 Tailwind CSS 的 PostCSS 插件
-├─ eslint.config.mjs                       # Next.js、TypeScript 代码检查规则
-├─ drizzle.config.ts                       # 数据库连接、表定义与迁移生成配置
-├─ vitest.config.ts                        # 单元与集成测试、数据库初始化配置
-├─ vitest.unit.config.ts                   # 无数据库单元测试配置
-├─ playwright.config.ts                    # 通用浏览器测试与开发服务启动配置
-├─ playwright.*.config.ts                  # 按 Star、AI、搜索、Skill 等场景配置测试
-├─ AGENTS.md                               # 编码代理须遵循的 Next.js 版本约定
-├─ CLAUDE.md                               # 引用 AGENTS.md，复用编码代理约定
-├─ CONTEXT.md                              # 领域术语与业务边界
-├─ CONTRIBUTING.md                         # 开发流程、验证要求与贡献约定
-├─ SECURITY.md                             # 授权、数据流与部署安全边界
-├─ CHANGELOG.md                            # 已完成变更与验证记录
-└─ README.md                               # 项目介绍、启动方法与目录导航
-```
+| 情况                    | 建议操作                                                                         |
+| ----------------------- | -------------------------------------------------------------------------------- |
+| 登录后提示未获准访问    | 让部署者核对 GitHub 数字 ID，并重新创建 Web / Worker 应用更新后的邀请名单        |
+| 连接 YouTube 按钮不可用 | 让部署者检查 Google OAuth 配置；普通用户无需填写 API Key                         |
+| 授权后仍提示失败        | 按页面错误与诊断编号排查；不要公开完整回调地址、Cookie、令牌或密钥               |
+| 导入后暂时没有更新      | 查看订阅同步状态、Worker 与来源范围；没有正式 Release 或符合窗口的视频时可以为空 |
+| 提示操作过频            | 根据提示稍后重试；外部操作与本地阅读限额分开，未耗尽的阅读操作仍可使用           |
+| 没有摘要或译文          | 可能未启用模型、预算受限、正文为空或过长；先读原文，失败后可按页面提示重试       |
+| 本机 3000 端口被占用    | 启动器不会终止其他程序；停止自己之前启动的服务，或调整 `APP_URL` 端口            |
 
 ## 开发与验证
+
+技术栈：Next.js 16 / React 19 / TypeScript 5.9、Tailwind 4、Radix、PostgreSQL 17、Drizzle、pg-boss、Better Auth、Vitest 与 Playwright。精确版本以锁文件为准，不需要 Redis。
 
 ```powershell
 pnpm typecheck
 pnpm lint
-pnpm test                # 需要 PostgreSQL，使用独立 news_test 数据库
-pnpm test:e2e            # 完整回归：独立 Demo Web/Worker + news_e2e_test
-pnpm test:e2e:search     # 相同隔离配置下的增量组合
-pnpm test:e2e:youtube    # 账号连接、关注导入、混合信息流与手机阅读
-pnpm build              # Web + Worker 构建，并验证生产 Worker 可由纯 Node 加载
-pnpm worker:check       # 检查已有 Worker 构建；不启动数据库、采集或模型任务
+pnpm test               # 独立 news_test，需 PostgreSQL
+pnpm test:e2e           # 完整 Demo 回归，独立 news_e2e_test
+pnpm test:e2e:server    # 邀请试用相关浏览器回归，使用独立构建目录
+pnpm build             # Web、Worker、生产迁移和纯 Node bundle 检查
+pnpm worker:check      # 仅检查现有 Worker 产物，不调用外部服务
 ```
 
-浏览器测试每轮重建专用 `news_e2e_test`、迁移并写入示例，关闭真实服务凭据，不复用日常库；勿将有价值的数据放入该库。自定义 E2E_DATABASE_URL 必须是无查询参数的本机 `*_e2e_test`，已有连接会阻止重建。优先使用 Windows Chrome；其他环境可先安装 Chromium。测试与开发约定见 [运行指南](docs/05-operations-and-quality.md)。
+测试库可被清理，不能保存有价值的数据；浏览器测试关闭真实 OAuth 与模型凭据。Windows 优先使用已安装 Chrome；其他环境先安装 Playwright Chromium。浏览器套件、类型检查与构建按顺序运行，避免争用生成目录。[贡献与测试约定](CONTRIBUTING.md)
 
-2026-11-05 聚合优化验收：**50 文件 / 267 项单元与数据库测试、完整 77 项 Demo 浏览器回归通过**；最终手机回执修正后两平台 16 项再验通过。类型、Lint、Web/Worker 构建及 Worker bundle 加载通过，新 Web/Worker 本机 ready、登录页/JS/CSS 200、受保护接口未登录 401；数据库备份隔离恢复一致。长列表、队列公平、导入恢复、AI 版本和短期数据清理逐项 review，证据见 [实施记录](docs/21-aggregation-optimization-progress.md)。真实 YouTube 授权与正式数据保留/删除仍待 E1，G4 暂缓。
+本轮文档发布前验证：289 项单元 / 数据库测试、完整 110 项浏览器测试、类型、Lint 和 Linux 生产镜像构建通过，5 张公开截图已更新。此前的服务器准备还完成了隔离部署与恢复演练；这些结果不是远程上线或长期使用验收。范围和结果见 [文档发布记录](docs/27-documentation-release.md) 与 [服务器试用验收](docs/26-server-invitation-trial.md)。
 
-2026-11-04 生产启动历史：修复共享错误类型把 Next 请求模块带入 Worker 的问题，新增纯 Node 生产 bundle 加载门禁。当轮通过 245 项单元/集成测试、14 项相关浏览器回归、类型、Lint 与构建；真实配置下 Web/Worker 启动、健康 ready，实际同步任务完成。随后用户使用已配置的 Google OAuth 客户端尝试授权，但回调后续处理失败，联调现已暂停，自己的关注读取仍未验收。[启动与授权记录](docs/19-youtube-account-following.md)
+### 目录导航
 
-此前账号关注版本验证：**42 文件、245 项单元/集成测试通过，完整 Playwright Demo 回归 58 项通过，类型、Lint 与 Web/Worker 构建通过**；逐阶段 review、手机弹窗检查、日常库 0006 升级与隔离恢复、生产路由鉴权/回调冒烟均通过。当轮验收时未配置自己的 Google OAuth 客户端，真实关注和 G4 未验收。[账号与关注记录](docs/19-youtube-account-following.md)
+| 路径                                 | 内容                                         |
+| ------------------------------------ | -------------------------------------------- |
+| `src/app/`、`src/components/`        | 页面、阅读器、订阅、账号连接与设置           |
+| `src/server/`、`src/worker/`         | 用户鉴权、平台适配、同步、AI、队列与后台进程 |
+| `src/shared/`                        | 前后端共用类型、平台及信息流规则             |
+| `drizzle/`                           | 0001–0007 数据库迁移                         |
+| `deploy/`、`compose.production.yaml` | 生产配置生成、HTTPS、健康检查、备份及恢复    |
+| `scripts/`、`tests/`                 | 启动、维护、构建和隔离测试                   |
+| `docs/assets/`                       | README 当前应用截图，全部使用演示数据        |
+| `docs/`                              | 需求、架构、路线、边界及各轮验收记录         |
 
-此前适配层初版的历史快照：**40 文件、226 项单元/集成测试通过，完整 Playwright Demo 回归 56 项通过，类型、Lint 与 Web/Worker 构建通过**。逐阶段 review、手机/桌面检查、日常库 0005 升级与隔离恢复、生产登录页/静态资源/ready 冒烟均完成。YouTube 真实 API Key 和后台网络尚未联调；G4 继续暂缓，自动化不替代真实使用验收。[本轮记录](docs/18-platform-adapters.md) · [历史验收](docs/07-mvp-validation.md)
+## 当前保留事项
 
-## 当前边界与后续
-
-- 仓库默认每 15 分钟、博主每 30 分钟检查；Star 发现每 5 分钟。需要数据库与 Worker 持续运行，不是实时推送。
-- 博主版本事件最多覆盖 GitHub 最近 30 天、300 条公开活动；事件接口还可能延迟 30 秒至 6 小时，无法保证窗口外补查。
-- 每用户最多 100 个项目、50 个博主；following 每页读取 50 人并支持继续加载，信息流服务端每页返回 30 条。项目搜索最多浏览前 1000 个匹配。
-- 全文翻译上限 16000 字符，超限时页面会明确提示并保留原文阅读；Markdown 正文已支持安全图片、相对链接、README 正文来源直达和图片失败回退。超大正文的进一步性能优化仍待完善。
-- X/Twitter 和 RSS 目前只完成路线预研说明，尚未接入；也不包含 PR/Issue/提交动态、私有仓库、邮件、浏览器通知或公开注册。
-- 没有完成公开部署、长期连续试用、自动备份计划或正式安全审计；本机隔离恢复演练已验证，步骤见运行指南。
-
-G3 当前约定的站内阅读闭环已完成。项目目前是 Demo，尚无真实用户持续试用，因此 G4（至少 7 天真实使用及源站抽样）继续暂缓。启动就绪、分页与计数、请求轮询、长列表/搜索性能、同步续传、失败恢复和本机备份已补齐；逐项 review 见 [八项收尾](docs/16-demo-hardening.md)。本机 10,000 条数据实测中，30 条预览载荷比完整条目减少约 92.5%，索引后元数据搜索 p95 从约 808 ms 降到 13.5 ms；该结果不是生产 SLA。用户已确认先建公共适配层并实现 YouTube；后续 Bilibili 等平台复用该接口，逐个平台验证，不以 G4 暂缓代替真实接口验收。[开发路线](docs/04-development-plan.md)
+- G4 仍等待至少 7 天真实持续使用及源站抽样；目前不宣称已经完成。
+- YouTube 完整平台内容生命周期存在缺口，持续同步、真实简介翻译与撤销后重连仍待验收，按用户决定暂缓；不因登录成功或部署通过而记为完成。
+- GitHub 仓库默认每 15 分钟、开发者每 30 分钟检查；YouTube 默认每 180 分钟检查。需要后台 Worker 持续运行，不是实时推送。
+- 首次 YouTube 同步只收录近 30 天最多 20 条，每轮最多 250 项候选；不下载字幕、音视频或嵌入播放器。
+- 全文 / 简介翻译上限 16000 字符，超限保留原文；GitHub 个人事件窗口有边界，不能保证历史回补。[订阅范围](docs/11-github-following-scope.md)
+- Bilibili、X / Twitter、RSS 尚未接入；不支持私有仓库、邮件或公开注册。正式安全审计、服务器容量和异机容灾尚未验收。
 
 ## 文档导航
 
-- [产品需求](docs/01-product-requirements.md) · [技术架构](docs/02-architecture.md) · [界面规范](docs/03-ui-design.md)
-- [开发路线](docs/04-development-plan.md) · [运行指南](docs/05-operations-and-quality.md) · [决策记录](docs/06-decisions.md)
-- [验收记录](docs/07-mvp-validation.md) · [Star 跟踪](docs/08-starred-tracking.md) · [AI 联调](docs/09-ai-connection-status.md)
-- [Trending 与对照翻译](docs/10-discovery-and-bilingual.md) · [博主与项目规则](docs/11-github-following-scope.md)
-- [授权自动续期](docs/12-github-auth-renewal.md) · [公开项目搜索](docs/13-github-project-search.md)
-- [跨平台扩展预研](docs/14-platform-expansion.md) · [领域词汇](CONTEXT.md)
-- [Demo 八项收尾](docs/16-demo-hardening.md) · [本地备份恢复与诊断](docs/17-database-maintenance.md)
-- [平台适配层与 YouTube](docs/18-platform-adapters.md)
-- [YouTube 账号与关注导入](docs/19-youtube-account-following.md)
-- [聚合阅读器优化开发方案：借鉴、改进与分项验收](docs/20-aggregation-optimization-roadmap.md)
-- [聚合优化实施记录与性能证据](docs/21-aggregation-optimization-progress.md) · [数据生命周期与恢复边界](docs/22-data-lifecycle-and-recovery.md)
-- [前端优化方案](docs/frontend-optimization-plan.md) · [基线审计](docs/frontend-optimization-baseline.md)
-- [前端阶段 1–3](docs/frontend-optimization-stage1.md) · [阶段 4–7](docs/frontend-optimization-stage4.md) · [阶段 7 收尾](docs/frontend-optimization-stage7.md)
-- [变更记录](CHANGELOG.md) · [安全说明](SECURITY.md) · [开发贡献](CONTRIBUTING.md)
+- [产品需求](docs/01-product-requirements.md) · [技术架构](docs/02-architecture.md) · [界面规范](docs/03-ui-design.md) · [领域词汇](CONTEXT.md)
+- [开发路线](docs/04-development-plan.md) · [本地运行与模型设置](docs/05-operations-and-quality.md) · [安全与数据](SECURITY.md) · [变更记录](CHANGELOG.md)
+- [服务器邀请试用与上线](docs/26-server-invitation-trial.md) · [文档与截图发布](docs/27-documentation-release.md) · [开发贡献](CONTRIBUTING.md)
+- [聚合阅读器重构](docs/23-aggregation-reader-redesign.md) · [阅读体验复核](docs/24-reader-polish-review.md)
+- [YouTube 账号配置](docs/19-youtube-account-following.md) · [真实闭环与生命周期验收](docs/25-youtube-live-acceptance.md) · [数据生命周期边界](docs/22-data-lifecycle-and-recovery.md)
+- [平台适配层](docs/18-platform-adapters.md) · [优化路线](docs/20-aggregation-optimization-roadmap.md) · [历史实施与性能证据](docs/21-aggregation-optimization-progress.md)

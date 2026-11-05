@@ -1,5 +1,6 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import * as Dialog from '@radix-ui/react-dialog';
 import {
   Bell,
   Check,
@@ -7,13 +8,14 @@ import {
   Inbox,
   Loader2,
   Plus,
-  Radio,
   RefreshCw,
-  Settings2,
-  Sparkles,
   Bookmark,
   PanelsTopLeft,
-  BookOpen,
+  Menu,
+  X,
+  Circle,
+  LayoutList,
+  Columns2,
 } from 'lucide-react';
 import type { Bootstrap, FeedItem, FeedPreview, FeedPage, Preferences } from '@/shared/types';
 import { Sidebar } from './sidebar';
@@ -47,6 +49,7 @@ const titles: Record<string, string> = {
 type FeedView = 'feed' | 'saved';
 type FeedContext = {
   type: string;
+  platform: string;
   search: string;
   unread: boolean;
   source: string;
@@ -54,6 +57,7 @@ type FeedContext = {
 };
 const emptyFeedContext = (): FeedContext => ({
   type: 'all',
+  platform: 'all',
   search: '',
   unread: false,
   source: '',
@@ -101,6 +105,8 @@ export function ReaderApp({
     selectedRef.current = selectedId;
   }, [selectedId]);
   const [type, setType] = useState('all');
+  const [platform, setPlatform] = useState('all');
+  const [readerLayout, setReaderLayout] = useState<'list' | 'split'>('list');
   const [search, setSearch] = useState('');
   const [unread, setUnread] = useState(false);
   const [source, setSource] = useState('');
@@ -143,6 +149,7 @@ export function ReaderApp({
     }
   }, [hasActiveJobs]);
   const [noticeOpen, setNoticeOpen] = useState(false);
+  const [navigationOpen, setNavigationOpen] = useState(false);
   const noticeButtonRef = useRef<HTMLButtonElement | null>(null);
   const lastSelectedRef = useRef(selectedId);
   const [discoveryRefresh, setDiscoveryRefresh] = useState(0);
@@ -164,7 +171,7 @@ export function ReaderApp({
     setData((current) => ({ ...current, items: items.slice(-300) }));
   }, []);
   const feed = useFeed(
-    { view, type, search, unread, source },
+    { view, type, search, unread, source, ...(platform !== 'all' ? { platform } : {}) },
     initialPage,
     isFeedView(view),
     ingestFeedItems,
@@ -268,6 +275,7 @@ export function ReaderApp({
     if (!isFeedView(view)) return;
     feedContexts.current[view] = {
       type,
+      platform,
       search,
       unread,
       source,
@@ -277,6 +285,7 @@ export function ReaderApp({
   function restoreFeedContext(nextView: FeedView) {
     const context = feedContexts.current[nextView];
     setType(context.type);
+    setPlatform(context.platform);
     setSearch(context.search);
     setUnread(context.unread);
     setSource(context.source);
@@ -390,6 +399,7 @@ export function ReaderApp({
   const selected = detail?.id === selectedId ? detail : null;
   const selectedJobs = data.jobs.filter((job) => job.targetId === selectedId);
   function navigate(next: string) {
+    setNavigationOpen(false);
     captureFeedContext();
     const nextView = normalizeView(next);
     setView(nextView);
@@ -399,6 +409,7 @@ export function ReaderApp({
       restoreFeedContext(nextView);
     } else {
       setType('all');
+      setPlatform('all');
       setSearch('');
       setSource('');
       setUnread(false);
@@ -471,7 +482,16 @@ export function ReaderApp({
         await requestJson(
           '/api/feed/read',
           'POST',
-          Object.fromEntries(feedParams({ view, type, search, unread, source })),
+          Object.fromEntries(
+            feedParams({
+              view,
+              type,
+              search,
+              unread,
+              source,
+              ...(platform !== 'all' ? { platform } : {}),
+            }),
+          ),
         );
         feed.invalidate();
         setData((current) => ({
@@ -497,32 +517,66 @@ export function ReaderApp({
         (job) => job.kind === 'translation' && ['pending', 'running'].includes(job.status),
       ));
   const navigation = [
-    { id: 'today', label: '精选', icon: Sparkles },
-    { id: 'feed', label: '更新', icon: Inbox },
+    { id: 'feed', label: '信息流', icon: Inbox },
+    { id: 'unread', label: '未读', icon: Circle },
     { id: 'saved', label: '收藏', icon: Bookmark },
     { id: 'subscriptions', label: '订阅', icon: PanelsTopLeft },
   ];
+  function openFeed(unreadOnly: boolean) {
+    navigate('feed');
+    setUnread(unreadOnly);
+  }
+  const renderSidebar = (idPrefix: string) => (
+    <Sidebar
+      data={{ ...data, feed: feedPage }}
+      view={view}
+      unread={unread}
+      platform={platform}
+      idPrefix={idPrefix}
+      navigate={navigate}
+      onFeedView={openFeed}
+      onPlatform={(value) => {
+        navigate('feed');
+        setPlatform(value);
+        setSource('');
+      }}
+      onAdd={() => {
+        setNavigationOpen(false);
+        setAddOpen(true);
+      }}
+      selectSource={(id) => {
+        navigate('feed');
+        setSource(id);
+      }}
+    />
+  );
   return (
     <div
       className={`app-shell ${data.preferences.compact ? 'compact' : ''} ${selectedId ? 'has-selection' : ''}`}
     >
-      <Sidebar
-        data={{ ...data, feed: feedPage }}
-        view={view}
-        navigate={navigate}
-        onAdd={() => setAddOpen(true)}
-        selectSource={(id) => {
-          navigate('feed');
-          setSource(id);
-        }}
-      />
+      {renderSidebar('desktop')}
       <main className="main-shell">
         <header className="topbar">
           <div className="top-breadcrumb">
-            <span className="mobile-brand">
-              <Radio size={20} />
-              知更
-            </span>
+            <Dialog.Root open={navigationOpen} onOpenChange={setNavigationOpen}>
+              <Dialog.Trigger asChild>
+                <button className="icon-button navigation-trigger" aria-label="打开导航">
+                  <Menu size={20} />
+                </button>
+              </Dialog.Trigger>
+              <Dialog.Portal>
+                <Dialog.Overlay className="navigation-overlay" />
+                <Dialog.Content className="navigation-drawer" aria-describedby={undefined}>
+                  <Dialog.Title className="sr-only">聚合阅读导航</Dialog.Title>
+                  <Dialog.Close asChild>
+                    <button className="icon-button navigation-close" aria-label="关闭导航">
+                      <X size={18} />
+                    </button>
+                  </Dialog.Close>
+                  {renderSidebar('mobile')}
+                </Dialog.Content>
+              </Dialog.Portal>
+            </Dialog.Root>
             <span className="desktop-workspace">我的工作空间</span>
             <ChevronRight size={13} />
             <strong ref={routeTitleRef} tabIndex={-1} aria-live="polite" aria-atomic="true">
@@ -553,15 +607,6 @@ export function ReaderApp({
             <Button size="small" onClick={() => setAddOpen(true)}>
               <Plus size={15} />
               <span>添加订阅</span>
-            </Button>
-            <Button
-              size="small"
-              aria-label="Skill 目录"
-              title="Skill 目录"
-              onClick={() => navigate('skills')}
-            >
-              <BookOpen size={15} />
-              <span>Skill 目录</span>
             </Button>
           </div>
         </header>
@@ -600,7 +645,7 @@ export function ReaderApp({
           />
         )}
         {view === 'skills' ? (
-          <SkillsPanel />
+          <SkillsPanel localEnabled={data.services.localSkills ?? false} />
         ) : view === 'today' ? (
           <TrendingPanel
             subscriptions={data.subscriptions}
@@ -610,13 +655,38 @@ export function ReaderApp({
             refreshVersion={discoveryRefresh}
           />
         ) : ['feed', 'saved'].includes(view) ? (
-          <div className="reader-grid">
+          <div
+            className={`reader-grid aggregation-reader ${readerLayout === 'split' ? 'split-layout' : 'list-layout'}`}
+          >
             <FeedList
               items={filtered}
               selectedId={selectedId}
               view={view}
               type={type}
               setType={setType}
+              platform={platform}
+              setPlatform={setPlatform}
+              timezone={data.preferences.timezone}
+              layoutControl={
+                <div className="reader-layout-switch" role="group" aria-label="阅读布局">
+                  <button
+                    aria-label="列表布局"
+                    title="列表布局"
+                    aria-pressed={readerLayout === 'list'}
+                    onClick={() => setReaderLayout('list')}
+                  >
+                    <LayoutList size={16} />
+                  </button>
+                  <button
+                    aria-label="分栏阅读"
+                    title="分栏阅读"
+                    aria-pressed={readerLayout === 'split'}
+                    onClick={() => setReaderLayout('split')}
+                  >
+                    <Columns2 size={16} />
+                  </button>
+                </div>
+              }
               search={search}
               setSearch={setSearch}
               unread={unread}
@@ -650,6 +720,7 @@ export function ReaderApp({
                 setSource('');
                 setSearch('');
                 setType('all');
+                setPlatform('all');
                 setUnread(false);
               }}
             />
@@ -814,23 +885,36 @@ export function ReaderApp({
           <button
             key={id}
             type="button"
-            onClick={() => navigate(id)}
-            className={view === id ? 'active' : ''}
-            aria-current={view === id ? 'page' : undefined}
+            onClick={() =>
+              id === 'unread' ? openFeed(true) : id === 'feed' ? openFeed(false) : navigate(id)
+            }
+            className={
+              (
+                id === 'unread'
+                  ? view === 'feed' && unread
+                  : id === 'feed'
+                    ? view === 'feed' && !unread
+                    : view === id
+              )
+                ? 'active'
+                : ''
+            }
+            aria-current={
+              (
+                id === 'unread'
+                  ? view === 'feed' && unread
+                  : id === 'feed'
+                    ? view === 'feed' && !unread
+                    : view === id
+              )
+                ? 'page'
+                : undefined
+            }
           >
             <Icon size={19} />
             <span>{label}</span>
           </button>
         ))}
-        <button
-          type="button"
-          onClick={() => navigate('settings')}
-          className={view === 'settings' ? 'active' : ''}
-          aria-current={view === 'settings' ? 'page' : undefined}
-        >
-          <Settings2 size={19} />
-          <span>设置</span>
-        </button>
       </nav>
       <AddSubscription
         key={addMethod}

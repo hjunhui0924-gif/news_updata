@@ -216,8 +216,12 @@ function SkillAiSummary({
           <p>{detail.description}</p>
         </div>
         <div className="skill-guide-empty-facts">
-          <span><BookOpen size={14} /> 保留完整原文</span>
-          <span><ListChecks size={14} /> 摘要后续可生成</span>
+          <span>
+            <BookOpen size={14} /> 保留完整原文
+          </span>
+          <span>
+            <ListChecks size={14} /> 摘要后续可生成
+          </span>
         </div>
         <Button onClick={generate} disabled={busy || ai.summaryStatus === 'disabled'}>
           {busy || ai.summaryStatus === 'pending' ? (
@@ -266,7 +270,9 @@ function SkillAiSummary({
         </div>
       </div>
       <div className="skill-guide-section-heading">
-        <div className="skill-guide-section-icon"><Target size={16} /></div>
+        <div className="skill-guide-section-icon">
+          <Target size={16} />
+        </div>
         <div>
           <h3>适用场景</h3>
           <p>先判断它是否适合当前任务，再开始阅读具体步骤。</p>
@@ -281,7 +287,9 @@ function SkillAiSummary({
         ))}
       </div>
       <div className="skill-guide-section-heading skill-guide-workflow-heading">
-        <div className="skill-guide-section-icon"><ListChecks size={16} /></div>
+        <div className="skill-guide-section-icon">
+          <ListChecks size={16} />
+        </div>
         <div>
           <h3>怎么使用</h3>
           <p>把 AI 摘要整理成一条可快速浏览的工作流。</p>
@@ -307,7 +315,11 @@ function SkillAiSummary({
           <ShieldCheck size={18} />
           <div>
             <h3>使用前留意</h3>
-          <ul>{summary.cautions.map((item) => <li key={item}>{item}</li>)}</ul>
+            <ul>
+              {summary.cautions.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
           </div>
         </section>
       )}
@@ -315,7 +327,9 @@ function SkillAiSummary({
         <details className="skill-ai-evidence skill-guide-evidence">
           <summary>查看摘要依据（{summary.evidence.length} 段）</summary>
           {summary.evidence.map((item) => (
-            <p key={item.id}><strong>[{item.id}]</strong> {item.text}</p>
+            <p key={item.id}>
+              <strong>[{item.id}]</strong> {item.text}
+            </p>
           ))}
         </details>
       )}
@@ -323,7 +337,13 @@ function SkillAiSummary({
   );
 }
 
-function SkillCard({ skill, onSelect }: { skill: SkillSummary; onSelect: (skill: SkillSummary) => void }) {
+function SkillCard({
+  skill,
+  onSelect,
+}: {
+  skill: SkillSummary;
+  onSelect: (skill: SkillSummary) => void;
+}) {
   return (
     <article className="skill-card">
       <button
@@ -343,7 +363,9 @@ function SkillCard({ skill, onSelect }: { skill: SkillSummary; onSelect: (skill:
           <span className="skill-card-description">{skill.description}</span>
           {skill.tags.length > 0 && (
             <span className="skill-card-tags" aria-label="Skill 标签">
-              {skill.tags.slice(0, 3).map((tag) => <span key={tag}>{tag}</span>)}
+              {skill.tags.slice(0, 3).map((tag) => (
+                <span key={tag}>{tag}</span>
+              ))}
               {skill.tags.length > 3 && <span>+{skill.tags.length - 3}</span>}
             </span>
           )}
@@ -449,7 +471,12 @@ function SkillDetail({
         </div>
         <div className="skill-detail-actions">
           {detail.repositoryUrl && (
-            <a className="button small primary" href={detail.repositoryUrl} target="_blank" rel="noreferrer">
+            <a
+              className="button small primary"
+              href={detail.repositoryUrl}
+              target="_blank"
+              rel="noreferrer"
+            >
               <Github size={14} /> 打开项目
             </a>
           )}
@@ -518,13 +545,17 @@ function SkillDetail({
   );
 }
 
-export function SkillsPanel() {
-  const [source, setSource] = useState<SkillSource>('local');
+export function SkillsPanel({ localEnabled = false }: { localEnabled?: boolean }) {
+  const sources: SkillSource[] = localEnabled ? ['local', 'github'] : ['github'];
+  const [source, setSource] = useState<SkillSource>(localEnabled ? 'local' : 'github');
   const [catalogs, setCatalogs] = useState<Record<SkillSource, SkillCatalogPage>>({
     local: emptyCatalog,
     github: emptyCatalog,
   });
-  const [loaded, setLoaded] = useState<Record<SkillSource, boolean>>({ local: false, github: false });
+  const [loaded, setLoaded] = useState<Record<SkillSource, boolean>>({
+    local: false,
+    github: false,
+  });
   const [selected, setSelected] = useState<SkillSummary | null>(null);
   const [detail, setDetail] = useState<SkillDetails | null>(null);
   const [query, setQuery] = useState('');
@@ -577,23 +608,43 @@ export function SkillsPanel() {
 
   const catalog = catalogs[source];
   const categoryCounts = useMemo(
-    () => new Map(skillCategories.map((value) => [value, catalog.skills.filter((skill) => skill.category === value).length])),
+    () =>
+      new Map(
+        skillCategories.map((value) => [
+          value,
+          catalog.skills.filter((skill) => skill.category === value).length,
+        ]),
+      ),
     [catalog.skills],
   );
   const tagCounts = useMemo(
-    () => new Map(skillTags.map((value) => [value, catalog.skills.filter((skill) => skill.tags.includes(value)).length])),
+    () =>
+      new Map(
+        skillTags.map((value) => [
+          value,
+          catalog.skills.filter((skill) => skill.tags.includes(value)).length,
+        ]),
+      ),
     [catalog.skills],
   );
   const availableTags = skillTags.filter((value) => tagCounts.get(value));
   const visibleSkills = useMemo(() => {
     const value = query.trim().toLowerCase();
     if (!value && category === 'all' && selectedTags.length === 0) return catalog.skills;
-    return catalog.skills.filter((skill) =>
-      (category === 'all' || skill.category === category) &&
-      selectedTags.every((tag) => skill.tags.includes(tag)) &&
-      [skill.name, skill.description, skill.repository, skill.location, skill.category, ...skill.tags]
-        .filter(Boolean)
-        .some((field) => field!.toLowerCase().includes(value)),
+    return catalog.skills.filter(
+      (skill) =>
+        (category === 'all' || skill.category === category) &&
+        selectedTags.every((tag) => skill.tags.includes(tag)) &&
+        [
+          skill.name,
+          skill.description,
+          skill.repository,
+          skill.location,
+          skill.category,
+          ...skill.tags,
+        ]
+          .filter(Boolean)
+          .some((field) => field!.toLowerCase().includes(value)),
     );
   }, [catalog.skills, category, query, selectedTags]);
 
@@ -689,7 +740,9 @@ export function SkillsPanel() {
           <div className="skills-error" role="alert">
             <AlertCircle size={16} />
             <span>{detailError || 'Skill 详情暂时无法读取。'}</span>
-            <button type="button" onClick={() => void retryDetail()}>重试</button>
+            <button type="button" onClick={() => void retryDetail()}>
+              重试
+            </button>
           </div>
         )}
       </section>
@@ -701,7 +754,11 @@ export function SkillsPanel() {
         <div>
           <span className="eyebrow">KNOW YOUR TOOLS</span>
           <h1>Skill 目录</h1>
-          <p>查看本机已经安装的 Skill，也可以浏览 GitHub Star 项目中的可用 Skill。</p>
+          <p>
+            {localEnabled
+              ? '查看本机已经安装的 Skill，也可以浏览 GitHub Star 项目中的可用 Skill。'
+              : '浏览你自己的 GitHub Star 项目中的可用 Skill。服务器本机目录不向用户开放。'}
+          </p>
         </div>
         <Button size="small" onClick={() => void load(source)} disabled={loading}>
           {loading ? <Loader2 className="spin" size={15} /> : <RefreshCw size={15} />}
@@ -715,10 +772,14 @@ export function SkillsPanel() {
         <span>
           <BookOpen size={15} /> {sourceLabel(source)}
         </span>
-        {catalog.username && <span className="skills-summary-user"><Github size={14} /> {catalog.username} 的 Star</span>}
+        {catalog.username && (
+          <span className="skills-summary-user">
+            <Github size={14} /> {catalog.username} 的 Star
+          </span>
+        )}
       </div>
       <div className="segmented skills-tabs" role="tablist" aria-label="Skill 来源">
-        {(['local', 'github'] as SkillSource[]).map((value) => (
+        {sources.map((value) => (
           <button
             key={value}
             type="button"
@@ -731,6 +792,7 @@ export function SkillsPanel() {
             onKeyDown={(event) => {
               if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
               event.preventDefault();
+              if (sources.length < 2) return;
               const nextSource = value === 'local' ? 'github' : 'local';
               changeSource(nextSource);
               event.currentTarget.parentElement
@@ -745,7 +807,13 @@ export function SkillsPanel() {
           </button>
         ))}
       </div>
-      <div id="skills-source-panel" className="skills-toolbar" role="tabpanel" tabIndex={0} aria-labelledby={`skills-source-${source}`}>
+      <div
+        id="skills-source-panel"
+        className="skills-toolbar"
+        role="tabpanel"
+        tabIndex={0}
+        aria-labelledby={`skills-source-${source}`}
+      >
         <label className="search-box" htmlFor="skill-search">
           <Search size={15} />
           <input
@@ -756,7 +824,12 @@ export function SkillsPanel() {
             onChange={(event) => setQuery(event.target.value)}
           />
           {query && (
-            <button type="button" className="skill-search-clear" aria-label="清除 Skill 搜索" onClick={() => setQuery('')}>
+            <button
+              type="button"
+              className="skill-search-clear"
+              aria-label="清除 Skill 搜索"
+              onClick={() => setQuery('')}
+            >
               <X size={14} />
             </button>
           )}
@@ -775,22 +848,28 @@ export function SkillsPanel() {
             >
               全部 <small>{catalog.skills.length}</small>
             </button>
-            {skillCategories.filter((value) => categoryCounts.get(value)).map((value) => (
-              <button
-                type="button"
-                key={value}
-                className={category === value ? 'active' : ''}
-                aria-pressed={category === value}
-                onClick={() => setCategory(value)}
-              >
-                {value} <small>{categoryCounts.get(value)}</small>
-              </button>
-            ))}
+            {skillCategories
+              .filter((value) => categoryCounts.get(value))
+              .map((value) => (
+                <button
+                  type="button"
+                  key={value}
+                  className={category === value ? 'active' : ''}
+                  aria-pressed={category === value}
+                  onClick={() => setCategory(value)}
+                >
+                  {value} <small>{categoryCounts.get(value)}</small>
+                </button>
+              ))}
           </div>
         </div>
         <div className="skill-filter-row">
           <span className="skill-filter-label">标签</span>
-          <div className="skill-filter-options skill-tag-options" role="group" aria-label="Skill 标签">
+          <div
+            className="skill-filter-options skill-tag-options"
+            role="group"
+            aria-label="Skill 标签"
+          >
             {availableTags.map((value) => {
               const active = selectedTags.includes(value);
               return (
@@ -830,7 +909,9 @@ export function SkillsPanel() {
         <div className="skills-error" role="alert">
           <AlertCircle size={16} />
           <span>{error}</span>
-          <button type="button" onClick={() => void load(source)} disabled={loading}>重试</button>
+          <button type="button" onClick={() => void load(source)} disabled={loading}>
+            重试
+          </button>
         </div>
       )}
       {loading && !catalog.skills.length ? (
@@ -839,25 +920,46 @@ export function SkillsPanel() {
         </div>
       ) : visibleSkills.length ? (
         <div className="skill-list">
-          {visibleSkills.map((skill) => <SkillCard key={skill.id} skill={skill} onSelect={selectSkill} />)}
+          {visibleSkills.map((skill) => (
+            <SkillCard key={skill.id} skill={skill} onSelect={selectSkill} />
+          ))}
         </div>
       ) : (
         <div className="skills-empty">
           <BookOpen size={30} />
-          <h2>{query || category !== 'all' || selectedTags.length > 0 ? '没有匹配的 Skill' : source === 'github' ? '暂时没有读取到 Star Skill' : '本机还没有可识别的 Skill'}</h2>
-          <p>{query || category !== 'all' || selectedTags.length > 0 ? '换一个关键词、分类或标签组合试试。' : source === 'github' ? '请先连接 GitHub，或确认 Star 项目包含 SKILL.md。' : 'Skill 目录需要包含带有 name 和 description 的 SKILL.md。'}</p>
+          <h2>
+            {query || category !== 'all' || selectedTags.length > 0
+              ? '没有匹配的 Skill'
+              : source === 'github'
+                ? '暂时没有读取到 Star Skill'
+                : '本机还没有可识别的 Skill'}
+          </h2>
+          <p>
+            {query || category !== 'all' || selectedTags.length > 0
+              ? '换一个关键词、分类或标签组合试试。'
+              : source === 'github'
+                ? '请先连接 GitHub，或确认 Star 项目包含 SKILL.md。'
+                : 'Skill 目录需要包含带有 name 和 description 的 SKILL.md。'}
+          </p>
         </div>
       )}
       {catalog.nextPage && !query && (
         <div className="skills-load-more">
-          <Button size="small" onClick={() => void load(source, catalog.nextPage!, true)} disabled={loading}>
-            {loading ? <Loader2 className="spin" size={14} /> : <RefreshCw size={14} />} 加载更多 Star Skill
+          <Button
+            size="small"
+            onClick={() => void load(source, catalog.nextPage!, true)}
+            disabled={loading}
+          >
+            {loading ? <Loader2 className="spin" size={14} /> : <RefreshCw size={14} />} 加载更多
+            Star Skill
           </Button>
           {catalog.truncated && <span>仓库文件树较大，部分目录可能未被 GitHub 返回。</span>}
         </div>
       )}
       {selected && loading && (
-        <div className="skill-detail-loading" role="status"><Loader2 className="spin" size={18} /> 正在读取 Skill 说明…</div>
+        <div className="skill-detail-loading" role="status">
+          <Loader2 className="spin" size={18} /> 正在读取 Skill 说明…
+        </div>
       )}
     </section>
   );

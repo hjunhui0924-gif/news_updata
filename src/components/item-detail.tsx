@@ -93,10 +93,14 @@ export function ItemDetail({
     );
   const translationTooLong = item.body.length > 16000 && !item.translation;
   const isVideo = item.type === 'video';
-  const detailTab = item.type === 'video' ? 'original' : tab;
+  const hasBody = !!item.body.trim();
+  const detailTab = isVideo && tab !== 'translation' ? 'original' : tab;
   const tabs =
     item.type === 'video'
-      ? [{ key: 'original' as const, label: '视频简介', icon: FileText }]
+      ? [
+          { key: 'original' as const, label: '视频简介', icon: FileText },
+          { key: 'translation' as const, label: '简介对照翻译', icon: Languages },
+        ]
       : [
           { key: 'summary' as const, label: '中文摘要', icon: Sparkles },
           { key: 'translation' as const, label: '对照翻译', icon: Languages },
@@ -390,7 +394,7 @@ export function ItemDetail({
           {detailTab === 'original' &&
             (item.type === 'video' ? (
               <div className="video-description">
-                {item.body || '该视频没有公开简介，可前往原站观看。'}
+                {hasBody ? item.body : '该视频没有公开简介，可前往原站观看。'}
               </div>
             ) : item.body ? (
               <Markdown text={item.body} baseUrl={item.contentUrl ?? item.url} />
@@ -402,28 +406,53 @@ export function ItemDetail({
               </div>
             ))}
           {detailTab === 'translation' &&
-            (item.language === 'zh' ? (
-              <Markdown text={item.body} baseUrl={item.contentUrl ?? item.url} />
+            (!hasBody ? (
+              <div className="empty-state">
+                <FileText size={28} />
+                <h3>{isVideo ? '该视频没有公开简介' : '暂无可供翻译的正文'}</h3>
+                <p>你仍可以前往来源网站查看内容。</p>
+              </div>
+            ) : item.language === 'zh' ? (
+              isVideo ? (
+                <>
+                  <p className="video-translation-note">简介已是中文，无需翻译。</p>
+                  <div className="video-description" lang="zh-CN">
+                    {item.body}
+                  </div>
+                </>
+              ) : (
+                <Markdown text={item.body} baseUrl={item.contentUrl ?? item.url} />
+              )
             ) : item.translation ? (
               <BilingualTranslation item={item} />
             ) : translationTooLong ? (
               <div className="translation-limit-note" role="note">
                 <Languages size={28} />
-                <h3>原文超过 16000 字符</h3>
-                <p>当前版本不生成超长全文对照译文，请切换到「原文」按 Markdown 结构阅读。</p>
+                <h3>{isVideo ? '简介超过 16000 字符' : '原文超过 16000 字符'}</h3>
+                <p>
+                  {isVideo
+                    ? '当前不生成超长简介译文，请切换到「视频简介」阅读作者原文。'
+                    : '当前版本不生成超长全文对照译文，请切换到「原文」按 Markdown 结构阅读。'}
+                </p>
               </div>
             ) : (
               <div className="ai-empty">
                 <Languages size={30} />
                 <h3 aria-live={translationBusy ? 'polite' : undefined}>
-                  {translationBusy ? '翻译任务正在处理…' : '用熟悉的语言，读懂细节'}
+                  {translationBusy
+                    ? '翻译任务正在处理…'
+                    : isVideo
+                      ? '对照阅读作者的视频简介'
+                      : '用熟悉的语言，读懂细节'}
                 </h3>
                 <p>
                   {item.demo
                     ? '体验按需翻译流程，演示译文已预先编写，不消耗模型额度。'
                     : !aiEnabled
-                      ? 'AI 服务当前关闭，暂时无法翻译。你可以切换到「原文」阅读更新。'
-                      : '点击下方按钮生成中文译文，完成后会保存，后续打开可直接阅读。'}
+                      ? `AI 服务当前关闭，暂时无法翻译。你可以切换到「${isVideo ? '视频简介' : '原文'}」阅读。`
+                      : isVideo
+                        ? '仅翻译作者提供的简介，不包含字幕或视频全文。按需生成，完成后会保存供后续阅读。'
+                        : '点击下方按钮生成中文译文，完成后会保存，后续打开可直接阅读。'}
                 </p>
                 {errors?.translation && (
                   <p className="form-error" role="alert">
@@ -433,14 +462,14 @@ export function ItemDetail({
                 <Button
                   variant="primary"
                   onClick={translate}
-                  disabled={translationBusy || !item.body || (!item.demo && !aiEnabled)}
+                  disabled={translationBusy || !hasBody || (!item.demo && !aiEnabled)}
                 >
                   {translationBusy ? (
                     <Loader2 size={16} className="spin" />
                   ) : (
                     <Languages size={16} />
                   )}
-                  {errors?.translation ? '重试翻译' : '生成中文翻译'}
+                  {errors?.translation ? '重试翻译' : isVideo ? '翻译视频简介' : '生成中文翻译'}
                 </Button>
               </div>
             ))}

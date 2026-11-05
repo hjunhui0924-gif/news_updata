@@ -1,0 +1,33 @@
+{
+  admin off
+  log {
+    format filter {
+      wrap json
+      fields {
+        request>uri delete
+        request>headers delete
+        uri delete
+      }
+    }
+  }
+}
+
+{$APP_DOMAIN} {
+  encode zstd gzip
+  request_body {
+    max_size 128KB
+  }
+  header {
+    Strict-Transport-Security "max-age=31536000"
+    -Server
+  }
+  reverse_proxy web:3000 {
+    # One trusted proxy: overwrite client-supplied forwarding headers.
+    header_up X-Forwarded-For {remote_host}
+    header_up X-Real-IP {remote_host}
+  }
+  # OAuth codes/state occur in callback URLs. Do not retain raw access logs.
+  log {
+    output discard
+  }
+}

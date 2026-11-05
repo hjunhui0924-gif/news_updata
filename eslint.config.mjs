@@ -4,5 +4,9 @@ import nextTs from 'eslint-config-next/typescript';
 export default defineConfig([
   ...nextVitals,
   ...nextTs,
-  globalIgnores(['.next/**', '.next-e2e/**', 'dist/**', 'work/**', 'next-env.d.ts']),
+  {
+    files: ['**/*.cjs'],
+    rules: { '@typescript-eslint/no-require-imports': 'off' },
+  },
+  globalIgnores(['.next/**', '.next-e2e/**', '.next-trial-e2e/**', 'dist/**', 'work/**', 'next-env.d.ts']),
 ]);

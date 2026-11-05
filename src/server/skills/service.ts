@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { getConfig } from '../config';
+import { getConfig, localSkillsEnabled } from '../config';
 import { getPool } from '../db/client';
 import { GitHubError } from '../connectors/github';
 import { createUserGitHubConnector } from '../connectors/github-user';
@@ -43,6 +43,11 @@ export type SkillServiceDependencies = {
 
 const detailIdSchema = z.string().trim().min(1).max(1000);
 
+function assertLocalSkillsEnabled() {
+  if (!localSkillsEnabled())
+    throw new AccessError('服务器不提供本机 Skill 目录，请使用 GitHub Star 来源。', 403);
+}
+
 function publicSkill(skill: LocalSkillRecord): SkillSummary {
   return {
     id: skill.id,
@@ -67,10 +72,7 @@ function localRoots(dependencies?: SkillServiceDependencies) {
   return dependencies?.roots ?? getDefaultLocalSkillRoots();
 }
 
-async function resolveGitHub(
-  userId: string,
-  signal?: AbortSignal,
-): Promise<UserGitHubSkillClient> {
+async function resolveGitHub(userId: string, signal?: AbortSignal): Promise<UserGitHubSkillClient> {
   const { rows } = await getPool().query(
     'SELECT "accountId" FROM account WHERE "userId"=$1 AND "providerId"=$2',
     [userId, 'github'],
@@ -92,6 +94,7 @@ async function githubClient(
 export async function listLocalSkillCatalog(
   dependencies?: SkillServiceDependencies,
 ): Promise<SkillCatalogPage> {
+  assertLocalSkillsEnabled();
   const skills = await scanLocalSkills(localRoots(dependencies));
   return { skills: skills.map(publicSkill), nextPage: null, truncated: false };
 }
@@ -101,6 +104,7 @@ export async function getLocalSkillDetails(
   id: string,
   dependencies?: SkillServiceDependencies,
 ): Promise<SkillDetails | null> {
+  assertLocalSkillsEnabled();
   const skill = await getLocalSkill(detailIdSchema.parse(id), localRoots(dependencies));
   if (!skill) return null;
   const document: SkillDocument = { ...publicSkill(skill), content: skill.content };

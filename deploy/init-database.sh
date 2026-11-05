@@ -1,0 +1,7 @@
+#!/bin/sh
+set -eu
+psql --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" --no-psqlrc --set=ON_ERROR_STOP=1 --set=app_password="$NEWS_DATABASE_PASSWORD" <<'SQL'
+CREATE ROLE news WITH LOGIN PASSWORD :'app_password' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION;
+ALTER DATABASE news OWNER TO news;
+GRANT ALL ON SCHEMA public TO news;
+SQL

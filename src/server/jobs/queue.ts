@@ -60,20 +60,28 @@ export function mapJob(row: Record<string, unknown>): Job {
   };
 }
 
-export async function publishPending(boss: PgBoss) {
+export async function publishPending(boss: Pick<PgBoss, 'send'>) {
   await transaction(async (client) => {
     const { rows } = await client.query(
-      `WITH candidates AS (
+      `WITH user_turns AS (
          SELECT j.id,COALESCE(s.platform,'github') AS platform,
            row_number() OVER (
              PARTITION BY CASE WHEN j.kind='stars' THEN 'github'
-               WHEN j.kind='sync' THEN COALESCE(s.platform,'github') ELSE 'ai' END
+               WHEN j.kind='sync' THEN COALESCE(s.platform,'github') ELSE 'ai' END,j.user_id
              ORDER BY j.created_at,j.id
-           ) AS position
+           ) AS user_position,
+           CASE WHEN j.kind='stars' THEN 'github'
+             WHEN j.kind='sync' THEN COALESCE(s.platform,'github') ELSE 'ai' END AS lane,
+           j.created_at,turn.value AS last_served
          FROM jobs j LEFT JOIN subscriptions s ON j.kind='sync' AND s.id=j.target_id AND s.user_id=j.user_id
+         LEFT JOIN system_state turn ON turn.key='queue-turn:'||j.user_id||':'||
+           CASE WHEN j.kind='stars' THEN 'github' WHEN j.kind='sync' THEN COALESCE(s.platform,'github') ELSE 'ai' END
          WHERE j.status='pending' AND j.enqueued_at IS NULL
+       ), candidates AS (
+         SELECT *,row_number() OVER (PARTITION BY lane ORDER BY user_position,last_served NULLS FIRST,created_at,id) AS position
+         FROM user_turns
        )
-       SELECT j.id,j.kind,c.platform FROM jobs j JOIN candidates c ON c.id=j.id
+       SELECT j.id,j.user_id,j.kind,c.platform,c.lane FROM jobs j JOIN candidates c ON c.id=j.id
        WHERE c.position<=16 ORDER BY j.created_at,j.id FOR UPDATE OF j SKIP LOCKED`,
     );
     for (const row of rows) {
@@ -88,6 +96,10 @@ export async function publishPending(boss: PgBoss) {
         },
       );
       await client.query('UPDATE jobs SET enqueued_at=now() WHERE id=$1', [row.id]);
+      await client.query(
+        'INSERT INTO system_state(key,value) VALUES($1,$2) ON CONFLICT(key) DO UPDATE SET value=excluded.value',
+        [`queue-turn:${row.user_id}:${row.lane}`, JSON.stringify(new Date().toISOString())],
+      );
     }
   });
 }

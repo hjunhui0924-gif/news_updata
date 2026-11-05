@@ -8,8 +8,9 @@ type FullBootstrap = Omit<Bootstrap, 'items'> & { items: FeedItem[] };
 export async function mockReaderBootstrap(
   page: Page,
   transform: (data: FullBootstrap) => FullBootstrap,
+  transformInitialItems: (items: FeedItem[]) => FeedItem[] = (items) => items,
 ) {
-  let items = createDemoData().items;
+  let items = transformInitialItems(createDemoData().items);
   const states = new Map<string, Partial<Pick<FeedItem, 'read' | 'saved' | 'muted'>>>();
   const current = () => items.map((item) => ({ ...item, ...states.get(item.id) }));
   await page.route('**/api/bootstrap*', async (route) => {
@@ -41,6 +42,7 @@ export async function mockReaderBootstrap(
     const filtered = filterItems(rows, {
       view: q.get('view') || 'feed',
       type: q.get('type') || 'all',
+      platform: q.get('platform') || 'all',
       search: q.get('search') || '',
       unread: q.get('unread') === 'true',
       source: q.get('source') || '',

@@ -3,16 +3,19 @@ import { headers } from 'next/headers';
 import { getConfig, isLocalHost } from '../config';
 import { getPool } from '../db/client';
 import { AccessError } from './errors';
+import { allowedGitHubIds } from './allowed-users';
 export { AccessError } from './errors';
 
 function createAuth() {
   const config = getConfig();
-  const allowed = config.ALLOWED_GITHUB_USER_IDS.split(',').map((x) => x.trim());
+  const allowed = allowedGitHubIds();
   return betterAuth({
     database: getPool(),
     baseURL: config.APP_URL,
     secret: config.BETTER_AUTH_SECRET,
     trustedOrigins: [config.APP_URL],
+    advanced: { ipAddress: { ipAddressHeaders: ['x-forwarded-for'] } },
+    rateLimit: { enabled: config.NODE_ENV === 'production', window: 60, max: 60 },
     // All token rotation goes through our cross-process lock; these unused routes
     // otherwise rotate independently and can return provider tokens to clients.
     disabledPaths: ['/get-access-token', '/refresh-token', '/account-info'],
@@ -50,7 +53,7 @@ export async function getViewer(requestHeaders?: Headers) {
     'SELECT "accountId" FROM account WHERE "userId"=$1 AND "providerId"=$2',
     [session.user.id, 'github'],
   );
-  const allowed = config.ALLOWED_GITHUB_USER_IDS.split(',').map((x) => x.trim());
+  const allowed = allowedGitHubIds();
   if (!account.rows.some((row) => allowed.includes(row.accountId)))
     throw new AccessError('此账号尚未获得访问权限', 403);
   await getPool().query(

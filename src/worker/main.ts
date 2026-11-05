@@ -13,6 +13,7 @@ import { scheduleStarSync, syncStarred } from '../server/subscriptions/star-sync
 import { getTrending } from '../server/discovery/service';
 import { getUserSkillDetails } from '../server/skills/service';
 import { runSkillAi } from '../server/skills/ai';
+import { userIsAllowed } from '../server/auth/allowed-users';
 
 const config = getConfig();
 const logger = pino({ level: config.LOG_LEVEL });
@@ -22,6 +23,12 @@ await workTaskLanes(boss, async (jobs) => {
     const result = await getPool().query('SELECT * FROM jobs WHERE id=$1', [job.data.id]);
     const task = result.rows[0];
     if (!task || task.status === 'completed' || task.status === 'failed') continue;
+    if (!(await userIsAllowed(task.user_id))) {
+      await finishTask(task.id, 'failed', '账号访问权限已移除，后台任务已停止。', {
+        allowFollowup: false,
+      });
+      continue;
+    }
     await getPool().query("UPDATE jobs SET status='running',updated_at=now() WHERE id=$1", [
       task.id,
     ]);

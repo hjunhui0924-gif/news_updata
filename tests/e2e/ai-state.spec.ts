@@ -187,6 +187,7 @@ test('pending, timeout, invalid output and exhausted budget never block original
     await expect(detail.getByRole('button', { name: '取消收藏', exact: true })).toBeEnabled();
     await detail.getByRole('button', { name: '取消收藏', exact: true }).click();
     await expect(detail.getByRole('button', { name: '收藏更新', exact: true })).toBeEnabled();
+    await detail.getByRole('button', { name: '返回列表', exact: true }).click();
   }
   expect(paidRequests).toBe(0);
   await page.unrouteAll({ behavior: 'wait' });

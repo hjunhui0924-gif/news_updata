@@ -11,58 +11,61 @@ import {
 import type { Subscription } from '@/shared/types';
 import { platformCapabilities, type SourceKind } from '@/shared/platforms';
 import type { YouTubeQuota } from './youtube-quota';
+import { youtubeListSchema } from './youtube-list';
 
 type Resource = 'channels' | 'playlistItems' | 'videos' | 'subscriptions';
 export type YouTubeTransport = (
   resource: Resource,
   parameters: Record<string, string>,
 ) => Promise<unknown>;
+export type YouTubeRequestDiagnostic = {
+  code: 'api_not_enabled' | 'permission' | 'request_rejected' | 'invalid_response' | 'network';
+  upstreamStatus?: number;
+};
+export class YouTubeRequestFailure extends PlatformError {
+  constructor(
+    public diagnostic: YouTubeRequestDiagnostic,
+    message: string,
+    status = 502,
+  ) {
+    super(message, status);
+  }
+}
 const channelId = /^UC[A-Za-z0-9_-]{22}$/;
 const videoId = /^[A-Za-z0-9_-]{11}$/;
 const handle = /^@[\p{L}\p{M}\p{N}_.·-]{1,100}$/u;
-const channelSchema = z.object({
-  items: z.array(
-    z.object({
-      id: z.string().regex(channelId),
-      snippet: z.object({ title: z.string(), description: z.string().default('') }),
-      contentDetails: z.object({
-        relatedPlaylists: z.object({ uploads: z.string().min(1).max(200) }),
-      }),
+const channelSchema = youtubeListSchema(
+  z.object({
+    id: z.string().regex(channelId),
+    snippet: z.object({ title: z.string(), description: z.string().default('') }),
+    contentDetails: z.object({
+      relatedPlaylists: z.object({ uploads: z.string().min(1).max(200) }),
     }),
-  ),
-});
-const playlistSchema = z.object({
-  items: z
-    .array(
-      z.object({
-        contentDetails: z.object({
-          videoId: z.string(),
-          videoPublishedAt: z.iso.datetime().optional(),
-        }),
-      }),
-    )
-    .max(50),
-  nextPageToken: z.string().min(1).max(2000).optional(),
-});
-const videoSchema = z.object({
-  items: z
-    .array(
-      z.object({
-        id: z.string().regex(videoId),
-        snippet: z.object({
-          channelId: z.string().regex(channelId),
-          title: z.string(),
-          description: z.string().default(''),
-          channelTitle: z.string(),
-          publishedAt: z.iso.datetime(),
-          liveBroadcastContent: z.string().optional(),
-          thumbnails: z.record(z.string(), z.object({ url: z.string() })).optional(),
-        }),
-        status: z.object({ privacyStatus: z.string(), uploadStatus: z.string() }),
-      }),
-    )
-    .max(50),
-});
+  }),
+);
+const playlistSchema = youtubeListSchema(
+  z.object({
+    contentDetails: z.object({
+      videoId: z.string(),
+      videoPublishedAt: z.iso.datetime().optional(),
+    }),
+  }),
+);
+const videoSchema = youtubeListSchema(
+  z.object({
+    id: z.string().regex(videoId),
+    snippet: z.object({
+      channelId: z.string().regex(channelId),
+      title: z.string(),
+      description: z.string().default(''),
+      channelTitle: z.string(),
+      publishedAt: z.iso.datetime(),
+      liveBroadcastContent: z.string().optional(),
+      thumbnails: z.record(z.string(), z.object({ url: z.string() })).optional(),
+    }),
+    status: z.object({ privacyStatus: z.string(), uploadStatus: z.string() }),
+  }),
+);
 
 function decode<T>(schema: z.ZodType<T>, data: unknown): T {
   const parsed = schema.safeParse(data);
@@ -156,7 +159,12 @@ export function createYouTubeTransport(
           await credential.reject(token);
           throw new PlatformError('YouTube 授权已失效，请重新连接自己的账号。', 503);
         }
-        const data: unknown = await response.json();
+        const data: unknown = await response.json().catch(() => {
+          throw new YouTubeRequestFailure(
+            { code: 'invalid_response', upstreamStatus: response.status },
+            'YouTube 返回的数据格式暂不可读取，请稍后重试。',
+          );
+        });
         if (!response.ok) {
           const parsed = z
             .object({
@@ -166,6 +174,12 @@ export function createYouTubeTransport(
           const reasons = parsed.success
             ? parsed.data.error.errors.map((error) => error.reason)
             : [];
+          if (reasons.some((reason) => ['accessNotConfigured', 'serviceDisabled'].includes(reason)))
+            throw new YouTubeRequestFailure(
+              { code: 'api_not_enabled', upstreamStatus: response.status },
+              '当前 OAuth 客户端所属项目尚未启用 YouTube Data API v3，请检查 Google Cloud 配置。',
+              503,
+            );
           if (reasons.includes('quotaExceeded') || reasons.includes('dailyLimitExceeded')) {
             if (quota) await quota.hold(86400);
             else quotaCooldown = { key: quotaKey, until: Date.now() + 86400000 };
@@ -178,7 +192,11 @@ export function createYouTubeTransport(
           if (reasons.includes('invalidPageToken')) throw new CursorExpiredError();
           if (credential && token && reasons.includes('insufficientPermissions')) {
             await credential.reject(token);
-            throw new PlatformError('缺少读取 YouTube 关注的权限，请重新连接并授权。', 503);
+            throw new YouTubeRequestFailure(
+              { code: 'permission', upstreamStatus: response.status },
+              '缺少读取 YouTube 关注的权限，请重新连接并授权。',
+              503,
+            );
           }
           if (
             response.status === 429 ||
@@ -195,7 +213,8 @@ export function createYouTubeTransport(
           if (response.status === 404)
             throw new PlatformError('YouTube 频道或上传列表不存在，或已不可公开访问。', 404);
           if ([400, 401, 403].includes(response.status))
-            throw new PlatformError(
+            throw new YouTubeRequestFailure(
+              { code: 'request_rejected', upstreamStatus: response.status },
               'YouTube API 配置不可用，请检查服务端密钥、API 启用状态与限制设置。',
               503,
             );
@@ -205,7 +224,10 @@ export function createYouTubeTransport(
       } catch (error) {
         signal?.throwIfAborted();
         if (error instanceof PlatformError) throw error;
-        throw new PlatformError('暂时无法读取 YouTube，请检查服务器网络后重试；已有内容仍可阅读。');
+        throw new YouTubeRequestFailure(
+          { code: 'network' },
+          '暂时无法读取 YouTube，请检查服务器网络后重试；已有内容仍可阅读。',
+        );
       }
     }
     throw new PlatformError('YouTube 连接暂时失败，请稍后重试。');

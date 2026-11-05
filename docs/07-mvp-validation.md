@@ -1,5 +1,7 @@
 # MVP 验收记录
 
+当前汇总（2026-11-05）：下方是历轮历史验收快照，不代表最新功能边界。聚合阅读器与布局验收见 [23](23-aggregation-reader-redesign.md)、[24](24-reader-polish-review.md)，真实 YouTube 已通过的环节及生命周期缺口见 [25](25-youtube-live-acceptance.md)，服务器多用户及部署验证见 [26](26-server-invitation-trial.md)，文档与截图发布见 [27](27-documentation-release.md)。G4 继续暂缓。
+
 更新日期：2026-11-04。验证环境：Windows / PowerShell、Node 24.15.0、pnpm 11.19.0、PostgreSQL 17、系统 Chrome。
 
 ## 2026-11-04 平台适配层与 YouTube

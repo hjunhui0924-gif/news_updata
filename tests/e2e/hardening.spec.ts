@@ -48,6 +48,7 @@ test('loaded pages, filters, read/save counters and return context stay consiste
     await route.fulfill({ json: { ok: true } });
   });
   await page.goto('/feed');
+  await page.getByRole('button', { name: '分栏阅读', exact: true }).click();
   await expect(page.locator('.update-card')).toHaveCount(30);
   await page.getByRole('button', { name: '加载更多更新' }).click();
   await expect(page.locator('.update-card')).toHaveCount(60);
@@ -398,6 +399,7 @@ test('a pending state survives the 600 to 630 preview cache boundary', async ({
     await route.fulfill({ json: { ok: true } });
   });
   await page.goto('/feed');
+  await page.getByRole('button', { name: '分栏阅读', exact: true }).click();
   await expect(page.locator('.update-card')).toHaveCount(30);
   for (let count = 60; count <= 600; count += 30) {
     await page.getByRole('button', { name: '加载更多更新' }).click();
@@ -462,7 +464,8 @@ test('global counters survive leaving the feed and selected filtered-out details
   };
   await page.getByRole('button', { name: '刷新内容' }).click();
   await expect(page.getByText('Fresh worker result', { exact: true })).toBeVisible();
-  await page.locator('.main-nav button').filter({ hasText: '今日精选' }).click();
+  await page.getByRole('button', { name: '更多工具', exact: true }).click();
+  await page.getByRole('button', { name: '今日精选', exact: true }).click();
   await expect(page.locator('.main-nav button').filter({ hasText: '全部更新' })).toContainText('2');
 });
 
@@ -515,6 +518,7 @@ test('a delayed read mutation cannot strand a newly selected filter', async ({ p
     await route.fallback();
   });
   await page.goto('/feed');
+  await page.getByRole('button', { name: '分栏阅读', exact: true }).click();
   await expect(page.getByTestId('item-state-0')).toBeVisible();
   await page.getByTestId('item-state-0').click();
   await page.getByRole('button', { name: '未读', exact: true }).click();
@@ -551,6 +555,7 @@ test('refresh waiting on item A cannot invalidate the newly selected item B deta
     await route.fulfill({ json: rows[1] });
   });
   await page.goto('/feed');
+  await page.getByRole('button', { name: '分栏阅读', exact: true }).click();
   await page.getByTestId('item-state-0').click();
   await expect(page.locator('.detail-title')).toHaveText('State 0');
   const metadata = page.waitForResponse((r) => r.url().endsWith('/api/bootstrap'));

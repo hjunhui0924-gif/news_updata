@@ -21,7 +21,12 @@ export async function claimSummaryVersion(user: string, item: string, hash: stri
   });
 }
 
-export async function finishTask(id: string, status: 'completed' | 'failed', error: string | null) {
+export async function finishTask(
+  id: string,
+  status: 'completed' | 'failed',
+  error: string | null,
+  options: { allowFollowup?: boolean } = {},
+) {
   await transaction(async (client) => {
     const task = (await client.query('SELECT user_id,kind,target_id FROM jobs WHERE id=$1', [id]))
       .rows[0];
@@ -42,6 +47,10 @@ export async function finishTask(id: string, status: 'completed' | 'failed', err
     );
     if (!updated.rowCount || task.kind !== 'summary') return;
     const key = summaryFollowupKey(task.user_id, task.target_id);
+    if (options.allowFollowup === false) {
+      await client.query('DELETE FROM system_state WHERE key=$1', [key]);
+      return;
+    }
     const intent = (await client.query('SELECT value FROM system_state WHERE key=$1', [key]))
       .rows[0]?.value;
     if (item?.aiStatus === 'pending' && intent === item.contentHash) {

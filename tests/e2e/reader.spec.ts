@@ -1,4 +1,7 @@
 import { test, expect } from '@playwright/test';
+import { mkdir } from 'node:fs/promises';
+import type { FeedItem } from '../../src/shared/types';
+import { mockReaderBootstrap } from './reader-fixtures';
 
 test('direct detail links persist read state and missing items show 404', async ({
   page,
@@ -213,16 +216,112 @@ test('navigation exposes the active route and moves focus to its title', async (
   await expect(page.locator('.top-breadcrumb strong')).toBeFocused();
 });
 
-for (const width of [390, 768])
+test('platform filters keep mixed source rows explicit and composable', async ({ page }) => {
+  await mockReaderBootstrap(page, (data) => data, (items) =>
+    items.map((item, index) => ({
+      ...item,
+      publishedAt: index < 4 ? '2026-11-04T12:00:00.000Z' : '2026-11-03T12:00:00.000Z',
+      ...(index % 3 === 0
+        ? { platform: 'youtube', type: 'video' as const, media: { kind: 'video' as const, content: 'description' as const } }
+        : { platform: 'github' }),
+    })),
+  );
+  await page.goto('/feed');
+  const platformFilters = page.getByRole('group', { name: '平台筛选' });
+  await platformFilters.getByRole('button', { name: 'YouTube' }).click();
+  await expect(platformFilters.getByRole('button', { name: 'YouTube' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await expect(page.locator('.update-card').first()).toBeVisible();
+  await expect(page.locator('.update-card .platform-label.youtube')).not.toHaveCount(0);
+  await expect(page.locator('.update-card .platform-label.github')).toHaveCount(0);
+  const dayHeadings = page.locator('.feed-day-heading');
+  await expect(dayHeadings).toHaveCount(2);
+  await expect(dayHeadings.nth(0)).toContainText('昨天');
+  await expect(dayHeadings.nth(1)).toContainText('11月3日');
+  await page.getByRole('button', { name: '未读更新' }).click();
+  await expect(page.getByRole('heading', { name: '未读更新', exact: true })).toBeVisible();
+  await expect(page.locator('.update-card .platform-label.youtube')).not.toHaveCount(0);
+  await expect(page.locator('.update-card .platform-label.github')).toHaveCount(0);
+});
+
+test('video detail keeps the description boundary and opens the original platform', async ({
+  page,
+}) => {
+  const makeVideo = (item: FeedItem) => ({
+    ...item,
+    platform: 'youtube' as const,
+    type: 'video' as const,
+    url: 'https://www.youtube.com/watch?v=demo-video',
+    body: '作者提供的视频简介正文。',
+    description: '作者提供的视频简介正文。',
+    media: { kind: 'video' as const, content: 'description' as const },
+  });
+  await mockReaderBootstrap(
+    page,
+    (data) => ({ ...data, items: data.items.map((item, index) => (index === 0 ? makeVideo(item) : item)) }),
+    (items) => items.map((item, index) => (index === 0 ? makeVideo(item) : item)),
+  );
+  await page.goto('/feed');
+  await page.getByTestId('item-demo-item-0').click();
+  await expect(page.getByRole('tab', { name: '视频简介' })).toBeVisible();
+  await expect(page.locator('.video-source-card')).toContainText('不是字幕、转写或视频全文');
+  await expect(page.getByText('作者提供的视频简介正文。')).toBeVisible();
+  await expect(page.getByRole('link', { name: '在 YouTube 观看' })).toHaveAttribute(
+    'href',
+    'https://www.youtube.com/watch?v=demo-video',
+  );
+});
+
+test('desktop reader switches between list and split layouts', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/feed');
+  const reader = page.locator('.reader-grid');
+  await expect(reader).toHaveClass(/list-layout/);
+  await page.getByRole('button', { name: '分栏阅读' }).click();
+  await expect(reader).toHaveClass(/split-layout/);
+  await page.getByRole('button', { name: '列表布局' }).click();
+  await expect(reader).toHaveClass(/list-layout/);
+});
+
+test('mobile navigation drawer exposes tools and restores focus when dismissed', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/feed');
+  const trigger = page.getByRole('button', { name: '打开导航' });
+  await trigger.click();
+  const drawer = page.getByRole('dialog', { name: '聚合阅读导航' });
+  await expect(drawer).toBeVisible();
+  await drawer.getByRole('button', { name: '更多工具' }).click();
+  await drawer.getByRole('button', { name: 'Skill 目录' }).click();
+  await expect(drawer).not.toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Skill 目录', exact: true })).toBeVisible();
+  await trigger.click();
+  await page.getByRole('button', { name: '关闭导航' }).click();
+  await expect(trigger).toBeFocused();
+});
+
+for (const width of [320, 390, 768, 1280, 1440])
   test(`reader fits ${width}px and returns from details`, async ({ page }) => {
-    await page.setViewportSize({ width, height: 844 });
+    await page.setViewportSize({ width, height: width === 320 ? 568 : 844 });
     await page.goto('/feed');
+    await expect(page.getByTestId('item-demo-item-0')).toBeVisible();
+    await page.screenshot({
+      path: `output/playwright/redesign-current/feed-${width}.png`,
+      fullPage: true,
+    });
     await page.getByTestId('item-demo-item-0').click();
     await expect(page.getByRole('heading', { name: '这次更新了什么' })).toBeVisible();
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
     ).toBe(true);
-    await page.screenshot({ path: `work/reader-${width}.png`, fullPage: true });
+    await mkdir('output/playwright/redesign-current', { recursive: true });
+    await page.screenshot({
+      path: `output/playwright/redesign-current/reader-${width}.png`,
+      fullPage: true,
+    });
     await page.getByRole('button', { name: '返回列表', exact: true }).click();
     await expect(page.getByRole('heading', { name: '全部更新', exact: true })).toBeVisible();
   });

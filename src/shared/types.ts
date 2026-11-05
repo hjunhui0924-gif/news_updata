@@ -195,6 +195,7 @@ export type Bootstrap = {
   jobs: Job[];
   starSync: StarSyncStatus | null;
   services: {
+    localSkills?: boolean;
     platforms?: Partial<Record<PlatformId, { configured: boolean; intervalMinutes: number }>>;
     githubAuth?: GitHubAuthStatus;
     youtubeAuth?: YouTubeConnectionStatus;

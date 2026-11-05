@@ -356,10 +356,7 @@ export function AddSubscription({
     >
       <Dialog.Portal>
         <Dialog.Overlay className="dialog-overlay" />
-        <Dialog.Content
-          className={`dialog-content${kind === 'channel' ? ' youtube-subscription-dialog' : ''}`}
-          aria-busy={busy}
-        >
+        <Dialog.Content className="dialog-content add-subscription-dialog" aria-busy={busy}>
           <Dialog.Close asChild>
             <button className="dialog-close icon-button" aria-label="关闭添加订阅" disabled={busy}>
               <X size={19} />
@@ -396,6 +393,7 @@ export function AddSubscription({
           </div>
           <div
             id="subscription-method-panel"
+            className="subscription-method-panel"
             role="tabpanel"
             aria-labelledby={`subscription-method-${kind}`}
             tabIndex={0}

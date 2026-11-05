@@ -54,6 +54,19 @@ afterAll(async () => {
   await getPool().end();
 });
 
+it('accepts an explicitly empty following page without items but rejects malformed responses', async () => {
+  fixture.state.subscriptionPages.set('', { pageInfo: { totalResults: 0 } });
+  expect(await preview()).toMatchObject({ channels: [], nextCursor: null, truncated: false });
+  for (const response of [
+    {},
+    { pageInfo: { totalResults: 1 } },
+    { pageInfo: { totalResults: 0 }, nextPageToken: 'unexpected' },
+  ]) {
+    fixture.state.subscriptionPages.set('', response);
+    await expect(preview()).rejects.toThrow('暂不可读取');
+  }
+});
+
 it('reads only the authorized account, paginates and deduplicates while preserving cross-page import choices', async () => {
   fixture.state.subscriptionPages.set('', {
     items: [item(1), item(2), item(1)],

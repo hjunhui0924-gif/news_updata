@@ -4,6 +4,7 @@ import { getPool, transaction } from '../db/client';
 import { PlatformError } from './contract';
 import { createUserYouTubeTransport, youtubeConnectionGeneration } from './youtube-auth';
 import { YouTubeAdapter } from './youtube';
+import { youtubeListSchema } from './youtube-list';
 import { persistSubscription } from '../subscriptions/service';
 import type { Subscription, YouTubeFollowingPreview } from '@/shared/types';
 
@@ -21,20 +22,15 @@ const importInput = z
       .refine((ids) => new Set(ids).size === ids.length, '请勿重复选择频道。'),
   })
   .strict();
-const pageSchema = z.object({
-  items: z
-    .array(
-      z.object({
-        snippet: z.object({
-          title: z.string().max(1000),
-          description: z.string().max(10000).default(''),
-          resourceId: z.object({ channelId: z.string() }),
-        }),
-      }),
-    )
-    .max(50),
-  nextPageToken: z.string().min(1).max(2000).optional(),
-});
+const pageSchema = youtubeListSchema(
+  z.object({
+    snippet: z.object({
+      title: z.string().max(1000),
+      description: z.string().max(10000).default(''),
+      resourceId: z.object({ channelId: z.string() }),
+    }),
+  }),
+);
 type Channel = { id: string; name: string; description: string };
 type Preview = {
   userId: string;

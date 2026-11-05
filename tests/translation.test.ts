@@ -5,6 +5,29 @@ import {
   buildTranslationBlocks,
 } from '../src/server/ai/translation';
 
+it('pairs plain descriptions without interpreting headings, HTML or code fences as Markdown', () => {
+  const source =
+    '# Video details\nRead this first.\n\n```\nRead more here.\n```\nhttps://example.com/watch';
+  const plan = prepareTranslation(source, 'text');
+  expect(plan.segments.map((segment) => segment.id)).toEqual(['l0', 'l1', 'l3', 'l4', 'l5']);
+  const value = {
+    segments: [
+      { id: 'l0', text: '视频详情' },
+      { id: 'l1', text: '请先阅读这里。' },
+      { id: 'l3', text: '```' },
+      { id: 'l4', text: '在这里了解更多。' },
+      { id: 'l5', text: '```' },
+    ],
+  };
+  expect(buildTranslationBlocks(value, plan)).toEqual([
+    { original: '# Video details\nRead this first.', translation: '# 视频详情\n请先阅读这里。' },
+    {
+      original: '```\nRead more here.\n```\nhttps://example.com/watch',
+      translation: '```\n在这里了解更多。\n```\nhttps://example.com/watch',
+    },
+  ]);
+});
+
 it('preserves loose list numbering and cross-paragraph reference context', () => {
   const list = '1. First step.\n\n1. Second step.';
   expect(

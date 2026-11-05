@@ -2,6 +2,8 @@ import { getPool } from '../db/client';
 import { enqueue } from './queue';
 import { syncIntervalMinutes } from '../platforms/registry';
 import type { Subscription } from '@/shared/types';
+import { getConfig } from '../config';
+import { allowedGitHubIds } from '../auth/allowed-users';
 
 export async function scheduleSubscriptions(now = Date.now()) {
   // One scan instead of one state query per source. Oldest scheduled work gets the next turn.
@@ -9,7 +11,10 @@ export async function scheduleSubscriptions(now = Date.now()) {
     `SELECT s.user_id,s.data,t.value AS scheduled_at
      FROM subscriptions s LEFT JOIN system_state t ON t.key='schedule:'||s.user_id||':'||s.id
      WHERE (s.data->>'enabled')::boolean AND NOT COALESCE((s.data->>'demo')::boolean,false)
+       AND ($1::boolean OR EXISTS(SELECT 1 FROM account a WHERE a."userId"=s.user_id
+         AND a."providerId"='github' AND a."accountId"=ANY($2::text[])))
      ORDER BY t.value NULLS FIRST,s.id`,
+    [getConfig().APP_MODE === 'demo', allowedGitHubIds()],
   );
   let scheduled = 0;
   for (const row of rows) {

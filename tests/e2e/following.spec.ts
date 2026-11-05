@@ -81,6 +81,7 @@ test('one release appears under both project and followed author with explicit c
   await page.getByRole('button', { name: '订阅项目更新', exact: true }).click();
   await expect(page.getByRole('status')).toContainText('项目订阅已添加');
   expect(subscribedRepository).toBe('alice/new');
+  await page.getByRole('button', { name: '返回列表', exact: true }).click();
   await feed.getByRole('button', { name: /v1\.0 正式发布/ }).click();
   const detail = page.getByRole('region', { name: '更新详情' });
   await expect(detail.getByText('订阅项目 · organization/tool')).toBeVisible();
