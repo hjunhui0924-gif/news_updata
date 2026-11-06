@@ -31,22 +31,30 @@ export function HomePanel({
   const steps = [
     {
       title: '登录你的账号',
-      text:
-        data.mode === 'demo'
+      text: data.guest
+        ? '登录后才能读取你的 GitHub 账号和关注来源。'
+        : data.mode === 'demo'
           ? '当前是演示空间，真实使用时通过官方页面授权登录。'
           : '已进入你的独立工作空间，无需填写平台密钥。',
-      complete: data.mode === 'live',
-      action: '管理账号',
-      run: () => navigate('connections'),
+      complete: data.mode === 'live' && !data.guest,
+      action: data.guest ? '登录 GitHub' : '管理账号',
+      run: () => (data.guest ? (window.location.href = '/login') : navigate('connections')),
     },
     {
       title: '添加关注来源',
-      text: sources.length
-        ? `已启用 ${sources.length} 个来源。可以继续导入 Star、开发者或频道。`
-        : '添加一个项目，或从自己的 Star、关注列表中选择导入。',
+      text: data.guest
+        ? '当前没有用户内容。登录后可以添加项目、开发者或 YouTube 频道。'
+        : sources.length
+          ? `已启用 ${sources.length} 个来源。可以继续导入 Star、开发者或频道。`
+          : '添加一个项目，或从自己的 Star、关注列表中选择导入。',
       complete: sources.length > 0,
-      action: sources.length ? '管理订阅' : '添加第一个来源',
-      run: () => (sources.length ? navigate('subscriptions') : onAdd('repo')),
+      action: data.guest ? '查看空订阅页' : sources.length ? '管理订阅' : '添加第一个来源',
+      run: () =>
+        data.guest
+          ? navigate('subscriptions')
+          : sources.length
+            ? navigate('subscriptions')
+            : onAdd('repo'),
     },
     {
       title: '等待首次同步',
@@ -76,18 +84,23 @@ export function HomePanel({
           <span className="eyebrow">YOUR READING SPACE</span>
           <h1>{help ? '从这里，开始使用知更' : '把关注，读成有用的更新。'}</h1>
           <p>
-            {help
-              ? '登录、订阅和阅读的操作都在这里；平台密钥由站点管理员配置。'
-              : '一个属于你的阅读空间。连接关注的来源，后续变化在这里汇合。'}
+            {data.guest
+              ? '这是一个没有用户内容的空工作区。登录后才会读取你的订阅、已读、收藏和平台连接。'
+              : help
+                ? '登录、订阅和阅读的操作都在这里；平台密钥由站点管理员配置。'
+                : '一个属于你的阅读空间。连接关注的来源，后续变化在这里汇合。'}
           </p>
           <div className="home-actions">
-            <Button variant="primary" onClick={() => navigate('feed')}>
-              进入信息流
+            <Button
+              variant="primary"
+              onClick={() => (data.guest ? (window.location.href = '/login') : navigate('feed'))}
+            >
+              {data.guest ? '使用 GitHub 登录' : '进入信息流'}
               <ArrowRight size={17} />
             </Button>
-            <Button onClick={() => onAdd('repo')}>
+            <Button onClick={() => (data.guest ? navigate('feed') : onAdd('repo'))}>
               <Plus size={17} />
-              添加关注
+              {data.guest ? '浏览空信息流' : '添加关注'}
             </Button>
           </div>
         </header>
@@ -154,6 +167,8 @@ export function HomePanel({
                 <span className="connection-pill">
                   {data.mode === 'demo'
                     ? '演示模式'
+                    : data.guest
+                      ? '登录后连接'
                     : data.services.github
                       ? '已连接'
                       : '需要重新连接'}
@@ -164,12 +179,18 @@ export function HomePanel({
             <Button
               size="small"
               onClick={() =>
-                data.mode === 'live' && !data.services.github
+                data.guest
+                  ? (window.location.href = '/login')
+                  : data.mode === 'live' && !data.services.github
                   ? navigate('connections')
                   : onAdd('repo')
               }
             >
-              {data.mode === 'live' && !data.services.github ? '检查授权' : '选择关注'}
+              {data.guest
+                ? '登录后连接'
+                : data.mode === 'live' && !data.services.github
+                  ? '检查授权'
+                  : '选择关注'}
               <ArrowRight size={15} />
             </Button>
           </article>
@@ -183,6 +204,8 @@ export function HomePanel({
                 <span className="connection-pill">
                   {data.mode === 'demo'
                     ? '演示模式'
+                    : data.guest
+                      ? '登录后连接'
                     : youtubeConnected
                       ? '已连接'
                       : !youtube?.configured
@@ -192,8 +215,13 @@ export function HomePanel({
               </h3>
               <p>连接自己的账号，读取关注频道并导入。视频简介可按需对照翻译。</p>
             </div>
-            <Button size="small" onClick={() => onAdd('channel')}>
-              {youtubeConnected ? '导入频道' : '连接 YouTube'}
+            <Button
+              size="small"
+              onClick={() =>
+                data.guest ? (window.location.href = '/login') : onAdd('channel')
+              }
+            >
+              {data.guest ? '登录后连接' : youtubeConnected ? '导入频道' : '连接 YouTube'}
               <ArrowRight size={15} />
             </Button>
           </article>

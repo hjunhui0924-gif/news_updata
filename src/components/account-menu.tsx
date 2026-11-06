@@ -29,7 +29,11 @@ export function AccountMenu({
   const wrap = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
-  const name = data.mode === 'demo' ? '体验工作空间' : data.user.name || '我的账号';
+  const name = data.guest
+    ? '访客工作区'
+    : data.mode === 'demo'
+      ? '体验工作空间'
+      : data.user.name || '我的账号';
   useEffect(() => {
     if (!open) return;
     const frame = requestAnimationFrame(() =>
@@ -120,7 +124,13 @@ export function AccountMenu({
         </span>
         <span className="account-trigger-copy">
           <strong>{name}</strong>
-          <span>{data.mode === 'demo' ? '本地演示工作空间' : '个人账号与偏好'}</span>
+          <span>
+            {data.guest
+              ? '未登录空工作区'
+              : data.mode === 'demo'
+                ? '本地演示工作空间'
+                : '个人账号与偏好'}
+          </span>
         </span>
         <ChevronUp size={16} aria-hidden="true" />
       </button>
@@ -141,7 +151,11 @@ export function AccountMenu({
               <strong>{name}</strong>
               <span>
                 <Check size={12} />
-                {data.mode === 'demo' ? '演示模式' : '已登录工作空间'}
+                {data.guest
+                  ? '仅浏览空工作区'
+                  : data.mode === 'demo'
+                    ? '演示模式'
+                    : '已登录工作空间'}
               </span>
             </div>
           </div>
@@ -172,12 +186,18 @@ export function AccountMenu({
             role="menuitem"
             tabIndex={-1}
             className="account-signout"
-            disabled={busy || data.mode === 'demo'}
+            disabled={busy || data.mode === 'demo' || data.guest}
             onClick={() => void logout()}
           >
             {busy ? <Loader2 size={17} className="spin" /> : <LogOut size={17} />}
             <span>
-              {data.mode === 'demo' ? '演示模式无需退出' : busy ? '正在退出…' : '退出登录'}
+              {data.guest
+                ? '访客模式请先登录'
+                : data.mode === 'demo'
+                  ? '演示模式无需退出'
+                  : busy
+                    ? '正在退出…'
+                    : '退出登录'}
             </span>
           </button>
           {error && (

@@ -39,6 +39,7 @@ export function SubscriptionsPanel({
   starSync,
   showStarSync,
   workerOnline,
+  guest = false,
   onStarAction,
   onViewSource,
 }: {
@@ -50,6 +51,7 @@ export function SubscriptionsPanel({
   starSync: StarSyncStatus | null;
   showStarSync: boolean;
   workerOnline: boolean;
+  guest?: boolean;
   onStarAction: (action: 'check' | 'enable' | 'disable') => Promise<void>;
   onViewSource: (id: string) => void;
 }) {
@@ -76,7 +78,7 @@ export function SubscriptionsPanel({
         </span>
         <p>
           <Github size={15} />
-          GitHub / YouTube 公开内容
+          {guest ? '未登录空工作区 · 登录后加载你的内容' : 'GitHub / YouTube 公开内容'}
         </p>
       </div>
       {showStarSync && (

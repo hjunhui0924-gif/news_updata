@@ -30,6 +30,7 @@ import { SkillsPanel } from './skills-panel';
 import { HomePanel } from './home-panel';
 import { ConnectionsPanel } from './connections-panel';
 import { PersonalAiPanel } from './personal-ai-panel';
+import { GuestAccessPanel } from './guest-access-panel';
 import { useFeed, feedParams } from './use-feed';
 
 import { requestJson } from './request-json';
@@ -181,7 +182,7 @@ export function ReaderApp({
   const feed = useFeed(
     { view, type, search, unread, source, ...(platform !== 'all' ? { platform } : {}) },
     initialPage,
-    isFeedView(view),
+    isFeedView(view) && !data.guest,
     ingestFeedItems,
   );
   const feedPage = feed.page;
@@ -335,6 +336,7 @@ export function ReaderApp({
     return () => window.removeEventListener('keydown', close);
   }, [noticeOpen]);
   useEffect(() => {
+    if (data.guest) return;
     const polling = startPolling({
       run: async (signal) => {
         await refresh({ background: true, signal });
@@ -347,7 +349,7 @@ export function ReaderApp({
     });
     poller.current = polling;
     return () => polling.stop();
-  }, [refresh]);
+  }, [data.guest, refresh]);
   useEffect(() => {
     if (!selectedId) return;
     const abort = new AbortController();
@@ -516,6 +518,10 @@ export function ReaderApp({
     pushHistory(`/items/${id}`);
   }
   async function execute(key: string, action: () => Promise<unknown>, message?: string) {
+    if (data.guest) {
+      notify('请先登录后再使用此功能。');
+      return;
+    }
     setBusy(key);
     let submitted = false;
     try {
@@ -581,6 +587,15 @@ export function ReaderApp({
     navigate('feed');
     setUnread(unreadOnly);
   }
+  function openAdd(method: 'repo' | 'channel' = 'repo') {
+    setNavigationOpen(false);
+    if (data.guest) {
+      notify('请先登录后再添加订阅。');
+      return;
+    }
+    setAddMethod(method);
+    setAddOpen(true);
+  }
   const renderSidebar = (idPrefix: string) => (
     <Sidebar
       data={{ ...data, feed: feedPage }}
@@ -595,10 +610,7 @@ export function ReaderApp({
         setPlatform(value);
         setSource('');
       }}
-      onAdd={() => {
-        setNavigationOpen(false);
-        setAddOpen(true);
-      }}
+      onAdd={() => openAdd()}
       selectSource={(id) => {
         navigate('feed');
         setSource(id);
@@ -639,6 +651,11 @@ export function ReaderApp({
             </strong>
           </div>
           <div className="top-actions">
+            {data.guest && (
+              <a className="button primary guest-header-login" href="/login">
+                登录
+              </a>
+            )}
             {data.mode === 'demo' && (
               <span className="demo-badge">
                 <span />
@@ -659,7 +676,7 @@ export function ReaderApp({
               <Bell size={18} />
               {data.notifications.length > 0 && <span className="notification-dot" />}
             </button>
-            <Button size="small" onClick={() => setAddOpen(true)}>
+            <Button size="small" onClick={() => openAdd()}>
               <Plus size={15} />
               <span>添加订阅</span>
             </Button>
@@ -691,7 +708,7 @@ export function ReaderApp({
             </Button>
           </div>
         )}
-        {data.mode === 'live' && view !== 'settings' && (
+        {data.mode === 'live' && !data.guest && view !== 'settings' && (
           <GitHubConnection
             key={data.services.githubAuth?.state}
             banner
@@ -705,9 +722,33 @@ export function ReaderApp({
             help={view === 'help'}
             navigate={navigate}
             onAdd={(method) => {
-              setAddMethod(method);
-              setAddOpen(true);
+              openAdd(method);
             }}
+          />
+        ) : data.guest && view === 'connections' ? (
+          <GuestAccessPanel
+            title="登录后管理账号与连接"
+            description="登录后才能连接 GitHub 或使用 Google 授权读取自己的 YouTube 关注。"
+          />
+        ) : data.guest && view === 'ai-settings' ? (
+          <GuestAccessPanel
+            title="登录后设置个人 AI"
+            description="个人模型、密钥和预算属于登录后的个人工作空间，访客状态不会读取或保存这些配置。"
+          />
+        ) : data.guest && view === 'today' ? (
+          <GuestAccessPanel
+            title="登录后查看你的发现"
+            description="今日精选会根据你的关注和工作空间内容生成，访客状态不会加载任何平台数据。"
+          />
+        ) : data.guest && view === 'skills' ? (
+          <GuestAccessPanel
+            title="登录后查看 Skill 目录"
+            description="Skill 目录只展示当前账号自己的 Star 来源，登录后才能读取。"
+          />
+        ) : data.guest && view === 'settings' ? (
+          <GuestAccessPanel
+            title="登录后调整阅读偏好"
+            description="阅读偏好、时区和通知属于个人设置，访客状态不会创建或读取设置。"
           />
         ) : view === 'connections' ? (
           <ConnectionsPanel
@@ -715,8 +756,7 @@ export function ReaderApp({
             navigate={navigate}
             onChecked={refresh}
             onYouTube={() => {
-              setAddMethod('channel');
-              setAddOpen(true);
+              openAdd('channel');
             }}
           />
         ) : view === 'ai-settings' ? (
@@ -774,7 +814,7 @@ export function ReaderApp({
               total={feedPage.total}
               hasMore={!!feedPage.nextCursor}
               onLoadMore={feed.loadMore}
-              onAdd={() => setAddOpen(true)}
+              onAdd={() => openAdd()}
               onBrowse={() => navigate('feed')}
               updatesAvailable={feed.updatesAvailable}
               onRefresh={() => {
@@ -879,6 +919,7 @@ export function ReaderApp({
             starSync={data.starSync}
             showStarSync={data.mode === 'live' || !!data.starSync}
             workerOnline={data.services.workerOnline}
+            guest={data.guest}
             onStarAction={(action) =>
               execute(
                 'stars',
@@ -896,7 +937,7 @@ export function ReaderApp({
               )
             }
             jobs={data.jobs}
-            onAdd={() => setAddOpen(true)}
+            onAdd={() => openAdd()}
             onAction={(id, action) =>
               execute(
                 id,
@@ -945,7 +986,9 @@ export function ReaderApp({
             <span className="online-dot" />
             {data.mode === 'demo'
               ? '24 条固定示例 · 可添加 GitHub / YouTube 订阅'
-              : 'GitHub / YouTube 公开内容'}
+              : data.guest
+                ? '未登录空工作区 · 登录后加载你的内容'
+                : 'GitHub / YouTube 公开内容'}
           </span>
           <button
             onClick={() => {

@@ -186,6 +186,7 @@ export type GitHubAuthStatus = {
 };
 export type Bootstrap = {
   mode: 'demo' | 'live';
+  guest?: boolean;
   user: { name: string; image?: string | null };
   items: FeedPreview[];
   selectedItem?: FeedItem;

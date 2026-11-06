@@ -48,6 +48,9 @@ export function Login({ configured }: { configured: boolean }) {
           <ArrowRight size={16} />
         </button>
         {!configured && <p className="helper">登录尚未配置。本地体验请按 README 启动演示模式。</p>}
+        <a className="login-skip" href="/guest">
+          先浏览空工作区
+        </a>
         {error && (
           <p role="alert" aria-live="assertive">
             {error}
