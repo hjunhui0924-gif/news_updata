@@ -33,6 +33,7 @@ it('generates separate secrets without printing them and never rotates an existi
       .map((s) => s.split('=')),
   );
   expect(values.DATABASE_RUNTIME).toBe('docker');
+  expect(values.APP_RUNTIME).toBe('docker');
   expect(values.NATIVE_DATABASE_URL).toContain('host.docker.internal:5432/news');
   for (const key of ['POSTGRES_PASSWORD', 'DATABASE_PASSWORD', 'BETTER_AUTH_SECRET']) {
     expect(values[key]).toMatch(/^[a-f0-9]{64,96}$/);

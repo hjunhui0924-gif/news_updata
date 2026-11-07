@@ -34,6 +34,7 @@ const contents = `# Private native runtime configuration; do not commit or share
 # Preview keeps login disabled and only shows an empty guest workspace.
 NODE_ENV=production
 APP_MODE=live
+APP_RUNTIME=native
 APP_URL=${origin}
 APP_HOSTNAME=${preview ? '0.0.0.0' : '127.0.0.1'}
 PORT=8003

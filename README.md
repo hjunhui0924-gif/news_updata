@@ -76,7 +76,20 @@ Ctrl+C 停止本次启动的应用进程，数据库保留。再次运行 `pnpm 
 
 已有 PostgreSQL 17 时，复制 `.env.example` 为 `.env.local`，设置 `DATABASE_RUNTIME=native` 并填写专用 Demo 数据库的 `DATABASE_URL`，保持 `APP_MODE=demo`，执行 `pnpm demo` 即会跳过 Docker。原 `pnpm demo --no-docker` 仍作为单次覆盖保留；此命令会写入演示内容，不能指向真实用户数据库。本地 `compose.yaml` 只负责数据库；整套服务器部署使用独立的 `compose.production.yaml`。
 
-### PostgreSQL 部署方式
+### 应用与 PostgreSQL 部署方式
+
+两项配置独立：`APP_RUNTIME=native|docker` 表示 Web / Worker 在 Node.js 还是容器内运行；`DATABASE_RUNTIME=native|docker` 表示数据库由原生服务还是 Compose 管理。旧环境未设置 `APP_RUNTIME` 时默认 `native`，保持本机开发与测试行为。生产 Compose 显式使用 `APP_RUNTIME=docker`，原生 systemd 使用 `APP_RUNTIME=native`。
+
+| 使用场景 | APP_RUNTIME | DATABASE_RUNTIME | 启动入口 |
+| --- | --- | --- | --- |
+| 本机开发 / 测试 | native | docker | `docker compose up -d --wait db`，再用 `pnpm demo` 或开发 / 测试命令 |
+| 服务器全原生 | native | native | 原生安装器与 `newsroom-*` systemd 服务 |
+| 整套 Docker 部署 | docker | docker | `compose.production.yaml` |
+| Docker 应用 + 原生库 | docker | native | 再叠加 `compose.production.native-pg.yaml` |
+
+本机只需要数据库用 Docker 时，不要将 `APP_RUNTIME` 改为 `docker`；`pnpm demo` 会明确拒绝这种应用配置，避免运行方式与预期不同。测试使用独立测试库，服务器数据不复制到本机。字段不在运行中自动切换进程或迁移数据，应停止原入口，再用对应入口启动。
+
+统一初始化入口支持 `pnpm server:init --runtime native --preview`（生成 `deploy/native.env`）和 `pnpm server:init --runtime docker https://你的域名 你的GitHub数字ID`（生成 `deploy/server.env`）。也可通过命令环境中的 `APP_RUNTIME` 选择；未指定时保留原 `server:init` 的 Docker 默认。已有环境文件不被覆盖；旧原生命令继续可用。systemd 实际读取 `/etc/newsroom/runtime.env`，Compose 显式读取 `deploy/server.env`；不要混用这些文件。
 
 `DATABASE_RUNTIME` 只接受 `docker` 或 `native`，未设置时默认 `docker`，旧配置可以继续使用。它决定启动与维护工具如何处理数据库；Web、Worker、认证和迁移始终连接 `DATABASE_URL`，不会按部署方式猜测或改写地址。
 

@@ -4,11 +4,12 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readiness } from '../src/server/health';
 import { diagnosticErrorCode } from './lib/database-safety';
-import { parseDatabaseRuntime } from '../src/server/config';
+import { parseAppRuntime, parseDatabaseRuntime } from '../src/server/config';
 
 const report: Record<string, unknown> = {
   checkedAt: new Date().toISOString(),
   mode: process.env.APP_MODE === 'live' ? 'live' : 'demo',
+  appRuntime: parseAppRuntime(process.env.APP_RUNTIME),
   databaseRuntime: parseDatabaseRuntime(process.env.DATABASE_RUNTIME),
   configured: Object.fromEntries(
     [

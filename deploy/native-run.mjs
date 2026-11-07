@@ -3,8 +3,14 @@ import { setTimeout } from 'node:timers/promises';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-if (process.env.DATABASE_RUNTIME !== 'native' || process.env.APP_MODE !== 'live') {
-  console.error('Native services require DATABASE_RUNTIME=native and APP_MODE=live.');
+if (
+  (process.env.APP_RUNTIME ?? 'native') !== 'native' ||
+  process.env.DATABASE_RUNTIME !== 'native' ||
+  process.env.APP_MODE !== 'live'
+) {
+  console.error(
+    'Native systemd services require APP_RUNTIME=native, DATABASE_RUNTIME=native and APP_MODE=live.',
+  );
   process.exit(1);
 }
 process.env.NODE_ENV = 'production';

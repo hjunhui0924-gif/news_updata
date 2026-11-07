@@ -28,6 +28,7 @@ try {
 const target = new URL('./server.env', import.meta.url);
 const contents = `# Private runtime configuration. Do not commit or share this file.
 APP_DOMAIN=${domain}
+APP_RUNTIME=docker
 DATABASE_RUNTIME=docker
 NATIVE_DATABASE_URL=postgresql://news:REPLACE_WITH_URL_ENCODED_PASSWORD@host.docker.internal:5432/news
 POSTGRES_PASSWORD=${randomBytes(32).toString('hex')}

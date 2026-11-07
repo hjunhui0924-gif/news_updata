@@ -8,6 +8,7 @@ export default defineConfig({
       'tests/database-safety.test.ts',
       'tests/deployment.unit.test.ts',
       'tests/native-deployment.unit.test.ts',
+      'tests/runtime-selection.unit.test.ts',
     ],
     testTimeout: 20000,
     fileParallelism: false,

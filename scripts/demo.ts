@@ -74,6 +74,10 @@ try {
   loadEnvFile('.env.local');
   if (process.argv.includes('--no-docker')) process.env.DATABASE_RUNTIME = 'native';
   const config = getConfig();
+  if (config.APP_RUNTIME !== 'native')
+    throw new Error(
+      'pnpm demo runs Web and Worker with local Node.js. Set APP_RUNTIME=native; DATABASE_RUNTIME may still be docker.',
+    );
   if (config.APP_MODE !== 'demo')
     throw new Error(
       'pnpm demo requires APP_MODE=demo. For live mode use pnpm dev and pnpm worker:dev.',

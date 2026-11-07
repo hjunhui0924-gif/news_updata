@@ -2,6 +2,8 @@
 
 适用于 Ubuntu 22.04 amd64、项目目录 `/home/admin/projects/news_updata`、外部端口 8003。不使用 Docker 或镜像；Node.js、PostgreSQL 和 systemd 都在服务器运行。本机可以关机。保留现有 8001 / 8002 及其他项目服务。
 
+服务器使用 `APP_RUNTIME=native` + `DATABASE_RUNTIME=native`。本机开发与测试仍保留 `APP_RUNTIME=native` + `DATABASE_RUNTIME=docker`，`docker compose up -d --wait db` 启动本机数据库后，使用原 `pnpm demo`、`pnpm test` 等入口；两套环境独立，部署服务器不要求本机 Docker 常驻。
+
 ## 当前上线范围
 
 先发布 `http://47.98.151.228:8003` 的空白访客工作台。`--preview` 生成 `APP_MODE=live`、原生空数据库、8003 监听和空 OAuth 配置，访客不读取任何账号数据；不会执行 Demo seed，不开启真实平台同步或付费 AI。`APP_URL` 暂时保持回环地址，仅用于满足现有生产配置约束；它不表示公网 HTTP 的 OAuth、会话或写操作已经受支持。根页面进入登录页，可点跳过，或直接访问 `/guest`。
@@ -64,7 +66,7 @@ sudo -u postgres psql -h /var/run/postgresql -p 5432 -Atc 'SHOW server_version;'
 ```bash
 cd ~/projects/news_updata
 export PATH="/opt/newsroom-node24/bin:$HOME/.local/newsroom-tools/node_modules/.bin:$PATH"
-node deploy/prepare-native-env.mjs --preview
+pnpm server:init --runtime native --preview
 pnpm install --frozen-lockfile
 APP_MODE=live APP_URL=http://127.0.0.1:8003 BETTER_AUTH_SECRET=build-only-placeholder-never-use-for-login ALLOWED_GITHUB_USER_IDS=0 pnpm build
 ```

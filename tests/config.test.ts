@@ -4,6 +4,7 @@ import {
   isLocalHost,
   localSkillsEnabled,
   parseDatabaseRuntime,
+  parseAppRuntime,
 } from '../src/server/config';
 
 describe('PostgreSQL deployment mode', () => {
@@ -21,6 +22,26 @@ describe('PostgreSQL deployment mode', () => {
     expect(config.DATABASE_RUNTIME).toBe(runtime);
     expect(config.DATABASE_URL).toBe(url);
     expect(localSkillsEnabled({ ...config, LOCAL_SKILLS_ENABLED: 'false' })).toBe(false);
+  });
+});
+
+describe('independent application and database runtimes', () => {
+  it('keeps existing local Node.js and Docker database defaults', () => {
+    expect(getConfig({})).toMatchObject({ APP_RUNTIME: 'native', DATABASE_RUNTIME: 'docker' });
+    expect(parseAppRuntime(undefined)).toBe('native');
+    for (const value of ['', 'auto', 'Native', 'systemd'])
+      expect(() => getConfig({ APP_RUNTIME: value })).toThrow();
+  });
+  it.each([
+    ['native', 'docker'],
+    ['native', 'native'],
+    ['docker', 'docker'],
+    ['docker', 'native'],
+  ])('allows app %s with database %s without changing the database address', (app, database) => {
+    const url = 'postgresql://news:fixture-only@127.0.0.1:55432/news_test';
+    expect(
+      getConfig({ APP_RUNTIME: app, DATABASE_RUNTIME: database, DATABASE_URL: url }),
+    ).toMatchObject({ APP_RUNTIME: app, DATABASE_RUNTIME: database, DATABASE_URL: url });
   });
 });
 

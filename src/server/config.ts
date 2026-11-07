@@ -1,6 +1,11 @@
 import { z } from 'zod';
 
 const databaseRuntimeSchema = z.enum(['docker', 'native']).default('docker');
+const appRuntimeSchema = z.enum(['docker', 'native']).default('native');
+
+export function parseAppRuntime(value: string | undefined) {
+  return appRuntimeSchema.parse(value);
+}
 
 export function parseDatabaseRuntime(value: string | undefined) {
   return databaseRuntimeSchema.parse(value);
@@ -9,6 +14,7 @@ export function parseDatabaseRuntime(value: string | undefined) {
 const schema = z.object({
   NODE_ENV: z.string().default('development'),
   APP_MODE: z.enum(['demo', 'live']).default('live'),
+  APP_RUNTIME: appRuntimeSchema,
   APP_URL: z.url().default('http://127.0.0.1:3000'),
   DATABASE_RUNTIME: databaseRuntimeSchema,
   DATABASE_URL: z.string().min(1).default('postgresql://news:news_local_only@127.0.0.1:54329/news'),

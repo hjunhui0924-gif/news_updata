@@ -34,6 +34,7 @@ it('generates a valid native guest preview without OAuth, sample content or prin
   expect(getConfig(env).DATABASE_RUNTIME).toBe('native');
   expect(env).toMatchObject({
     APP_MODE: 'live',
+    APP_RUNTIME: 'native',
     APP_HOSTNAME: '0.0.0.0',
     PORT: '8003',
     GITHUB_CLIENT_ID: '',
