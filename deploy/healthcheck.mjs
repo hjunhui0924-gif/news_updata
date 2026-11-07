@@ -2,7 +2,9 @@ import pg from 'pg';
 
 try {
   if (process.argv[2] === 'web') {
-    const response = await fetch('http://127.0.0.1:3000/api/health/ready', {
+    const port = Number(process.env.PORT || 3000);
+    if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Invalid port');
+    const response = await fetch(`http://127.0.0.1:${port}/api/health/ready`, {
       signal: AbortSignal.timeout(5000),
     });
     const data = await response.json();

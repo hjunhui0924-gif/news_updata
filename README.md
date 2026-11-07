@@ -90,7 +90,13 @@ DATABASE_URL=postgresql://news:news_local_only@127.0.0.1:54329/news
 # DATABASE_URL=postgresql://news:YOUR_URL_ENCODED_PASSWORD@127.0.0.1:5432/news
 ```
 
-### 阿里云服务器使用原生 PostgreSQL
+### 阿里云全原生部署（不使用 Docker）
+
+Web / Worker 使用独立安装的 Node.js 24 和 systemd，数据库使用宿主机 PostgreSQL 17。无需 Docker、镜像打包、Docker Hub 或本机常驻运行。支持首次安装、重复更新、迁移前备份、服务开机启动和健康检查；服务安装器保留现有运行配置。完整命令见 [全原生部署指南](docs/29-native-server-deployment.md)。
+
+当前 `47.98.151.228:8003` 可先部署空白访客工作台：使用 `node deploy/prepare-native-env.mjs --preview` 生成专用配置，再执行 `sudo bash deploy/install-native.sh admin /opt/newsroom-node24/bin/node`。该模式使用真实空库，不写入 Demo 数据，不开启 OAuth 或付费 AI。它保留现有 HTTPS 认证约束；后续配置域名 HTTPS 与 OAuth 后再启用真实账号。不要把 `APP_URL` 改为公网 HTTP 来绕过校验。
+
+### 可选：Docker 应用连接原生 PostgreSQL
 
 服务器可继续用 Docker 运行 Web / Worker，但 PostgreSQL 由 Ubuntu 宿主机上的 PostgreSQL 17 服务管理，不再启动 Compose 的 `db` 或 `backup` 容器。部署命令需额外传入 `compose.production.native-pg.yaml`：该覆盖将 `DATABASE_RUNTIME` 设为 `native`，将数据库连接指向 `host.docker.internal`，并把应用容器固定在 `172.29.250.0/24` 网段。PostgreSQL 只需监听 Docker 网桥网关，且 `pg_hba.conf` 只允许该应用网段；不要对公网开放 5432。
 
@@ -151,7 +157,7 @@ docker compose --env-file deploy/server.env \
 
 ```bash
 sudo install -d -o postgres -g postgres -m 0700 /var/backups/newsroom
-sudo install -o root -g root -m 0750 deploy/native-backup.sh /usr/local/sbin/newsroom-pg-backup
+sudo install -o root -g postgres -m 0750 deploy/native-backup.sh /usr/local/sbin/newsroom-pg-backup
 sudo install -o root -g root -m 0644 deploy/newsroom-pg-backup.service /etc/systemd/system/
 sudo install -o root -g root -m 0644 deploy/newsroom-pg-backup.timer /etc/systemd/system/
 sudo systemctl daemon-reload
