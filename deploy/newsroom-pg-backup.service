@@ -1,0 +1,16 @@
+[Unit]
+Description=Back up the Newsroom native PostgreSQL database
+After=postgresql.service
+Requires=postgresql.service
+
+[Service]
+Type=oneshot
+User=postgres
+Group=postgres
+Environment=BACKUP_RETENTION_DAYS=14
+ExecStart=/usr/local/sbin/newsroom-pg-backup
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/backups/newsroom

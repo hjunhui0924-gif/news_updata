@@ -90,9 +90,79 @@ DATABASE_URL=postgresql://news:news_local_only@127.0.0.1:54329/news
 # DATABASE_URL=postgresql://news:YOUR_URL_ENCODED_PASSWORD@127.0.0.1:5432/news
 ```
 
-服务器原生部署使用独立安装的 PostgreSQL 17、Node.js 24，以及分别管理 Web / Worker 的 systemd 服务；向两个服务注入相同的 `DATABASE_RUNTIME=native` 与 `DATABASE_URL`。生产 Compose 固定使用 `docker` 和容器内的 `db:5432`，仅修改环境文件不会自动将 Compose 改为原生部署。该字段不会安装数据库、启动 PostgreSQL 系统服务、复制数据或改变生产认证 / HTTPS 要求。
+### 阿里云服务器使用原生 PostgreSQL
 
-现有 `pnpm db:backup` / `pnpm db:drill` 专用于本机 Compose 数据库，`native` 模式会在调用 Docker 前拒绝执行并提示使用原生 `pg_dump` 与独立数据库恢复验证。生产 Compose 的定时备份服务仍按原配置运行；原生部署的定时备份需要另外配置。`pnpm diagnose` 会报告 `databaseRuntime`，不输出连接密码。
+服务器可继续用 Docker 运行 Web / Worker，但 PostgreSQL 由 Ubuntu 宿主机上的 PostgreSQL 17 服务管理，不再启动 Compose 的 `db` 或 `backup` 容器。部署命令需额外传入 `compose.production.native-pg.yaml`：该覆盖将 `DATABASE_RUNTIME` 设为 `native`，将数据库连接指向 `host.docker.internal`，并把应用容器固定在 `172.29.250.0/24` 网段。PostgreSQL 只需监听 Docker 网桥网关，且 `pg_hba.conf` 只允许该应用网段；不要对公网开放 5432。
+
+首次配置前，在服务器检查 `172.29.250.0/24` 没有被已有 Docker 网络占用：
+
+```bash
+docker network ls -q | xargs -r docker network inspect --format '{{range .IPAM.Config}}{{.Subnet}}{{end}} {{.Name}}'
+```
+
+如果有冲突，选一个未使用的私有 `/24` 网段，并在 `deploy/server.env` 增加 `APP_DOCKER_SUBNET=所选网段`；同一个网段要用于 PostgreSQL 的 `pg_hba.conf` 规则。确保服务器已安装并运行 PostgreSQL 17，然后在服务器上为应用建立独立角色和数据库：
+
+```bash
+sudo -u postgres createuser --login --no-superuser --no-createdb --no-createrole news
+sudo -u postgres psql -c '\password news'
+sudo -u postgres createdb --owner=news news
+```
+
+将 `deploy/server.env` 中的 `NATIVE_DATABASE_URL` 密码替换为上一步为 `news` 设置的 URL 编码密码（可用 `openssl rand -hex 32` 生成只含十六进制字符的密码）。检查 PostgreSQL 当前配置位置：
+
+```bash
+sudo -u postgres psql -Atc 'SHOW config_file; SHOW hba_file;'
+```
+
+在 `postgresql.conf` 的 `listen_addresses` 中加入 Docker 网桥网关地址（通常是 `172.17.0.1`，可用 `docker network inspect bridge` 核对），并在 `pg_hba.conf` 追加：
+
+```text
+host    news    news    172.29.250.0/24    scram-sha-256
+```
+
+然后重启 PostgreSQL，并在本机检查状态：
+
+```bash
+sudo systemctl restart postgresql
+sudo -u postgres psql -c 'SHOW listen_addresses;'
+sudo ss -lntp | grep ':5432'
+```
+
+更新应用镜像后，以三个 Compose 文件验证并启动服务：
+
+```bash
+docker compose --env-file deploy/server.env \
+  -f compose.production.yaml \
+  -f compose.ip-preview.yaml \
+  -f compose.production.native-pg.yaml config --quiet
+
+docker compose --env-file deploy/server.env \
+  -f compose.production.yaml \
+  -f compose.ip-preview.yaml \
+  -f compose.production.native-pg.yaml up -d --no-build --pull never --wait
+
+docker compose --env-file deploy/server.env \
+  -f compose.production.yaml \
+  -f compose.ip-preview.yaml \
+  -f compose.production.native-pg.yaml ps
+```
+
+首次运行会执行数据库迁移。`db` 和 `backup` 不应出现在运行容器列表中，`web`、`worker`、`migrate` 应显示健康或成功。安装并启动宿主机定时备份：
+
+```bash
+sudo install -d -o postgres -g postgres -m 0700 /var/backups/newsroom
+sudo install -o root -g root -m 0750 deploy/native-backup.sh /usr/local/sbin/newsroom-pg-backup
+sudo install -o root -g root -m 0644 deploy/newsroom-pg-backup.service /etc/systemd/system/
+sudo install -o root -g root -m 0644 deploy/newsroom-pg-backup.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now newsroom-pg-backup.timer
+sudo systemctl start newsroom-pg-backup.service
+sudo systemctl status newsroom-pg-backup.service --no-pager
+```
+
+备份保留 14 天并生成 SHA-256 校验文件；还应定期把备份复制到服务器之外，并在独立数据库演练恢复。切换数据库运行方式不会复制既有数据；若原 Docker 数据库已经写入内容，先备份、迁移并核对数据后再切换，不能删除旧 volume。
+
+现有 `pnpm db:backup` / `pnpm db:drill` 专用于本机 Compose 数据库，`native` 模式会在调用 Docker 前拒绝执行并提示使用原生 `pg_dump` 与独立数据库恢复验证。Docker 数据库模式继续使用 Compose 备份服务；原生 PostgreSQL 使用上述 systemd 定时备份。`pnpm diagnose` 会报告 `databaseRuntime`，不输出连接密码。
 
 ## 本机连接自己的账号
 

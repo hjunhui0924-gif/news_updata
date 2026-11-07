@@ -1,0 +1,29 @@
+x-native-database: &native-database
+  environment:
+    DATABASE_RUNTIME: native
+    DATABASE_URL: ${NATIVE_DATABASE_URL:?Set NATIVE_DATABASE_URL in deploy/server.env}
+  extra_hosts:
+    - host.docker.internal:host-gateway
+
+services:
+  db:
+    profiles: [native-postgres-disabled]
+
+  migrate:
+    <<: *native-database
+    depends_on: !reset []
+
+  web:
+    <<: *native-database
+
+  worker:
+    <<: *native-database
+
+  backup:
+    profiles: [native-postgres-disabled]
+
+networks:
+  edge:
+    ipam:
+      config:
+        - subnet: ${APP_DOCKER_SUBNET:-172.29.250.0/24}
