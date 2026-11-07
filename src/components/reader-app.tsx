@@ -1,5 +1,6 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import * as Dialog from '@radix-ui/react-dialog';
 import {
   Bell,
@@ -652,9 +653,9 @@ export function ReaderApp({
           </div>
           <div className="top-actions">
             {data.guest && (
-              <a className="button primary guest-header-login" href="/login">
+              <Link className="button primary guest-header-login" href="/login" prefetch={false}>
                 登录
-              </a>
+              </Link>
             )}
             {data.mode === 'demo' && (
               <span className="demo-badge">

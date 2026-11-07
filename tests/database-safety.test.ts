@@ -1,4 +1,5 @@
 import { expect, it, vi } from 'vitest';
+import { spawnSync } from 'node:child_process';
 import {
   assertDrillTarget,
   diagnosticErrorCode,
@@ -6,6 +7,28 @@ import {
   cleanupMaintenanceResources,
   assertE2eDatabase,
 } from '../scripts/lib/database-safety';
+
+it.each(['backup', 'drill'])('stops Docker-only %s before accessing a native database', (mode) => {
+  const result = spawnSync(
+    process.execPath,
+    ['--import', 'tsx', 'scripts/database-maintenance.ts', mode],
+    {
+      encoding: 'utf8',
+      windowsHide: true,
+      timeout: 10000,
+      env: {
+        ...process.env,
+        DATABASE_RUNTIME: 'native',
+        DATABASE_URL: 'postgresql://news:fixture-secret-only@127.0.0.1:1/native_fixture',
+      },
+    },
+  );
+  expect(result.error).toBeUndefined();
+  expect(result.status).toBe(1);
+  expect(result.stderr).toContain('DATABASE_RUNTIME=native');
+  expect(result.stderr).toContain('未调用 Docker 或修改数据库');
+  expect(result.stdout + result.stderr).not.toContain('fixture-secret-only');
+});
 
 it('limits maintenance to local databases with safe identifiers', () => {
   expect(localDatabaseTarget('postgresql://news:secret@127.0.0.1:54329/news').database).toBe(

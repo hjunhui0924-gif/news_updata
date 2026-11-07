@@ -56,7 +56,7 @@ process.once('SIGTERM', () => void stop());
 try {
   if (process.argv.includes('--help')) {
     console.log(
-      'pnpm demo [--no-docker]\nStarts local demo Web + Worker. Docker is used only for PostgreSQL.',
+      'pnpm demo [--no-docker]\nStarts local demo Web + Worker. Set DATABASE_RUNTIME=native for an existing PostgreSQL; --no-docker is a one-run override.',
     );
     process.exit(0);
   }
@@ -72,6 +72,7 @@ try {
     );
   }
   loadEnvFile('.env.local');
+  if (process.argv.includes('--no-docker')) process.env.DATABASE_RUNTIME = 'native';
   const config = getConfig();
   if (config.APP_MODE !== 'demo')
     throw new Error(
@@ -89,9 +90,13 @@ try {
     );
     server.listen(port, '127.0.0.1', () => server.close(() => resolve()));
   });
-  if (!process.argv.includes('--no-docker')) {
-    console.log('Starting PostgreSQL with Docker (use --no-docker for an existing database)...');
+  if (config.DATABASE_RUNTIME === 'docker') {
+    console.log(
+      'Starting PostgreSQL with Docker (set DATABASE_RUNTIME=native for an existing database)...',
+    );
     await run('docker', ['compose', 'up', '-d', '--wait', 'db']);
+  } else {
+    console.log('Using existing native PostgreSQL from DATABASE_URL; Docker will not be started.');
   }
   for (const script of ['scripts/migrate.ts', 'scripts/seed.ts']) {
     await run(process.execPath, ['--import', 'tsx', '--env-file=.env.local', script]);

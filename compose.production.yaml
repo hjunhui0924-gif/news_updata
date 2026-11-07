@@ -8,6 +8,7 @@ x-app: &app
     NODE_ENV: production
     APP_MODE: live
     APP_URL: https://${APP_DOMAIN:?Run server:init and configure deploy/server.env}
+    DATABASE_RUNTIME: docker
     DATABASE_URL: postgresql://news:${DATABASE_PASSWORD:?Application database password required}@db:5432/news
     BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Authentication secret required}
     ALLOWED_GITHUB_USER_IDS: ${ALLOWED_GITHUB_USER_IDS:?Invitation allowlist required}

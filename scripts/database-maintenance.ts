@@ -5,6 +5,7 @@ import { mkdir, stat, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Client } from 'pg';
+import { parseDatabaseRuntime } from '../src/server/config';
 import {
   assertDrillTarget,
   localDatabaseTarget,
@@ -84,6 +85,10 @@ async function snapshot(client: Client) {
 
 async function maintenance(mode: string) {
   if (!['backup', 'drill'].includes(mode)) throw new Error('用法：pnpm db:backup 或 pnpm db:drill');
+  if (parseDatabaseRuntime(process.env.DATABASE_RUNTIME) === 'native')
+    throw Object.assign(new Error('Native database requires native maintenance tools.'), {
+      code: 'NATIVE_DATABASE',
+    });
   const source = localDatabaseTarget(process.env.DATABASE_URL);
   const container = await docker(['compose', 'ps', '-q', 'db'], '查找数据库容器');
   if (!/^[a-f0-9]{12,64}$/.test(container)) throw new Error('未找到唯一运行中的数据库容器。');
@@ -246,6 +251,13 @@ async function maintenance(mode: string) {
 maintenance(process.argv[2] || '')
   .then((result) => console.log(JSON.stringify(result, null, 2)))
   .catch((error) => {
+    if (diagnosticErrorCode(error) === 'NATIVE_DATABASE') {
+      console.error(
+        'DATABASE_RUNTIME=native：db:backup / db:drill 仅支持本机 Compose 数据库。请使用原生 pg_dump 备份，并在独立数据库验证恢复；未调用 Docker 或修改数据库。',
+      );
+      process.exitCode = 1;
+      return;
+    }
     // Do not print driver messages/stack, URLs, account rows or external process stderr.
     console.error(
       `数据库维护未完成（${diagnosticErrorCode(error)}）。请检查 Docker、数据库权限与隔离库；未覆盖源库。`,

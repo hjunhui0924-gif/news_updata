@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import Link from 'next/link';
 import { Radio, ArrowRight, CodeXml as Github } from 'lucide-react';
 export function Login({ configured }: { configured: boolean }) {
   const [error, setError] = useState('');
@@ -48,9 +49,9 @@ export function Login({ configured }: { configured: boolean }) {
           <ArrowRight size={16} />
         </button>
         {!configured && <p className="helper">登录尚未配置。本地体验请按 README 启动演示模式。</p>}
-        <a className="login-skip" href="/guest">
+        <Link className="login-skip" href="/guest" prefetch={false}>
           先浏览空工作区
-        </a>
+        </Link>
         {error && (
           <p role="alert" aria-live="assertive">
             {error}

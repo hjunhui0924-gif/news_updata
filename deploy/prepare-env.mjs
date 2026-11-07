@@ -28,6 +28,7 @@ try {
 const target = new URL('./server.env', import.meta.url);
 const contents = `# Private runtime configuration. Do not commit or share this file.
 APP_DOMAIN=${domain}
+DATABASE_RUNTIME=docker
 POSTGRES_PASSWORD=${randomBytes(32).toString('hex')}
 DATABASE_PASSWORD=${randomBytes(32).toString('hex')}
 BETTER_AUTH_SECRET=${randomBytes(48).toString('hex')}

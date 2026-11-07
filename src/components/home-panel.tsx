@@ -1,4 +1,5 @@
 'use client';
+import { useRouter } from 'next/navigation';
 import {
   ArrowRight,
   Check,
@@ -23,6 +24,7 @@ export function HomePanel({
   onAdd: (method: 'repo' | 'channel') => void;
   help?: boolean;
 }) {
+  const router = useRouter();
   const sources = data.subscriptions.filter((source) => source.enabled);
   const active = data.jobs.filter((job) => ['pending', 'running'].includes(job.status)).length;
   const youtube = data.services.youtubeAuth;
@@ -38,7 +40,7 @@ export function HomePanel({
           : '已进入你的独立工作空间，无需填写平台密钥。',
       complete: data.mode === 'live' && !data.guest,
       action: data.guest ? '登录 GitHub' : '管理账号',
-      run: () => (data.guest ? (window.location.href = '/login') : navigate('connections')),
+      run: () => (data.guest ? router.push('/login') : navigate('connections')),
     },
     {
       title: '添加关注来源',
@@ -93,7 +95,7 @@ export function HomePanel({
           <div className="home-actions">
             <Button
               variant="primary"
-              onClick={() => (data.guest ? (window.location.href = '/login') : navigate('feed'))}
+              onClick={() => (data.guest ? router.push('/login') : navigate('feed'))}
             >
               {data.guest ? '使用 GitHub 登录' : '进入信息流'}
               <ArrowRight size={17} />
@@ -169,9 +171,9 @@ export function HomePanel({
                     ? '演示模式'
                     : data.guest
                       ? '登录后连接'
-                    : data.services.github
-                      ? '已连接'
-                      : '需要重新连接'}
+                      : data.services.github
+                        ? '已连接'
+                        : '需要重新连接'}
                 </span>
               </h3>
               <p>项目版本、开发者动态与自己的 Star。选择导入，保留个人阅读进度。</p>
@@ -180,10 +182,10 @@ export function HomePanel({
               size="small"
               onClick={() =>
                 data.guest
-                  ? (window.location.href = '/login')
+                  ? router.push('/login')
                   : data.mode === 'live' && !data.services.github
-                  ? navigate('connections')
-                  : onAdd('repo')
+                    ? navigate('connections')
+                    : onAdd('repo')
               }
             >
               {data.guest
@@ -206,20 +208,18 @@ export function HomePanel({
                     ? '演示模式'
                     : data.guest
                       ? '登录后连接'
-                    : youtubeConnected
-                      ? '已连接'
-                      : !youtube?.configured
-                        ? '等待站点配置'
-                        : '尚未连接'}
+                      : youtubeConnected
+                        ? '已连接'
+                        : !youtube?.configured
+                          ? '等待站点配置'
+                          : '尚未连接'}
                 </span>
               </h3>
               <p>连接自己的账号，读取关注频道并导入。视频简介可按需对照翻译。</p>
             </div>
             <Button
               size="small"
-              onClick={() =>
-                data.guest ? (window.location.href = '/login') : onAdd('channel')
-              }
+              onClick={() => (data.guest ? router.push('/login') : onAdd('channel'))}
             >
               {data.guest ? '登录后连接' : youtubeConnected ? '导入频道' : '连接 YouTube'}
               <ArrowRight size={15} />

@@ -74,7 +74,25 @@ pnpm demo
 
 Ctrl+C 停止本次启动的应用进程，数据库保留。再次运行 `pnpm demo` 可继续使用；已有 `.env.local` 不会被覆盖。如果该文件已经设为 `APP_MODE=live`，请使用下一节的真实账号流程。
 
-已有 PostgreSQL 17 时，复制 `.env.example` 为 `.env.local`，填写自己的 `DATABASE_URL`、保持 `APP_MODE=demo`，执行 `pnpm demo --no-docker`。本地 `compose.yaml` 只负责数据库；整套服务器部署使用独立的 `compose.production.yaml`。
+已有 PostgreSQL 17 时，复制 `.env.example` 为 `.env.local`，设置 `DATABASE_RUNTIME=native` 并填写专用 Demo 数据库的 `DATABASE_URL`，保持 `APP_MODE=demo`，执行 `pnpm demo` 即会跳过 Docker。原 `pnpm demo --no-docker` 仍作为单次覆盖保留；此命令会写入演示内容，不能指向真实用户数据库。本地 `compose.yaml` 只负责数据库；整套服务器部署使用独立的 `compose.production.yaml`。
+
+### PostgreSQL 部署方式
+
+`DATABASE_RUNTIME` 只接受 `docker` 或 `native`，未设置时默认 `docker`，旧配置可以继续使用。它决定启动与维护工具如何处理数据库；Web、Worker、认证和迁移始终连接 `DATABASE_URL`，不会按部署方式猜测或改写地址。
+
+```dotenv
+# 本地 Docker Compose 数据库
+DATABASE_RUNTIME=docker
+DATABASE_URL=postgresql://news:news_local_only@127.0.0.1:54329/news
+
+# 原生 PostgreSQL：使用时替换上面两行，密码需做 URL 编码
+# DATABASE_RUNTIME=native
+# DATABASE_URL=postgresql://news:YOUR_URL_ENCODED_PASSWORD@127.0.0.1:5432/news
+```
+
+服务器原生部署使用独立安装的 PostgreSQL 17、Node.js 24，以及分别管理 Web / Worker 的 systemd 服务；向两个服务注入相同的 `DATABASE_RUNTIME=native` 与 `DATABASE_URL`。生产 Compose 固定使用 `docker` 和容器内的 `db:5432`，仅修改环境文件不会自动将 Compose 改为原生部署。该字段不会安装数据库、启动 PostgreSQL 系统服务、复制数据或改变生产认证 / HTTPS 要求。
+
+现有 `pnpm db:backup` / `pnpm db:drill` 专用于本机 Compose 数据库，`native` 模式会在调用 Docker 前拒绝执行并提示使用原生 `pg_dump` 与独立数据库恢复验证。生产 Compose 的定时备份服务仍按原配置运行；原生部署的定时备份需要另外配置。`pnpm diagnose` 会报告 `databaseRuntime`，不输出连接密码。
 
 ## 本机连接自己的账号
 

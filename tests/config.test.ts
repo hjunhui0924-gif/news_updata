@@ -1,5 +1,28 @@
 import { describe, expect, it } from 'vitest';
-import { getConfig, isLocalHost, localSkillsEnabled } from '../src/server/config';
+import {
+  getConfig,
+  isLocalHost,
+  localSkillsEnabled,
+  parseDatabaseRuntime,
+} from '../src/server/config';
+
+describe('PostgreSQL deployment mode', () => {
+  it('defaults existing installations to Docker and rejects unsupported modes', () => {
+    expect(getConfig({}).DATABASE_RUNTIME).toBe('docker');
+    expect(parseDatabaseRuntime(undefined)).toBe('docker');
+    for (const value of ['', 'auto', 'postgres', 'Native']) {
+      expect(() => getConfig({ DATABASE_RUNTIME: value })).toThrow();
+      expect(() => parseDatabaseRuntime(value)).toThrow();
+    }
+  });
+  it.each(['docker', 'native'])('uses DATABASE_URL unchanged in %s mode', (runtime) => {
+    const url = 'postgresql://news:fixture-only@127.0.0.1:55432/news_native';
+    const config = getConfig({ DATABASE_RUNTIME: runtime, DATABASE_URL: url });
+    expect(config.DATABASE_RUNTIME).toBe(runtime);
+    expect(config.DATABASE_URL).toBe(url);
+    expect(localSkillsEnabled({ ...config, LOCAL_SKILLS_ENABLED: 'false' })).toBe(false);
+  });
+});
 
 describe('local demo boundary', () => {
   it('never bypasses authentication in production', () => {
@@ -53,7 +76,7 @@ describe('public invitation deployment', () => {
     expect(localSkillsEnabled(getConfig({ APP_MODE: 'demo' }))).toBe(true);
     expect(localSkillsEnabled(getConfig({ LOCAL_SKILLS_ENABLED: 'false' }))).toBe(false);
   });
-  it('rejects shared credentials, local file opt-in, malformed admission and URL paths', () => {
+  it.each(['docker', 'native'])('keeps public deployment restrictions in %s mode', (runtime) => {
     for (const change of [
       { GITHUB_READ_TOKEN: 'shared-test-token' },
       { LOCAL_SKILLS_ENABLED: 'true' },
@@ -64,6 +87,6 @@ describe('public invitation deployment', () => {
       { GITHUB_CLIENT_SECRET: '' },
       { DATABASE_URL: 'postgresql://news:news_local_only@db/news' },
     ])
-      expect(() => getConfig({ ...production, ...change })).toThrow();
+      expect(() => getConfig({ ...production, DATABASE_RUNTIME: runtime, ...change })).toThrow();
   });
 });

@@ -1,9 +1,16 @@
 import { z } from 'zod';
 
+const databaseRuntimeSchema = z.enum(['docker', 'native']).default('docker');
+
+export function parseDatabaseRuntime(value: string | undefined) {
+  return databaseRuntimeSchema.parse(value);
+}
+
 const schema = z.object({
   NODE_ENV: z.string().default('development'),
   APP_MODE: z.enum(['demo', 'live']).default('live'),
   APP_URL: z.url().default('http://127.0.0.1:3000'),
+  DATABASE_RUNTIME: databaseRuntimeSchema,
   DATABASE_URL: z.string().min(1).default('postgresql://news:news_local_only@127.0.0.1:54329/news'),
   BETTER_AUTH_SECRET: z.string().default(''),
   GITHUB_CLIENT_ID: z.string().default(''),

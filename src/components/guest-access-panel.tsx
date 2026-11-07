@@ -1,4 +1,5 @@
 import { ArrowRight, LockKeyhole } from 'lucide-react';
+import Link from 'next/link';
 
 export function GuestAccessPanel({ title, description }: { title: string; description: string }) {
   return (
@@ -10,10 +11,10 @@ export function GuestAccessPanel({ title, description }: { title: string; descri
         <span className="eyebrow">LOGIN TO CONTINUE</span>
         <h1 id="guest-access-title">{title}</h1>
         <p>{description}</p>
-        <a className="button primary" href="/login">
+        <Link className="button primary" href="/login" prefetch={false}>
           使用 GitHub 登录
           <ArrowRight size={16} />
-        </a>
+        </Link>
       </div>
     </section>
   );
