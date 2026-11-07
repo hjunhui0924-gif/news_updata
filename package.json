@@ -10,6 +10,7 @@
     "dev": "next dev --hostname 127.0.0.1",
     "worker:dev": "tsx watch --env-file=.env.local src/worker/main.ts",
     "build": "next build && node scripts/clean-standalone-env.mjs && tsup src/worker/main.ts --format esm --platform node --out-dir dist/worker --external pg-native && tsup scripts/migrate-production.ts --format esm --platform node --out-dir dist/migrate --external pg-native && node scripts/check-worker-bundle.mjs",
+    "build:low-memory": "node scripts/build-low-memory.mjs",
     "server:init": "node deploy/prepare-runtime-env.mjs",
     "screenshots": "tsx scripts/capture-readme.ts",
     "test:e2e:server": "playwright test --config playwright.server.config.ts",

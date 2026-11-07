@@ -75,6 +75,28 @@ APP_MODE=live APP_URL=http://127.0.0.1:8003 BETTER_AUTH_SECRET=build-only-placeh
 
 ## 5. 安装系统服务并启动
 
+### 小内存服务器的构建方式
+
+对于当前 2 核、1.6 GiB 内存且同时运行其他项目的服务器，不再直接执行第 4 节无资源限制的 `pnpm build`。已有 2 GiB swap 时无需再创建。首次 `pnpm install --frozen-lockfile` 和配置生成完成后，改用：
+
+```bash
+sudo bash deploy/build-native-limited.sh admin /opt/newsroom-node24/bin/node
+```
+
+脚本需要 cgroup v2，并启动独立的 `newsroom-build-时间戳` systemd 服务；SSH 断开不会终止它。构建使用 Webpack、单个页面生成 worker 和每个 Node 进程 768 MiB 的 JS heap 上限（512 MiB 在本机验证中不足以完成 TypeScript 检查）。整个构建进程组上限为 900 MiB 物理内存、512 MiB swap、相当于单核 80% 的 CPU 和 30 分钟启动时限。它用文件锁拒绝并行执行此构建入口，普通 `pnpm build` 不受该锁保护，因此不能同时运行。不会停止其他项目；本项目 Web / Worker 已运行时会拒绝构建，更新时先备份并停止它们。
+
+根据脚本打印的**实际服务名**查看日志和结果：
+
+```bash
+sudo journalctl -fu newsroom-build-实际时间戳
+# Ctrl+C 只退出看日志，不会终止构建
+sudo systemctl show newsroom-build-实际时间戳 -p ActiveState -p SubState -p Result -p ExecMainStatus
+```
+
+**只有 `SubState=exited`、`Result=success`、`ExecMainStatus=0` 时才能继续运行下方安装器。** 资源不够时构建仍可能失败；不能用半成品启动服务，也不要未经分析提高限制再次构建。此方案降低宿主机失去响应的风险，不保证当前服务器一定能完成编译。若受限构建失败，优先在资源更充足的兼容 Linux 环境构建，或增加服务器资源；运行时仍保持原生 Node/PostgreSQL，无需 Docker。正式更新时同样用此受限入口替代普通构建，并等待结果。
+
+2026-11-08 验证记录：512 MiB JS heap 在本机 TypeScript 阶段失败，调整为 768 MiB 后低内存构建命令退出 0，保留类型检查并完成 Web / Worker / 迁移打包；Windows 上仍有本机 Skill 路径文件追踪警告，不能作为 Linux 发布产物验收。35 项相关配置测试、类型检查和 lint 通过。WSL systemd 对相同资源限制运行轻量测试服务成功，不代表已在服务器上完成受限全量构建。远程构建以实际服务退出状态为准。
+
 ```bash
 sudo bash deploy/install-native.sh admin /opt/newsroom-node24/bin/node
 ```

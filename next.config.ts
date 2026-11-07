@@ -5,6 +5,9 @@ const config: NextConfig = {
     ? process.env.E2E_ISOLATED_BUILD === 'server-trial' ? '.next-trial-e2e' : '.next-e2e'
     : '.next',
   output: 'standalone',
+  ...(process.env.NEWSROOM_LOW_MEMORY_BUILD === '1'
+    ? { experimental: { cpus: 1, webpackMemoryOptimizations: true } }
+    : {}),
   // Environment files must be supplied at runtime and must not be copied into
   // the standalone artifact (a local .env may contain unrelated credentials).
   outputFileTracingExcludes: {
